@@ -134,6 +134,8 @@ npm run dev
 
 若出現 `CERTIFICATE_VERIFY_FAILED`，應修復 Windows／Google Cloud CLI 的 CA 信任。不得以停用 TLS 驗證、忽略憑證或使用不安全參數繞過。
 
+新建 Python `.venv` 安裝套件時，精靈會要求 pip 使用 Windows 系統憑證信任；不會加入 `trusted-host` 或停用 HTTPS 驗證。
+
 ### Billing disabled or unavailable
 
 dry-run 仍可完成，但正式部署會停止。只有在理解帳務影響並明確授權後，才可將選定 project 連結到帳單帳戶。
