@@ -196,7 +196,10 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
 if (-not (Test-PythonImports -PythonPath $venvPython)) {
     Write-Host '正在安裝 Identity API Python 相依套件…' -ForegroundColor Cyan
     & $venvPython -m pip install --disable-pip-version-check --use-feature=truststore `
-        -e (Join-Path $repoRoot 'backend')
+        'setuptools>=75' 'wheel'
+    if ($LASTEXITCODE -ne 0) { throw 'Python build dependencies could not be installed.' }
+    & $venvPython -m pip install --disable-pip-version-check --use-feature=truststore `
+        --no-build-isolation -e (Join-Path $repoRoot 'backend')
     if ($LASTEXITCODE -ne 0 -or -not (Test-PythonImports -PythonPath $venvPython)) {
         throw 'Identity API Python dependencies could not be installed.'
     }

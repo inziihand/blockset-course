@@ -68,6 +68,8 @@ test('local launcher prepares Python and supervises Identity plus Vite without f
   assert.match(startLocalSource, /Scripts\\python\.exe/);
   assert.match(startLocalSource, /pip install/);
   assert.match(startLocalSource, /--use-feature=truststore/);
+  assert.match(startLocalSource, /setuptools>=75/);
+  assert.match(startLocalSource, /--no-build-isolation/);
   assert.match(startLocalSource, /stratexec\.api\.main:app/);
   assert.match(startLocalSource, /api\/identity\/v1\/apps/);
   assert.match(startLocalSource, /node_modules\\vite\\bin\\vite\.js/);
