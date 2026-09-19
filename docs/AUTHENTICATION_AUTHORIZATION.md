@@ -4,10 +4,12 @@
 
 ## 設定方式
 
-1. 一般使用者執行 `scripts/install.ps1`；精靈會呼叫 `scripts/configure-local-auth.ps1`，從既有 Firebase Web App 產生根目錄 `.env.local`，或在 Y/N 明確確認後設定 Firebase Google Provider／Web App。手動複製 `.env.example` 與直接執行 `bootstrap-installation.ps1` 只保留給開發及進階操作。
+1. 一般使用者執行 `scripts/install.ps1`；精靈會呼叫 `scripts/configure-local-auth.ps1`，從既有 Firebase Web App 產生根目錄 `.env.local`，或在 Y/N 明確確認後設定 Firebase Google Provider／Web App。接著準備 ADC、Firestore／App 清冊與 Python Identity API，並自動啟動本地前後端。手動複製 `.env.example` 與直接執行 `bootstrap-installation.ps1` 只保留給開發及進階操作。
 2. `.env.example` 只含通用 placeholder；母版不內建任何客戶 project ID、Web App ID 或管理員信箱。
 3. 公開母版只提供 `infrastructure/environments/installation.example.json`；每個客戶複製為被 Git 忽略的 `*.local.json` 或 repository 外的私人 overlay，再填入自己的 GCP/Firebase project。
 4. 在 Firebase Console 明確檢查 Google Provider、support email 與正式網域，再重新啟動 Vite。
+
+安裝完成後可用 `.\scripts\start-local.ps1` 重啟本地 Identity API 與 Console，使用 `.\scripts\stop-local.ps1` 停止。Cloud Run／Hosting 正式部署是日後獨立的 `.\scripts\deploy.ps1` 流程，不在第一次本地安裝中詢問或執行。
 
 Firebase Web App 設定會進入瀏覽器 bundle。它負責識別 Firebase 專案，不是管理員憑證；資料安全仍須依靠後端 ID Token 驗證、Firebase Security Rules 與需要時的 App Check。
 

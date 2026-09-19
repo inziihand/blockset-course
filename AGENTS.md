@@ -30,7 +30,7 @@
 - 不要求使用者貼出 API Secret、憑證密碼或私鑰；使用主機秘密設定與只讀憑證掛載。
 - 發布、登入券商、模擬交易與正式交易依當次授權執行，勿把規劃文件當成交易指令。
 - 部署前先讀 Service fragments 產生的 `services.json > deployment` 與目標 installation 的 `servicePlacements`；不要直接手改 `services.json`。`recommendedTarget`／`planned` 不等於已部署，`productionReadiness=blocked` 不得建立 production route、公開 ingress 或標記 `deployed`。
-- 預設安裝操作者可能是透過 AI Agent 的新手。依 `docs/DEPLOYMENT_TARGET_POLICY.md` 完成唯讀 preflight、最少必要詢問、可重入建立、部署及端到端驗收；可由 CLI／API 安全完成的工作不要推回使用者手動操作。帳務、OAuth consent、公開 ingress 與 IAM 放寬仍須在動作前取得明確確認。
+- 預設安裝操作者可能是新手且沒有 AI Agent。`install.ps1`／`deploy.ps1` 必須依 `docs/DEPLOYMENT_TARGET_POLICY.md` 完成唯讀 preflight、最少必要詢問、可重入建立、部署及端到端驗收；可由 CLI／API 安全完成的工作不要推回使用者手動操作。AI 只作可選協助；帳務、OAuth consent、公開 ingress 與 IAM 放寬仍須在動作前取得明確確認。
 - `STRATEXEC_BOOTSTRAP_ADMIN_EMAILS` 必須由安裝當次輸入並設定到 Identity API 的 server-only runtime；禁止寫入 installation manifest、Git 或前端。只有產生本機 `.env.local` 不算完成管理員部署，未驗證首位管理員角色不得宣稱一鍵安裝成功。
 - 新增程式需跑相應測試；純文件修改檢查連結、內容一致性與差異即可。
 - 前端命令從根目錄執行：`npm ci`、`npm test`、`npm run build`；`npm run dev` 為本機 5175 埠。建置成功不等於券商或交易驗收通過。

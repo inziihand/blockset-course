@@ -464,6 +464,66 @@ function Test-GcloudResource {
     return $exitCode -eq 0
 }
 
+function Test-ApplicationDefaultCredentials {
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & gcloud auth application-default print-access-token 1>$null 2>$null
+    $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousPreference
+    return $exitCode -eq 0
+}
+
+function Test-CompatiblePython {
+    $candidates = @(
+        @{ Executable = 'py'; Prefix = @('-3.11') },
+        @{ Executable = 'python'; Prefix = @() },
+        @{ Executable = 'python3'; Prefix = @() }
+    )
+    foreach ($candidate in $candidates) {
+        if (-not (Get-Command $candidate.Executable -ErrorAction SilentlyContinue)) { continue }
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $candidate.Executable @($candidate.Prefix) '-c' `
+            'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 1>$null 2>$null
+        $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $previousPreference
+        if ($exitCode -eq 0) { return $true }
+    }
+    return $false
+}
+
+function Test-LocalFirestoreReady {
+    param(
+        [Parameter(Mandatory = $true)][string] $ProjectId,
+        [Parameter(Mandatory = $true)] $Installation
+    )
+
+    if (-not (Test-GcloudResource @(
+        'firestore', 'databases', 'describe', '--database=(default)',
+        '--project', $ProjectId, '--format=value(name)'
+    ))) { return $false }
+
+    $accessToken = Invoke-ExternalValue 'gcloud' @('auth', 'print-access-token')
+    if (-not $accessToken) { return $false }
+    $headers = @{
+        Authorization = "Bearer $accessToken"
+        'x-goog-user-project' = $ProjectId
+    }
+    $requiredDocuments = @('platformMeta/schema')
+    foreach ($appKey in @($Installation.enabledApps)) {
+        $requiredDocuments += "appInstallations/$appKey"
+        $requiredDocuments += "appPolicies/$appKey"
+    }
+    foreach ($documentPath in $requiredDocuments) {
+        try {
+            $uri = "https://firestore.googleapis.com/v1/projects/$ProjectId/databases/(default)/documents/$documentPath"
+            Invoke-RestMethod -Method Get -Uri $uri -Headers $headers | Out-Null
+        }
+        catch { return $false }
+    }
+    return $true
+}
+
 function Get-RequestedAdmins {
     $requested = @($BootstrapAdminEmails)
     if ($env:STRATEXEC_BOOTSTRAP_ADMIN_EMAILS) {
@@ -587,15 +647,14 @@ try {
         Write-Host "Driver:       $($entry.serviceKey) -> $($entry.deploymentDriver) / $($entry.driverApplySupport)"
     }
     Write-Host "Missing APIs: $(if ($missingApis.Count) { $missingApis -join ', ' } else { 'none' })"
-    Write-Host "Mode:         $(if ($Apply) { 'APPLY' } elseif ($FinalizeAdmin) { 'FINALIZE ADMIN' } else { 'DRY RUN' })"
+    Write-Host "Mode:         $(if ($Apply) { 'APPLY' } elseif ($FinalizeAdmin) { 'FINALIZE ADMIN' } else { 'LOCAL INSTALL' })"
     Write-Host 'Bootstrap administrator addresses are not printed or stored in the installation manifest.'
 
     if (-not $Apply -and -not $FinalizeAdmin) {
         Write-Host ''
-        Write-Host 'Dry run complete. No cloud resources were changed.'
+        Write-Host '唯讀 preflight 完成；此階段尚未修改雲端資源。'
         Write-Host 'The local installation config remains available for reuse.'
 
-        $localAuthCloudChanged = $false
         $localAuthScript = Join-Path $PSScriptRoot 'configure-local-auth.ps1'
         $localAuthResult = & $localAuthScript -ConfigPath ([string] $resolvedConfig)
         if ($localAuthResult.Status -eq 'firebase-cli-access-required') {
@@ -613,25 +672,72 @@ try {
         if ($localAuthResult.Status -eq 'ready') {
             Write-Host "本機 Google 登入設定已就緒：$($localAuthResult.OutputPath)" -ForegroundColor Green
             if ($localAuthResult.CloudChanged) {
-                $localAuthCloudChanged = $true
                 Write-Host '已依授權更新 Firebase Authentication／Web App；尚未部署 StratExec runtime。' -ForegroundColor Yellow
             }
         }
         else {
-            Write-Host '已略過本機 Google 登入設定；離線 Demo 仍可使用。' -ForegroundColor Yellow
-        }
-
-        if (-not (Read-YesNo '要繼續正式部署至以上 Google Cloud project 嗎？' $false)) {
-            if ($localAuthCloudChanged) {
-                Write-Host '已停止完整部署；只有先前確認的 Firebase Authentication／Web App 設定已變更。'
-            }
-            else {
-                Write-Host '已停在 dry-run；沒有修改任何雲端資源。'
-            }
+            Write-Host '本機安裝尚未完成；重新執行 install.ps1 可從此步繼續。' -ForegroundColor Yellow
             exit 0
         }
-        $Apply = $true
-        Write-Host '已選擇正式部署；執行任何計費或公開服務變更前仍會逐項確認。' -ForegroundColor Yellow
+
+        if (-not (Test-ApplicationDefaultCredentials)) {
+            if (-not (Read-YesNo '完整本地模式需要 Application Default Credentials。現在開啟 Google 授權嗎？')) {
+                Write-Host '本機安裝尚未完成；未建立或啟動 Identity API。' -ForegroundColor Yellow
+                exit 0
+            }
+            Invoke-External 'gcloud' @('auth', 'application-default', 'login')
+            if (-not (Test-ApplicationDefaultCredentials)) {
+                throw 'Application Default Credentials authorization did not complete.'
+            }
+        }
+
+        if (-not (Test-CompatiblePython)) {
+            if (-not (Get-Command 'winget' -ErrorAction SilentlyContinue)) {
+                throw 'Python 3.11 or newer is required, and winget is unavailable for guided installation.'
+            }
+            if (-not (Read-YesNo '完整本地模式需要 Python 3.11。現在使用 winget 安裝嗎？')) {
+                Write-Host '本機安裝尚未完成；未建立或啟動 Identity API。' -ForegroundColor Yellow
+                exit 0
+            }
+            Invoke-External 'winget' @(
+                'install', '--id', 'Python.Python.3.11', '--exact',
+                '--accept-package-agreements', '--accept-source-agreements'
+            )
+            if (-not (Test-CompatiblePython)) {
+                throw 'Python 3.11 was installed but is not yet available to this PowerShell session. Open a new PowerShell window and re-run scripts/install.ps1.'
+            }
+        }
+
+        $localAdmins = Get-RequestedAdmins
+        if ($localAdmins.Count -eq 0) {
+            if (-not (Read-YesNo '使用目前 gcloud Google 帳號作為本機首位管理員嗎？')) {
+                Write-Host '本機安裝尚未完成；未初始化管理員與 App 清冊。' -ForegroundColor Yellow
+                exit 0
+            }
+            $localAdmins = @($activeAccount.Trim().ToLowerInvariant())
+        }
+
+        if (-not (Test-LocalFirestoreReady -ProjectId $projectId -Installation $installation)) {
+            Write-Host '本機測試尚缺 Firestore、Rules 或 App 清冊。' -ForegroundColor Yellow
+            if (-not (Read-YesNo '要初始化完整本地測試所需的 Firebase／Firestore 資料嗎？')) {
+                Write-Host '本機安裝尚未完成；未啟動依賴 Firestore 的 Identity API。' -ForegroundColor Yellow
+                exit 0
+            }
+            & (Join-Path $PSScriptRoot 'bootstrap-installation.ps1') -ConfigPath $resolvedConfig `
+                -Apply -BootstrapAdminEmails $localAdmins
+            if ($LASTEXITCODE -ne 0) { throw 'Local Firebase/Firestore initialization failed.' }
+            if (-not (Test-LocalFirestoreReady -ProjectId $projectId -Installation $installation)) {
+                throw 'Firebase/Firestore initialization completed, but required App catalog documents are still unavailable.'
+            }
+        }
+
+        & (Join-Path $PSScriptRoot 'start-local.ps1') -ConfigPath ([string] $resolvedConfig) `
+            -BootstrapAdminEmail $localAdmins[0]
+        if ($LASTEXITCODE -ne 0) { throw 'Local StratExec runtime failed to start.' }
+        Write-Host ''
+        Write-Host '本地安裝與測試環境已就緒；本次流程不會進入正式部署。' -ForegroundColor Green
+        Write-Host '日後準備正式部署時，請執行：.\scripts\deploy.ps1'
+        exit 0
     }
 
     $notDeployable = @($deploymentPlan.plan | Where-Object { -not $_.deployable })

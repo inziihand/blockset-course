@@ -6,11 +6,11 @@
 
 | 目的 | 需要 Google Cloud | 可能產生費用 | 結果 |
 | --- | --- | --- | --- |
-| 查看離線 Demo | 否 | 否 | 只啟動本機前端；Google 登入停用 |
-| 執行安裝 dry-run | 是 | 否 | 建立被 Git 忽略的本機 installation 設定並唯讀盤點 |
-| 正式雲端安裝 | 是 | 是 | 啟用 API、建置及部署 Cloud Run／Firebase 等資源 |
+| 完整本地安裝（預設） | 是 | Firebase／Firestore 依實際用量 | 本機前端與 Identity API，使用真實 Firebase 登入及資料 |
+| 查看離線 Demo（進階） | 否 | 否 | 只啟動本機前端；Google 登入停用 |
+| 日後正式部署 | 是 | 是 | 另行部署 Cloud Run／Firebase Hosting 等資源 |
 
-dry-run 不修改雲端。正式安裝只有在使用者另外確認可能計費資源與公開入口後才會開始寫入。
+安裝器會先做唯讀 preflight；只有在使用者對必要的 Firebase Auth／Firestore 初始化問題回答 Yes 後，才建立完整本地測試所需的 managed service 設定。Cloud Run／Hosting 正式部署不在第一次安裝中執行。
 
 ## 基本需求
 
@@ -59,11 +59,18 @@ gcloud --version
 - 正式雲端安裝需要 Billing；安裝器不會在未授權時自行連結帳單帳戶。
 - 建議每個客戶及每個正式／測試環境使用不同 project。
 
+### 6. Python
+
+完整本地模式需要 Python 3.11 以上來執行 Identity API。可先自行安裝；若 Windows 找不到相容版本且 `winget` 可用，安裝精靈會用 Y/N 詢問是否安裝 Python 3.11。
+
+```powershell
+python --version
+```
+
 ## 不必事前安裝
 
 - Firebase CLI：由 repository 的 npm 相依套件提供，不必全域安裝。
 - Docker Desktop：基本安裝使用 Cloud Build，不依賴本機 Docker。
-- Python：查看前端、執行安裝精靈及正式雲端安裝不需要；只有本機開發 Python backend 時需要。
 - Java：基本安裝不需要；只有執行 Firestore Emulator 規則測試時需要 JDK 21。
 - 服務帳號 JSON key：不得建立或下載；安裝流程使用目前帳號與 keyless runtime identity。
 
@@ -82,11 +89,20 @@ Set-Location .\stratexec-platform
 3. 自動推導顯示名稱、安裝代號、region 與 support email。
 4. 視需要用 Y/N 執行 `npm ci`。
 5. 建立被 Git 忽略的 `*.local.json`。
-6. 執行唯讀 dry-run。
+6. 執行唯讀 preflight。
 7. 已有 Firebase Auth／Web App 時自動產生 `.env.local`；缺少時以 Y/N 詢問是否設定。
-8. 詢問要停止完整部署，或繼續建立 StratExec 雲端 runtime。
+8. 檢查或引導 Application Default Credentials。
+9. 檢查 Python、建立 `.venv` 並安裝 Identity API。
+10. 視需要以 Y/N 初始化 Firestore、Rules 與 App 清冊。
+11. 啟動並驗證 Identity API 與 Console，顯示本地網址後結束。
 
-若選擇正式部署，首位管理員預設為目前的 gcloud Google 帳號；可能計費資源與公開入口會分開詢問，且兩項都預設為 No。
+第一次安裝不詢問正式部署。完成本地測試後，日後另行執行：
+
+```powershell
+.\scripts\deploy.ps1
+```
+
+部署入口才會確認可能計費資源與公開入口，兩項都預設為 No。
 
 ## 只啟動離線 Demo
 

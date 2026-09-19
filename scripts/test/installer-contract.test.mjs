@@ -3,18 +3,21 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const source = await readFile(new URL('../install.ps1', import.meta.url), 'utf8');
+const deploySource = await readFile(new URL('../deploy.ps1', import.meta.url), 'utf8');
+const startLocalSource = await readFile(new URL('../start-local.ps1', import.meta.url), 'utf8');
+const stopLocalSource = await readFile(new URL('../stop-local.ps1', import.meta.url), 'utf8');
 const bootstrapSource = await readFile(new URL('../bootstrap-installation.ps1', import.meta.url), 'utf8');
 const localAuthSource = await readFile(new URL('../configure-local-auth.ps1', import.meta.url), 'utf8');
 const planSource = await readFile(new URL('../plan-deployment.mjs', import.meta.url), 'utf8');
 const inventorySource = await readFile(new URL('../inspect-deployment-inventory.mjs', import.meta.url), 'utf8');
 const hostingSource = await readFile(new URL('../render-hosting-config.mjs', import.meta.url), 'utf8');
 
-test('installer defaults to a non-mutating dry run', () => {
+test('installer completes read-only preflight before any optional local cloud setup', () => {
   const dryRunExit = source.indexOf("if (-not $Apply -and -not $FinalizeAdmin)");
   const firstMutation = source.indexOf("'services', 'enable'");
   assert.ok(dryRunExit > 0);
   assert.ok(firstMutation > dryRunExit);
-  assert.match(source, /Dry run complete\. No cloud resources were changed\./);
+  assert.match(source, /唯讀 preflight 完成；此階段尚未修改雲端資源/);
   assert.match(source, /The local installation config remains available for reuse\./);
   assert.doesNotMatch(source, /No cloud or local files were changed/);
 });
@@ -45,16 +48,44 @@ test('interactive wizard discovers gcloud defaults and asks for confirmation', (
   assert.doesNotMatch(source, /請自訂要變更的值/);
 });
 
-test('guided installer uses choices for dependencies, deployment gates, and initial admin', () => {
+test('guided installer uses choices for dependencies and a complete local runtime', () => {
   assert.equal(source.match(/Read-Host/g)?.length, 2);
   assert.match(source, /function Read-MenuSelection/);
   assert.match(source, /function Read-YesNo/);
   assert.match(source, /現在執行 npm ci 嗎/);
-  assert.match(source, /要繼續正式部署至以上 Google Cloud project 嗎/);
-  assert.match(source, /使用目前 gcloud Google 帳號作為首位管理員嗎/);
+  assert.match(source, /application-default', 'login/);
+  assert.match(source, /Python 3\.11/);
+  assert.match(source, /初始化完整本地測試所需的 Firebase／Firestore 資料嗎/);
+  assert.match(source, /使用目前 gcloud Google 帳號作為本機首位管理員嗎/);
+  assert.match(source, /start-local\.ps1/);
+  assert.match(source, /本次流程不會進入正式部署/);
+  assert.doesNotMatch(source, /要繼續正式部署至以上 Google Cloud project 嗎/);
+  assert.match(source, /-PrepareOnly does not run discovery/);
+});
+
+test('local launcher prepares Python and supervises Identity plus Vite without free-form input', () => {
+  assert.doesNotMatch(startLocalSource, /Read-Host/);
+  assert.match(startLocalSource, /Scripts\\python\.exe/);
+  assert.match(startLocalSource, /pip install/);
+  assert.match(startLocalSource, /stratexec\.api\.main:app/);
+  assert.match(startLocalSource, /api\/identity\/v1\/apps/);
+  assert.match(startLocalSource, /node_modules\\vite\\bin\\vite\.js/);
+  assert.match(startLocalSource, /WindowStyle Hidden/);
+  assert.match(startLocalSource, /processes\.json/);
+  assert.match(stopLocalSource, /Refusing to stop PID/);
+  assert.match(stopLocalSource, /CommandLine/);
+});
+
+test('formal deployment is a separate later entrypoint', () => {
+  assert.match(deploySource, /install\.ps1/);
+  assert.match(deploySource, /Local installation has not completed/);
+  assert.match(deploySource, /locally installed and tested config/);
+  assert.match(deploySource, /localSettings\.bootstrapAdminEmail/);
+  assert.match(deploySource, /\.Apply = \$true/);
+  assert.match(deploySource, /FinalizeAdmin/);
+  assert.match(source, /日後準備正式部署時，請執行：\.\\scripts\\deploy\.ps1/);
   assert.match(source, /建立可能產生費用的 Cloud Run 等資源/);
   assert.match(source, /建立可由瀏覽器存取、但仍需 App 驗證的公開入口/);
-  assert.match(source, /-PrepareOnly does not run discovery/);
 });
 
 test('guided dry run prepares local Google sign-in without free-form input', () => {

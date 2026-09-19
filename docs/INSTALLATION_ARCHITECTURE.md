@@ -4,9 +4,9 @@
 
 ## 安裝體驗目標
 
-本母版預設由 AI Agent 協助不熟悉 Firebase／GCP 的使用者完成安裝。預設精靈只要求使用者操作編號選單或 Y/N：目標 project 從 gcloud 可存取清單選取；顯示名稱、安裝代號、region、support email 與首位管理員由 project metadata／目前 Google 帳號推導。名稱、project ID、email、路徑、`.env.local` 與覆寫確認字串都不應要求一般使用者手動輸入。資源盤點、可重入建立、服務選型、容器建置、runtime 設定、部署與驗收應由 AI Agent 依 [部署目標決策規格](DEPLOYMENT_TARGET_POLICY.md) 執行；帳務與公開服務等高影響動作仍以預設為 No 的獨立 Y/N 在動作前確認。
+本母版的安裝流程不得依賴 AI Agent。預設精靈只要求使用者操作編號選單或 Y/N：目標 project 從 gcloud 可存取清單選取；顯示名稱、安裝代號、region、support email 與首位管理員由 project metadata／目前 Google 帳號推導。名稱、project ID、email、路徑、`.env.local` 與覆寫確認字串都不應要求一般使用者手動輸入。AI Agent 可以協助診斷，但不是安裝或部署的必要元件；帳務與公開服務等高影響動作仍以預設為 No 的獨立 Y/N 在動作前確認。
 
-「一鍵安裝」是端到端結果契約，不是單純執行某支腳本。只有 Hosting、Firebase Auth、Firestore、Identity／Market Data API、管理員角色及 App route 全部驗收完成，才可回報成功。`install.ps1` 已涵蓋批次 1～5；底層 `bootstrap-installation.ps1` 仍只負責 Firebase／Firestore 基礎。程式與 dry-run 已完成，不表示任何客戶環境已實際部署。
+「本地安裝完成」與「正式部署完成」是兩個結果契約。本地安裝只有在 Firebase Auth、Firestore、Identity API、管理員 bootstrap 設定及本機 Console 健康檢查通過後才能回報成功；正式部署則另須完成 Hosting、Cloud runtime、管理員角色、App route 與部署後驗收。`install.ps1` 負責前者，`deploy.ps1` 負責後者；程式存在或 dry-run 成功不表示任何客戶環境已正式部署。
 
 ## 固定原則
 
@@ -36,7 +36,7 @@ customer-a project             customer-b project
 
 `infrastructure/apps/<app-key>.json` 描述 App 的安裝依賴；公開母版只追蹤 `infrastructure/environments/installation.example.json`。使用者將它複製成被 Git 忽略的 `*.local.json`，或保存於 repository 外的私人 deployment overlay。installation 只描述非機密且可審查的客戶值：project ID、region、Firebase Web App 名稱、登入提供者、啟用 App 與 planned service placement。安裝器先納入 `platform` manifest，再解析 `enabledApps` 所需的服務聯集。它不保存使用者、管理員名單、OAuth secret、服務帳號 key、券商憑證或部署 revision。`planned` 不等於已部署。
 
-建立新客戶（AI Agent 預設使用單一入口）：
+建立新客戶（一般使用者入口）：
 
 1. 在 GCP 建立客戶專屬 project，確認資料位置與帳務。
 2. 執行互動式安裝入口；一般模式會讀取目前 gcloud 帳號、列出可存取的 projects 並預選現行 project。使用者只需以編號選擇目標並用 Y/N 確認摘要；顯示名稱取自 project 名稱，安裝代號取自 project ID，region 使用 `asia-east1`，support email 使用目前 gcloud Google 帳號。確認後，精靈自動建立被 Git 忽略的 `<installation>.local.json`，再執行唯讀 dry-run：
@@ -45,22 +45,22 @@ customer-a project             customer-b project
    .\scripts\install.ps1
    ```
 
-   再次執行時可沿用精靈偵測到的單一完整 local overlay；有多份時以編號選擇，仍含公開範例值或 `unassigned` placement 的副本會被略過。衝突覆寫不要求鍵入確認字串。唯讀 dry-run 後，安裝器會讀取 Firebase／Google Provider／Web App 狀態；已就緒時直接合併產生 `.env.local`，缺少時則以預設為 No 的 Y/N 詢問是否使用官方 Firebase Auth 部署設定。這只準備本機 Google 登入，不代表 Identity runtime 已部署。之後可選擇結束或繼續正式部署；若繼續，首位管理員預設使用目前 gcloud Google 帳號，計費資源與公開 ingress 仍分別確認。自動化或進階操作者可明確傳入 `-ConfigPath`、`-BootstrapAdminEmails` 與確認 switches；`-PrepareOnly` 不執行 discovery，必須搭配既有私人 `-ConfigPath`。正式維運也可把私人 overlay 放在 repository 外。
+   再次執行時可沿用精靈偵測到的單一完整 local overlay；有多份時以編號選擇，仍含公開範例值或 `unassigned` placement 的副本會被略過。衝突覆寫不要求鍵入確認字串。唯讀 preflight 後，安裝器會讀取 Firebase／Google Provider／Web App 狀態，準備 ADC、Python `.venv`、Firestore／Rules／App 清冊，然後啟動並驗證本機 Identity API 與 Console。必要的 managed service 初始化均在動作前以 Y/N 確認。第一次安裝到此結束，不詢問 Cloud Run／Hosting 正式部署。自動化或進階操作者可明確傳入 `-ConfigPath`；`-PrepareOnly` 不執行 discovery，必須搭配既有私人 `-ConfigPath`。正式維運也可把私人 overlay 放在 repository 外。
 
-3. 一般互動流程會在同一次執行中詢問是否從 dry-run 進入正式部署，並以 Y/N 分別取得 billing 資源及公開 ingress 的當次授權。以下參數形式保留給自動化或進階操作者：
+3. 完成本地測試後，日後另行執行部署入口。它會沿用私人 overlay，並以 Y/N 分別取得 billing 資源及公開 ingress 的當次授權：
 
    ```powershell
-   $env:STRATEXEC_BOOTSTRAP_ADMIN_EMAILS = "admin@example.com"
-   .\scripts\install.ps1 -ConfigPath .\infrastructure\environments\<customer>.local.json `
-     -Apply -ConfirmBillableResources -ConfirmPublicIngress
+   .\scripts\deploy.ps1
    ```
 
-4. 若 Google Provider／OAuth consent 需要帳號本人處理，AI Agent 在此停下並提供最少操作；完成後從同一步重跑。
+   部署入口沿用本地安裝已選定的 project、私人 overlay 與首位管理員；一般使用者不必再次輸入路徑或 email。計費資源及公開 ingress 仍會各自以預設為 No 的 Y/N 詢問。自動化或進階操作才需要使用 `-ConfigPath`、`-BootstrapAdminEmails`、`-ConfirmBillableResources` 與 `-ConfirmPublicIngress` 參數。
+
+4. 若 Google Provider／OAuth consent 需要帳號本人處理，腳本在此停下並顯示最少必要操作；完成後從同一步重跑。
 5. 安裝器依部署計畫逐一呼叫 target executor，為每個 Cloud Run Service 建立自己的 runtime service account，不提交服務帳號 key；Service 的 IAM、環境相依、短期 secret 與未授權驗證皆由 fragment 宣告。Market Data 的 fragment 依賴 Identity，因此會在 Identity 後部署並注入其 URL；V1 固定 `maxInstances=1`，以每 UID 60 次／分鐘與 15 秒有界記憶體快取控制 Demo 流量。
 6. 首位管理員以已驗證的 Google 帳號登入；Console 自動呼叫 Identity session。再執行：
 
    ```powershell
-   .\scripts\install.ps1 -ConfigPath .\infrastructure\environments\<customer>.local.json -FinalizeAdmin
+   .\scripts\deploy.ps1 -FinalizeAdmin
    ```
 
    安裝器會由伺服器端查驗 `members/{uid}.role=admin`，移除 Cloud Run bootstrap secret、停用 Secret Manager version、重新發布 Hosting 使 `pinTag` 指向不含 bootstrap secret 的新 revision、清空本機 bootstrap 值，並保存不含秘密的 digest／revision evidence。既有 Firestore 管理員角色保持不變。

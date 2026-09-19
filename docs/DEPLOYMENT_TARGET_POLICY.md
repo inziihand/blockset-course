@@ -2,20 +2,20 @@
 
 本文件供開發者與 AI 在移植至不同客戶／GCP project 時選擇部署目標。它定義建議與限制，不代表已建立雲端資源。公開母版只追蹤 installation example；實際選擇寫在被 Git 忽略的 `*.local.json` 或 repository 外的私人 installation overlay。真正發布完成還必須另有 revision、image digest 與線上驗收紀錄。
 
-## 預設安裝對象：由 AI Agent 協助的一鍵安裝
+## 預設安裝對象：不依賴 AI 的分階段精靈
 
-母版預設使用者可能不熟悉 Firebase、GCP、Docker、IAM 或命令列。正式安裝入口必須設計成「使用者說明要安裝到哪個客戶／project，AI Agent 完成其餘可自動化工作」，不得把本文件當成要求使用者自行拼湊指令的操作手冊。
+母版預設使用者可能不熟悉 Firebase、GCP、Docker、IAM 或命令列，也可能沒有 AI Agent。`install.ps1` 與 `deploy.ps1` 必須自行完成可安全自動化的工作，不得要求使用者拼湊指令；AI Agent 只作可選的診斷與協作工具。
 
-一鍵安裝的契約如下：
+分階段安裝／部署的契約如下：
 
-1. AI Agent 先執行唯讀 preflight，確認 CLI 登入身分、project、billing、API、region、Firebase、Docker／Cloud Build 與既有資源，不因資源已存在就重複建立。
-2. AI Agent 從 installation manifest 取得非機密設定；缺少管理員信箱、正式網域或部署授權時，只詢問完成安裝所需的最少資料。
-3. `STRATEXEC_BOOTSTRAP_ADMIN_EMAILS` 由使用者在安裝當次提供，禁止寫進 `.env.example`、installation manifest、Git、前端 `VITE_*` 或命令輸出。AI Agent 必須把它設定到 Identity API 的 server-only runtime；只寫入本機 `.env.local` 不算完成正式部署。
-4. AI Agent 依 Service fragments 產生的 `services.json > deployment` 選擇與建置服務，處理必要 API、Artifact Registry、service account、IAM、Hosting rewrite、Firestore Rules／indexes 與 runtime environment；不得跳過 readiness blocker。
+1. 腳本先執行唯讀 preflight，確認 CLI 登入身分、project、billing、API、region、Firebase、Docker／Cloud Build 與既有資源，不因資源已存在就重複建立。
+2. 腳本從 installation manifest 取得非機密設定；缺少管理員信箱、正式網域或部署授權時，只詢問完成安裝所需的最少資料。
+3. `STRATEXEC_BOOTSTRAP_ADMIN_EMAILS` 由使用者在安裝當次選定，禁止寫進 `.env.example`、installation manifest、Git、前端 `VITE_*` 或命令輸出。腳本必須把它設定到 Identity API 的 server-only runtime；只寫入本機 `.env.local` 不算完成正式部署。
+4. 部署腳本依 Service fragments 產生的 `services.json > deployment` 選擇與建置服務，處理必要 API、Artifact Registry、service account、IAM、Hosting rewrite、Firestore Rules／indexes 與 runtime environment；不得跳過 readiness blocker。
 5. 帳務連結／啟用、OAuth consent、公開 ingress、IAM 放寬及其他有費用或安全影響的動作，仍須在動作前取得使用者明確確認；「一鍵」不表示 AI 可代替使用者授權。
-6. 中斷於人工確認後，AI Agent 應保存不含秘密的進度並從該步繼續，不要求使用者重做已通過項目。
-7. 安裝完成必須自動驗證 Hosting、API health、Firebase Google 登入、Identity session、首位管理員 Firestore 角色、授權拒絕、App route 與部署 revision，產生 evidence 後才可標記 `deployed`。
-8. 若任何服務為 `blocked`、管理員尚未建立或驗收失敗，AI Agent 必須回報「部分完成／未部署」，不可宣稱一鍵安裝成功。
+6. 中斷於人工確認後，腳本應保存不含秘密的進度並從該步繼續，不要求使用者重做已通過項目。
+7. 部署完成必須自動驗證 Hosting、API health、Firebase Google 登入、Identity session、首位管理員 Firestore 角色、授權拒絕、App route 與部署 revision，產生 evidence 後才可標記 `deployed`。
+8. 若任何服務為 `blocked`、管理員尚未建立或驗收失敗，腳本必須回報「部分完成／未部署」，不可宣稱部署成功。
 
 目標使用者指令可以只有：
 
@@ -24,7 +24,7 @@
 以 user@example.com 作為首位管理員。
 ```
 
-AI Agent 應自行讀取本規格及 installation manifest，先列出即將產生費用或改變安全邊界的項目，再在取得必要確認後完成安裝與驗收。
+部署腳本應自行讀取本規格及 installation manifest，先列出即將產生費用或改變安全邊界的項目，再在取得必要確認後完成部署與驗收。
 
 ## 四種狀態不得混用
 
@@ -61,7 +61,7 @@ AI Agent 應自行讀取本規格及 installation manifest，先列出即將產�
 8. Secret 只保存 resource reference；不得進 image、Git、瀏覽器 bundle、安裝描述或 command output。
 9. 雲端發布、帳務啟用、IAM 放寬及公開 ingress 必須取得當次明確授權；程式完成或 build 成功不等於允許發布。
 10. 建置 OCI image 時必須使用 `deployment.artifact.context` 作 build context、`dockerfile` 作 Dockerfile；不得自行改用 repo 根目錄擴大輸入範圍。
-11. 不得把「請使用者到 Console 手動完成所有設定」當作預設流程；若官方 API／CLI 可安全完成，應由 AI Agent 執行並驗證。只有無法代理或需要本人同意的步驟才交還使用者。
+11. 不得把「請使用者到 Console 手動完成所有設定」當作預設流程；若官方 API／CLI 可安全完成，應由腳本執行並驗證。只有無法代理或需要本人同意的步驟才交還使用者。
 
 ## Backend-aware App
 
@@ -83,23 +83,21 @@ npm run check:installations
 npm run plan:deployment -- infrastructure/environments/customer.local.json
 ```
 
-只有 `selectedTarget` 非 `unassigned`、`productionReadiness=ready`、帳務／IAM／API 已驗證，且取得發布授權後，才能執行部署命令。`scripts/install.ps1` 已整合批次 1～5，Deployment Agent 另提供 Cloud Run 與 VM Docker executor；IAM、環境相依、secret reference 與驗收由 Service fragment／App deployment manifest 宣告，不再由安裝器辨識特定服務名稱。公開母版本身不代表任何客戶環境已 apply 或已建立雲端資源。
+只有 `selectedTarget` 非 `unassigned`、`productionReadiness=ready`、帳務／IAM／API 已驗證，且取得發布授權後，才能執行部署命令。`scripts/deploy.ps1` 是正式部署入口，Deployment Agent 另提供 Cloud Run 與 VM Docker executor；IAM、環境相依、secret reference 與驗收由 Service fragment／App deployment manifest 宣告，不再由安裝器辨識特定服務名稱。公開母版本身不代表任何客戶環境已 apply 或已建立雲端資源。
 
 App 與 target 的解析分成三層：`infrastructure/apps/*.json` 決定啟用 App 需要哪些服務，平台／App-local Service fragments 定義服務相依與可部署能力並產生 `services.json`，environment placement 選擇客戶目標。`scripts/deployment/drivers/` 執行 target-specific 驗證並提供 executor；Cloud Run Service 與 VM Docker 皆有通用 executor。VM Docker 另要求已 bootstrap 的 mTLS VM Agent、簽章 desired state、帳戶狀態／SQLite／備份／磁碟 preflight 及 immutable rollback；首次 VM／IAM 寫入仍需業主明確確認。見 [VM Agent 規格](VM_AGENT.md)。
 
 批次 1～5 操作介面：
 
 ```powershell
-# 唯讀，不修改本機或雲端
-.\scripts\install.ps1 -ConfigPath .\infrastructure\environments\customer.local.json
+# 第一次只完成本地安裝與測試，不部署 Cloud Run／Hosting
+.\scripts\install.ps1
 
-# 帳務與公開 ingress 均已在動作前取得明確確認後才能使用
-$env:STRATEXEC_BOOTSTRAP_ADMIN_EMAILS = "admin@example.com"
-.\scripts\install.ps1 -ConfigPath .\infrastructure\environments\customer.local.json `
-  -Apply -ConfirmBillableResources -ConfirmPublicIngress
+# 沿用本地安裝設定；以 Y/N 分別確認帳務資源與公開 ingress
+.\scripts\deploy.ps1
 
 # 管理員完成 Google 登入後，驗證 Firestore 並移除 bootstrap runtime secret
-.\scripts\install.ps1 -ConfigPath .\infrastructure\environments\customer.local.json -FinalizeAdmin
+.\scripts\deploy.ps1 -FinalizeAdmin
 
 # 部署後可重跑唯讀驗收
 .\scripts\verify-installation.ps1 -ConfigPath .\infrastructure\environments\customer.local.json
