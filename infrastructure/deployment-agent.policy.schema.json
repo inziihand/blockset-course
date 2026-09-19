@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stratexec.local/schemas/deployment-agent.policy.schema.json",
+  "title": "StratExec Deployment Agent safety policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "credentialMode",
+    "allowServiceAccountKeys",
+    "deployerServiceAccountTemplate",
+    "allowedTargets",
+    "allowedOperations",
+    "allowedIamRoles",
+    "allowedRuntimeIamRoles",
+    "secretManager",
+    "cloudRun",
+    "vmDocker",
+    "limits"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "credentialMode": { "const": "attached-service-account-or-workload-identity" },
+    "allowServiceAccountKeys": { "const": false },
+    "deployerServiceAccountTemplate": {
+      "type": "string",
+      "const": "stratexec-deployer-{installationKey}"
+    },
+    "allowedTargets": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["cloud-run-service", "firebase-hosting", "vm-docker"] }
+    },
+    "allowedOperations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["inspect", "plan", "approve", "apply", "verify", "promote", "rollback", "reconcile", "cancel", "activate"] }
+    },
+    "allowedIamRoles": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^roles/[A-Za-z0-9.]+$" }
+    },
+    "allowedRuntimeIamRoles": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["roles/artifactregistry.reader", "roles/datastore.user", "roles/firebaseauth.admin", "roles/logging.logWriter", "roles/monitoring.metricWriter", "roles/secretmanager.secretAccessor"] }
+    },
+    "secretManager": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["driver", "requireAppScopedLabels", "allowedOperations"],
+      "properties": {
+        "driver": { "const": "gcp-secret-manager" },
+        "requireAppScopedLabels": { "const": true },
+        "allowedOperations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["metadata", "create-version", "reference", "disable-version", "rollback-reference", "delete-secret"] }
+        }
+      }
+    },
+    "cloudRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactRepository", "buildSourceBucketTemplate", "hostingSiteTemplate", "builderServiceAccountRoles", "requireImmutableImageDigest", "requireStagedVerification"],
+      "properties": {
+        "artifactRepository": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+        "buildSourceBucketTemplate": { "const": "{projectId}_cloudbuild" },
+        "hostingSiteTemplate": { "const": "{projectId}" },
+        "builderServiceAccountRoles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["roles/artifactregistry.writer", "roles/logging.logWriter", "roles/serviceusage.serviceUsageConsumer", "roles/storage.objectViewer"] }
+        },
+        "requireImmutableImageDigest": { "const": true },
+        "requireStagedVerification": { "const": true }
+      }
+    },
+    "vmDocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agentPort", "requireIap", "requireOsLogin", "allowSshKeys", "requireMtls", "desiredStateSignature", "agentServiceAccountRoles", "requireImmutableImageDigest", "requireHostLocalAccountLock", "requireVerifiedBackup", "tradingActivationFromDeployment"],
+      "properties": {
+        "agentPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "requireIap": { "const": true },
+        "requireOsLogin": { "const": true },
+        "allowSshKeys": { "const": false },
+        "requireMtls": { "const": true },
+        "desiredStateSignature": { "const": "Ed25519" },
+        "agentServiceAccountRoles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["roles/artifactregistry.reader", "roles/logging.logWriter", "roles/monitoring.metricWriter", "roles/secretmanager.secretAccessor"] }
+        },
+        "requireImmutableImageDigest": { "const": true },
+        "requireHostLocalAccountLock": { "const": true },
+        "requireVerifiedBackup": { "const": true },
+        "tradingActivationFromDeployment": { "const": false }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestBytes", "maxSecretBytes", "maxBuildSourceBytes", "operationTimeoutSeconds", "leaseSeconds", "approvalTtlSeconds", "maxJobs", "maxEventsPerJob"],
+      "properties": {
+        "requestBytes": { "type": "integer", "minimum": 1024, "maximum": 1048576 },
+        "maxSecretBytes": { "type": "integer", "minimum": 1, "maximum": 65536 },
+        "maxBuildSourceBytes": { "type": "integer", "minimum": 1048576, "maximum": 268435456 },
+        "operationTimeoutSeconds": { "type": "integer", "minimum": 30, "maximum": 3600 },
+        "leaseSeconds": { "type": "integer", "minimum": 15, "maximum": 300 },
+        "approvalTtlSeconds": { "type": "integer", "minimum": 60, "maximum": 3600 },
+        "maxJobs": { "type": "integer", "minimum": 10, "maximum": 10000 },
+        "maxEventsPerJob": { "type": "integer", "minimum": 10, "maximum": 1000 }
+      }
+    }
+  }
+}

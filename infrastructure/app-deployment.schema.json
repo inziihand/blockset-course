@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stratexec.local/schemas/app-deployment.schema.json",
+  "title": "StratExec App deployment contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "appKey", "appVersion", "services", "dataMigrations", "sourceRollback"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "appKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "appVersion": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$" },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["serviceKey", "allowedTargets", "routes", "healthPath", "readinessPath", "configuration", "secrets", "migration", "rollback"],
+        "properties": {
+          "serviceKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "allowedTargets": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "enum": ["firebase-hosting", "firebase-functions-v2", "cloud-run-service", "cloud-run-job", "cloud-run-worker-pool", "vm-docker"] }
+          },
+          "routes": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^/api/" } },
+          "healthPath": { "type": "string", "pattern": "^/" },
+          "readinessPath": { "type": "string", "pattern": "^/" },
+          "configuration": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "source", "purpose"],
+              "properties": {
+                "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+                "source": { "enum": ["project-id", "service-url", "operator-input"] },
+                "serviceKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+                "purpose": { "type": "string", "minLength": 1 },
+                "input": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["label", "type", "required", "impact"],
+                  "properties": {
+                    "label": { "type": "string", "minLength": 1 },
+                    "type": { "enum": ["string", "integer", "boolean", "select"] },
+                    "required": { "type": "boolean" },
+                    "impact": { "enum": ["normal", "high"] },
+                    "description": { "type": "string", "minLength": 1 },
+                    "default": {},
+                    "minimum": { "type": "integer" },
+                    "maximum": { "type": "integer" },
+                    "minLength": { "type": "integer", "minimum": 0 },
+                    "maxLength": { "type": "integer", "minimum": 1 },
+                    "pattern": { "type": "string" },
+                    "options": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["value", "label"],
+                        "properties": {
+                          "value": { "type": "string" },
+                          "label": { "type": "string", "minLength": 1 }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "allOf": [{
+                "if": { "properties": { "source": { "const": "operator-input" } } },
+                "then": { "required": ["input"] },
+                "else": { "not": { "required": ["input"] } }
+              }]
+            }
+          },
+          "secrets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["environment", "secretName", "temporary", "purpose"],
+              "properties": {
+                "environment": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+                "secretName": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+                "temporary": { "type": "boolean" },
+                "purpose": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "migration": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["strategy", "reversible", "backupRequired", "maintenanceWindow"],
+            "properties": {
+              "strategy": { "enum": ["none", "platform-driver"] },
+              "reversible": { "type": "boolean" },
+              "backupRequired": { "type": "boolean" },
+              "maintenanceWindow": { "enum": ["not-required", "recommended", "required"] }
+            }
+          },
+          "rollback": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["strategy", "data"],
+            "properties": {
+              "strategy": { "enum": ["none", "target-revision", "platform-driver"] },
+              "data": { "enum": ["not-required", "manual", "unsupported"] }
+            }
+          }
+        }
+      }
+    },
+    "dataMigrations": {
+      "type": "array",
+      "maxItems": 0,
+      "description": "Batch 4 accepts no executable data migrations. A later platform driver contract will add declarative migrations."
+    },
+    "sourceRollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy"],
+      "properties": { "strategy": { "const": "transaction-backup" } }
+    }
+  }
+}

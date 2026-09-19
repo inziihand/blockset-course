@@ -1,0 +1,47 @@
+{
+  "name": "stratexec-platform",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/console",
+    "services/*",
+    "tools/*"
+  ],
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace=@stratexec/console",
+    "dev:app-packages": "npm run dev --workspace=@stratexec/app-package-agent",
+    "dev:deployments": "npm run dev --workspace=@stratexec/deployment-agent",
+    "build": "npm run check:public-source && npm run check:config && npm run check:apps && npm run check:installations && npm run check:services && npm run check:installer && npm run build --workspaces --if-present",
+    "preview": "npm run preview --workspace=@stratexec/console",
+    "test": "npm run check:public-source && npm run check:config && npm run check:apps && npm run check:installations && npm run check:services && npm run check:installer && npm run test --workspaces --if-present",
+    "test:firestore-rules": "firebase emulators:exec --only firestore --project demo-stratexec-platform \"node --test tests/firestore-rules.test.mjs\"",
+    "test:backend": ".venv\\Scripts\\python -m pytest -q backend/tests",
+    "check:backend": ".venv\\Scripts\\ruff check backend && .venv\\Scripts\\python backend/tools/export_identity_openapi.py --check",
+    "contracts:identity": ".venv\\Scripts\\python backend/tools/export_identity_openapi.py",
+    "check:config": "node scripts/check-env-example.mjs",
+    "check:public-source": "node scripts/check-public-source.mjs",
+    "apps:registry": "node scripts/generate-app-registry.mjs",
+    "check:apps": "node scripts/generate-app-registry.mjs --check && node scripts/check-app-manifests.mjs",
+    "check:installations": "node scripts/check-installation-config.mjs",
+    "services:merge": "node scripts/merge-service-registry.mjs",
+    "check:services": "node scripts/merge-service-registry.mjs --check && node scripts/check-service-registry.mjs",
+    "app:pack": "node scripts/package-app.mjs",
+    "app:verify": "node scripts/verify-app-package.mjs",
+    "app:install": "node scripts/install-app-package.mjs",
+    "inventory:deployment": "node scripts/inspect-deployment-inventory.mjs",
+    "app:validate": "node scripts/validate-installed-app.mjs",
+    "check:installer": "node --test scripts/test/*.test.mjs",
+    "plan:deployment": "node scripts/plan-deployment.mjs",
+    "check:boundaries": "npm run check:boundaries --workspace=@stratexec/console",
+    "dev:test": "npm run dev:test --workspace=@stratexec/console",
+    "test:e2e": "npm run test:e2e --workspace=@stratexec/console"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "archiver": "7.0.1",
+    "firebase-tools": "^15.30.2"
+  }
+}

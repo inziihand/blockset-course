@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "appKey": "access-control",
+  "version": "0.1.0",
+  "platformCompatibility": {
+    "minimumVersion": "0.1.0",
+    "appContractVersion": 2
+  },
+  "kind": "frontend-app",
+  "displayName": "會員與權限",
+  "source": "apps/console/src/apps/access-control",
+  "routes": ["/apps/access-control"],
+  "requiredServices": ["identity-api"],
+  "access": {
+    "defaultMode": "admins_only",
+    "allowedModes": ["admins_only"],
+    "adminAllowed": true,
+    "protected": true
+  },
+  "lifecycle": {
+    "category": "core",
+    "removable": false,
+    "defaultStatus": "installed"
+  },
+  "package": { "installable": false, "ownerApp": "platform" },
+  "deploymentDocument": "apps/console/src/apps/access-control/DEPLOYMENT.md",
+  "frontend": {
+    "entryModule": "AccessControlApp.tsx",
+    "title": "會員與權限",
+    "subtitle": "會員狀態、App 權限與安裝管理",
+    "description": "由平台管理員管理會員，以及各 App 對一般會員的開放方式。",
+    "icon": "ShieldCheck",
+    "status": "preview",
+    "displayMode": "responsive",
+    "order": 40
+  }
+}

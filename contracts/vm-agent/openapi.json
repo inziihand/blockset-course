@@ -1,0 +1,72 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "StratExec VM Agent API",
+    "version": "1.0.0",
+    "description": "Private mTLS API for signed declarative Worker deployment. It never authorizes trading or accepts shell commands."
+  },
+  "servers": [{ "url": "https://vm-agent.internal:8443" }],
+  "security": [{ "mutualTls": [] }],
+  "paths": {
+    "/health/live": {
+      "get": {
+        "security": [],
+        "operationId": "vmAgentLiveness",
+        "responses": { "200": { "description": "Agent process is live" } }
+      }
+    },
+    "/api/vm-agent/v1/state": {
+      "get": {
+        "operationId": "getVmAgentState",
+        "responses": { "200": { "description": "Four-layer runtime state", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VmAgentState" } } } } }
+      }
+    },
+    "/api/vm-agent/v1/desired-state": {
+      "put": {
+        "operationId": "applySignedDesiredState",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SignedDesiredState" } } } },
+        "responses": {
+          "200": { "description": "Desired state applied", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VmAgentState" } } } },
+          "409": { "description": "Safety preflight blocked or state is indeterminate" }
+        }
+      }
+    },
+    "/api/vm-agent/v1/reconcile": {
+      "post": {
+        "operationId": "reconcileVmRuntime",
+        "responses": { "200": { "description": "Read-only reconciliation result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VmAgentState" } } } } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": { "mutualTls": { "type": "mutualTLS" } },
+    "schemas": {
+      "SignedDesiredState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["desiredState", "signature"],
+        "properties": {
+          "desiredState": { "type": "object", "description": "Strict schemaVersion 1 desired state; arbitrary command fields are rejected." },
+          "signature": {
+            "type": "object", "additionalProperties": false, "required": ["algorithm", "keyId", "value"],
+            "properties": { "algorithm": { "const": "Ed25519" }, "keyId": { "type": "string" }, "value": { "type": "string", "contentEncoding": "base64" } }
+          }
+        }
+      },
+      "VmAgentState": {
+        "type": "object",
+        "required": ["schemaVersion", "generation", "status", "current", "runtimeMode", "events"],
+        "properties": {
+          "schemaVersion": { "const": 1 },
+          "generation": { "type": "integer", "minimum": 0 },
+          "status": { "enum": ["idle", "preflight", "ready", "blocked", "unknown", "failed", "absent"] },
+          "current": { "type": ["object", "null"] },
+          "previousRevision": { "type": ["string", "null"] },
+          "lastError": { "type": ["string", "null"] },
+          "runtimeMode": { "type": "string" },
+          "events": { "type": "array", "items": { "type": "object" } }
+        }
+      }
+    }
+  }
+}

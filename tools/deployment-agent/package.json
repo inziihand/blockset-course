@@ -1,0 +1,19 @@
+{
+  "name": "@stratexec/deployment-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --use-system-ca --env-file-if-exists=../../.env.local src/server.mjs",
+    "dev": "node --use-system-ca --watch --env-file-if-exists=../../.env.local src/server.mjs",
+    "test": "node --test",
+    "build": "node --check src/app.mjs && node --check src/authorizer.mjs && node --check src/build-source.mjs && node --check src/cloud-run-executor.mjs && node --check src/deployment-job-service.mjs && node --check src/deployment-settings-service.mjs && node --check src/desired-state-signer.mjs && node --check src/executor.mjs && node --check src/gcp-cloud-control-plane.mjs && node --check src/identity-lifecycle-client.mjs && node --check src/job-store.mjs && node --check src/lease-store.mjs && node --check src/plan-provider.mjs && node --check src/runtime-config.mjs && node --check src/secret-manager.mjs && node --check src/settings-store.mjs && node --check src/vm-agent-client.mjs && node --check src/vm-bootstrap-plan.mjs && node --check src/vm-docker-executor.mjs && node --check src/server.mjs"
+  },
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
+  },
+  "dependencies": {
+    "archiver": "7.0.1",
+    "google-auth-library": "11.1.0"
+  }
+}

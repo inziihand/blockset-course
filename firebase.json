@@ -1,0 +1,19 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "rules": "infrastructure/firebase/firestore.rules",
+    "indexes": "infrastructure/firebase/firestore.indexes.json"
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "ui": {
+      "enabled": true
+    },
+    "singleProjectMode": true
+  }
+}

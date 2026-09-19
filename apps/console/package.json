@@ -1,0 +1,35 @@
+{
+  "name": "@stratexec/console",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5175 --strictPort",
+    "build": "npm run check:boundaries && tsc --noEmit && vite build && node scripts/check-production.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 4175 --strictPort",
+    "test": "vitest run",
+    "dev:test": "vite --mode platform-test --host 127.0.0.1 --port 5176 --strictPort",
+    "test:e2e": "playwright test",
+    "check:boundaries": "node scripts/check-app-css-boundaries.mjs"
+  },
+  "dependencies": {
+    "firebase": "12.18.0",
+    "lucide-react": "1.16.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/node": "22.20.3",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "jsdom": "26.1.0",
+    "typescript": "6.0.3",
+    "vite": "8.2.2",
+    "vitest": "5.0.1"
+  }
+}

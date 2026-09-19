@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 3,
+  "ownerApp": "platform",
+  "services": [
+    {
+      "key": "identity-api",
+      "ownerApp": "platform",
+      "kind": "http-api",
+      "source": "backend",
+      "contract": "contracts/identity/openapi.json",
+      "routes": ["/api/identity/v1/**"],
+      "dependsOn": [],
+      "runtime": {
+        "local": "python",
+        "localOrigin": "http://127.0.0.1:8180",
+        "production": "unassigned"
+      },
+      "deployment": {
+        "workloadClass": "request-http",
+        "artifact": { "type": "oci", "context": "backend", "dockerfile": "backend/Dockerfile" },
+        "recommendedTarget": "cloud-run-service",
+        "allowedTargets": ["cloud-run-service", "vm-docker"],
+        "stateful": false,
+        "continuous": false,
+        "listen": { "host": "0.0.0.0", "portEnvironment": "PORT", "healthPath": "/healthz", "readinessPath": "/healthz" },
+        "cloudRun": {
+          "ingress": "all",
+          "iamInvocation": "public-app-auth",
+          "cpu": "1",
+          "memory": "512Mi",
+          "timeoutSeconds": 30,
+          "concurrency": 40,
+          "minInstances": 0,
+          "maxInstances": 3,
+          "serviceAccountRoles": ["roles/datastore.user", "roles/firebaseauth.admin"],
+          "environment": [{ "name": "GOOGLE_CLOUD_PROJECT", "source": "project-id" }],
+          "secrets": [{ "environment": "STRATEXEC_BOOTSTRAP_ADMIN_EMAILS", "secretName": "stratexec-bootstrap-admins", "source": "bootstrap-admin-emails", "temporary": true }]
+        },
+        "verification": {
+          "unauthenticatedRequests": [{ "method": "POST", "path": "/api/identity/v1/session", "expectedStatus": 401 }],
+          "authenticatedRequests": [{ "method": "POST", "path": "/api/identity/v1/session", "expectedStatus": 200, "audience": "active-member" }]
+        },
+        "intendedExposure": "authenticated",
+        "productionReadiness": "ready",
+        "blockers": []
+      },
+      "capabilities": ["identity:session", "identity:members", "identity:app-grants", "identity:app-policies", "identity:app-access"],
+      "authorization": "firebase-id-token",
+      "writesExternalState": true
+    }
+  ]
+}

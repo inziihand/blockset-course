@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stratexec.local/schemas/service-fragment.schema.json",
+  "title": "StratExec owned service fragment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "ownerApp", "services"],
+  "properties": {
+    "schemaVersion": { "const": 3 },
+    "ownerApp": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "services": { "type": "array", "items": { "type": "object" } }
+  }
+}

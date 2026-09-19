@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stratexec.local/schemas/deployment-inventory.schema.json",
+  "title": "StratExec read-only deployment inventory snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "installationKey", "projectId", "observedAt", "collectionStatus",
+    "collector", "enabledApis", "grantedIamRoles", "resources", "hostingRoutes", "secrets", "errors"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "installationKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "projectId": { "type": "string", "pattern": "^[a-z][a-z0-9-]+[a-z0-9]$" },
+    "observedAt": { "type": "string", "format": "date-time" },
+    "collectionStatus": { "enum": ["complete", "partial", "unavailable"] },
+    "collector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "principal"],
+      "properties": {
+        "mode": { "enum": ["fixture", "gcloud-read-only", "unavailable"] },
+        "principal": { "type": ["string", "null"] }
+      }
+    },
+    "enabledApis": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9.-]+\\.googleapis\\.com$" }
+    },
+    "grantedIamRoles": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^roles/[A-Za-z0-9.]+$" }
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["resourceKey", "type", "name", "region", "serviceKey", "ownerApp", "state", "spec"],
+        "properties": {
+          "resourceKey": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["gcp-project", "firebase-project", "firestore-database", "firebase-hosting-site", "artifact-registry-repository", "cloud-run-service", "gce-instance", "persistent-disk", "vm-docker-service", "service-account"] },
+          "name": { "type": "string", "minLength": 1 },
+          "region": { "type": ["string", "null"] },
+          "serviceKey": { "type": ["string", "null"] },
+          "ownerApp": { "type": ["string", "null"] },
+          "state": { "const": "deployed" },
+          "spec": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "target": { "enum": ["cloud-run-service", "vm-docker"] },
+              "cpu": { "type": ["string", "null"] },
+              "memory": { "type": ["string", "null"] },
+              "minInstances": { "type": ["integer", "null"] },
+              "maxInstances": { "type": ["integer", "null"] },
+              "ingress": { "type": ["string", "null"] },
+              "publicIngress": { "type": ["boolean", "null"] },
+              "hostRef": { "type": "string", "pattern": "^gce://" },
+              "persistentDataPath": { "type": "string" },
+              "accountScope": { "type": "string" },
+              "minimumFreeBytes": { "type": "integer", "minimum": 0 },
+              "backupMaxAgeSeconds": { "type": "integer", "minimum": 60 }
+            }
+          }
+        }
+      }
+    },
+    "hostingRoutes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["route", "serviceName", "region", "ownerApp"],
+        "properties": {
+          "route": { "type": "string", "pattern": "^/api/" },
+          "serviceName": { "type": "string", "minLength": 1 },
+          "region": { "type": "string", "minLength": 1 },
+          "ownerApp": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "secrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["secretName", "exists", "ownerApp"],
+        "properties": {
+          "secretName": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "exists": { "type": "boolean" },
+          "ownerApp": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "errors": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  }
+}

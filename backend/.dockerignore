@@ -1,0 +1,7 @@
+.venv
+tests
+tools
+__pycache__
+*.py[cod]
+*.log
+.env*

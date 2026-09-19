@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "installationKey": "fixture-installation",
+  "projectId": "fixture-project",
+  "observedAt": "2026-09-18T00:00:00.000Z",
+  "collectionStatus": "complete",
+  "collector": { "mode": "fixture", "principal": "fixture@example.com" },
+  "enabledApis": [],
+  "grantedIamRoles": [],
+  "resources": [],
+  "hostingRoutes": [],
+  "secrets": [],
+  "errors": []
+}

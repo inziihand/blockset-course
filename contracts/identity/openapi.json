@@ -1,0 +1,1354 @@
+{
+  "components": {
+    "schemas": {
+      "AppAccessMode": {
+        "enum": [
+          "public",
+          "all_members",
+          "grant_required",
+          "admins_only",
+          "disabled"
+        ],
+        "title": "AppAccessMode",
+        "type": "string"
+      },
+      "AppCategory": {
+        "enum": [
+          "core",
+          "sample",
+          "application"
+        ],
+        "title": "AppCategory",
+        "type": "string"
+      },
+      "AppEntitlement": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "displayName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Displayname",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "displayName"
+        ],
+        "title": "AppEntitlement",
+        "type": "object"
+      },
+      "AppGrant": {
+        "properties": {
+          "appKey": {
+            "title": "Appkey",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "entitlements": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Entitlements",
+            "type": "array"
+          },
+          "productKey": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Productkey"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AppGrantSource",
+            "default": "manual"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "updatedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedby"
+          },
+          "validFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validfrom"
+          },
+          "validUntil": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validuntil"
+          }
+        },
+        "required": [
+          "appKey"
+        ],
+        "title": "AppGrant",
+        "type": "object"
+      },
+      "AppGrantPatch": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "entitlements": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Entitlements",
+            "type": "array"
+          },
+          "productKey": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Productkey"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Roles",
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AppGrantSource",
+            "default": "manual"
+          },
+          "validFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validfrom"
+          },
+          "validUntil": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validuntil"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "AppGrantPatch",
+        "type": "object"
+      },
+      "AppGrantSource": {
+        "enum": [
+          "manual",
+          "purchase",
+          "migration",
+          "promotion"
+        ],
+        "title": "AppGrantSource",
+        "type": "string"
+      },
+      "AppInstallation": {
+        "properties": {
+          "appKey": {
+            "title": "Appkey",
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/AppCategory",
+            "default": "application"
+          },
+          "deploymentJobId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deploymentjobid"
+          },
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "protected": {
+            "default": false,
+            "title": "Protected",
+            "type": "boolean"
+          },
+          "removable": {
+            "default": true,
+            "title": "Removable",
+            "type": "boolean"
+          },
+          "requiredServices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Requiredservices",
+            "type": "array"
+          },
+          "runtimeRevision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runtimerevision"
+          },
+          "runtimeVerifiedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runtimeverifiedat"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AppInstallationStatus",
+            "default": "installed"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "updatedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedby"
+          }
+        },
+        "required": [
+          "appKey",
+          "displayName"
+        ],
+        "title": "AppInstallation",
+        "type": "object"
+      },
+      "AppInstallationList": {
+        "properties": {
+          "installations": {
+            "items": {
+              "$ref": "#/components/schemas/AppInstallation"
+            },
+            "title": "Installations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "installations"
+        ],
+        "title": "AppInstallationList",
+        "type": "object"
+      },
+      "AppInstallationPatch": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/AppLifecycleAction"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "AppInstallationPatch",
+        "type": "object"
+      },
+      "AppInstallationStatus": {
+        "enum": [
+          "installed",
+          "disabled",
+          "uninstalled"
+        ],
+        "title": "AppInstallationStatus",
+        "type": "string"
+      },
+      "AppLifecycleAction": {
+        "enum": [
+          "install",
+          "disable",
+          "enable",
+          "uninstall"
+        ],
+        "title": "AppLifecycleAction",
+        "type": "string"
+      },
+      "AppPolicy": {
+        "properties": {
+          "accessMode": {
+            "$ref": "#/components/schemas/AppAccessMode",
+            "default": "admins_only"
+          },
+          "adminAllowed": {
+            "default": true,
+            "title": "Adminallowed",
+            "type": "boolean"
+          },
+          "allowedAccessModes": {
+            "items": {
+              "$ref": "#/components/schemas/AppAccessMode"
+            },
+            "title": "Allowedaccessmodes",
+            "type": "array"
+          },
+          "appKey": {
+            "title": "Appkey",
+            "type": "string"
+          },
+          "displayName": {
+            "title": "Displayname",
+            "type": "string"
+          },
+          "entitlements": {
+            "items": {
+              "$ref": "#/components/schemas/AppEntitlement"
+            },
+            "title": "Entitlements",
+            "type": "array"
+          },
+          "protected": {
+            "default": false,
+            "title": "Protected",
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "updatedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedby"
+          }
+        },
+        "required": [
+          "appKey",
+          "displayName"
+        ],
+        "title": "AppPolicy",
+        "type": "object"
+      },
+      "AppPolicyList": {
+        "properties": {
+          "policies": {
+            "items": {
+              "$ref": "#/components/schemas/AppPolicy"
+            },
+            "title": "Policies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "policies"
+        ],
+        "title": "AppPolicyList",
+        "type": "object"
+      },
+      "AppPolicyPatch": {
+        "properties": {
+          "accessMode": {
+            "$ref": "#/components/schemas/AppAccessMode"
+          },
+          "adminAllowed": {
+            "default": true,
+            "title": "Adminallowed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accessMode"
+        ],
+        "title": "AppPolicyPatch",
+        "type": "object"
+      },
+      "DeploymentAccess": {
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "appKey": {
+            "title": "Appkey",
+            "type": "string"
+          },
+          "appState": {
+            "title": "Appstate",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "appKey",
+          "allowed",
+          "reason",
+          "appState"
+        ],
+        "title": "DeploymentAccess",
+        "type": "object"
+      },
+      "EffectiveAppAccess": {
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "appKey": {
+            "title": "Appkey",
+            "type": "string"
+          },
+          "entitlements": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Entitlements",
+            "type": "array"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "appKey",
+          "allowed",
+          "reason"
+        ],
+        "title": "EffectiveAppAccess",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InstalledAppList": {
+        "properties": {
+          "appKeys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Appkeys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "appKeys"
+        ],
+        "title": "InstalledAppList",
+        "type": "object"
+      },
+      "Member": {
+        "properties": {
+          "appAccess": {
+            "items": {
+              "$ref": "#/components/schemas/EffectiveAppAccess"
+            },
+            "title": "Appaccess",
+            "type": "array"
+          },
+          "appGrants": {
+            "items": {
+              "$ref": "#/components/schemas/AppGrant"
+            },
+            "title": "Appgrants",
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "displayName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displayname"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "emailVerified": {
+            "default": false,
+            "title": "Emailverified",
+            "type": "boolean"
+          },
+          "lastLoginAt": {
+            "format": "date-time",
+            "title": "Lastloginat",
+            "type": "string"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photourl"
+          },
+          "plan": {
+            "default": "free",
+            "title": "Plan",
+            "type": "string"
+          },
+          "provider": {
+            "default": "google.com",
+            "title": "Provider",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/MemberRole",
+            "default": "member"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemberStatus",
+            "default": "active"
+          },
+          "uid": {
+            "title": "Uid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uid",
+          "email"
+        ],
+        "title": "Member",
+        "type": "object"
+      },
+      "MemberList": {
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/Member"
+            },
+            "title": "Members",
+            "type": "array"
+          }
+        },
+        "required": [
+          "members"
+        ],
+        "title": "MemberList",
+        "type": "object"
+      },
+      "MemberPatch": {
+        "properties": {
+          "plan": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemberRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemberStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "MemberPatch",
+        "type": "object"
+      },
+      "MemberRole": {
+        "enum": [
+          "member",
+          "admin"
+        ],
+        "title": "MemberRole",
+        "type": "string"
+      },
+      "MemberStatus": {
+        "enum": [
+          "active",
+          "disabled"
+        ],
+        "title": "MemberStatus",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VerifiedAppActivation": {
+        "properties": {
+          "adminAllowed": {
+            "default": true,
+            "title": "Adminallowed",
+            "type": "boolean"
+          },
+          "allowedAccessModes": {
+            "items": {
+              "$ref": "#/components/schemas/AppAccessMode"
+            },
+            "title": "Allowedaccessmodes",
+            "type": "array"
+          },
+          "category": {
+            "$ref": "#/components/schemas/AppCategory",
+            "default": "application"
+          },
+          "defaultAccessMode": {
+            "$ref": "#/components/schemas/AppAccessMode",
+            "default": "admins_only"
+          },
+          "deploymentJobId": {
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Deploymentjobid",
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Displayname",
+            "type": "string"
+          },
+          "entitlements": {
+            "items": {
+              "$ref": "#/components/schemas/AppEntitlement"
+            },
+            "maxItems": 32,
+            "title": "Entitlements",
+            "type": "array"
+          },
+          "planFingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Planfingerprint",
+            "type": "string"
+          },
+          "protected": {
+            "default": false,
+            "title": "Protected",
+            "type": "boolean"
+          },
+          "removable": {
+            "default": true,
+            "title": "Removable",
+            "type": "boolean"
+          },
+          "requiredServices": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Requiredservices",
+            "type": "array"
+          },
+          "runtimeRevision": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Runtimerevision",
+            "type": "string"
+          },
+          "verifiedAt": {
+            "format": "date-time",
+            "title": "Verifiedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "deploymentJobId",
+          "planFingerprint",
+          "runtimeRevision",
+          "verifiedAt"
+        ],
+        "title": "VerifiedAppActivation",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "StratExec Platform Identity API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/identity/v1/access/{app_key}": {
+      "get": {
+        "operationId": "get_app_access_api_identity_v1_access__app_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_key",
+            "required": true,
+            "schema": {
+              "title": "App Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EffectiveAppAccess"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get App Access"
+      }
+    },
+    "/api/identity/v1/admin/app-installations": {
+      "get": {
+        "operationId": "list_app_installations_api_identity_v1_admin_app_installations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppInstallationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List App Installations"
+      }
+    },
+    "/api/identity/v1/admin/app-installations/{app_key}": {
+      "put": {
+        "operationId": "update_app_installation_api_identity_v1_admin_app_installations__app_key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_key",
+            "required": true,
+            "schema": {
+              "title": "App Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppInstallationPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppInstallation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update App Installation"
+      }
+    },
+    "/api/identity/v1/admin/app-installations/{app_key}/verified-activation": {
+      "post": {
+        "operationId": "activate_verified_app_api_identity_v1_admin_app_installations__app_key__verified_activation_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_key",
+            "required": true,
+            "schema": {
+              "title": "App Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifiedAppActivation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppInstallation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Activate Verified App"
+      }
+    },
+    "/api/identity/v1/admin/app-policies": {
+      "get": {
+        "operationId": "list_app_policies_api_identity_v1_admin_app_policies_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppPolicyList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List App Policies"
+      }
+    },
+    "/api/identity/v1/admin/app-policies/{app_key}": {
+      "put": {
+        "operationId": "set_app_policy_api_identity_v1_admin_app_policies__app_key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_key",
+            "required": true,
+            "schema": {
+              "title": "App Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppPolicyPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppPolicy"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set App Policy"
+      }
+    },
+    "/api/identity/v1/admin/deployment-access/{app_key}": {
+      "get": {
+        "operationId": "get_deployment_access_api_identity_v1_admin_deployment_access__app_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_key",
+            "required": true,
+            "schema": {
+              "title": "App Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentAccess"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Deployment Access"
+      }
+    },
+    "/api/identity/v1/admin/members": {
+      "get": {
+        "operationId": "list_members_api_identity_v1_admin_members_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Members"
+      }
+    },
+    "/api/identity/v1/admin/members/{uid}": {
+      "patch": {
+        "operationId": "update_member_api_identity_v1_admin_members__uid__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "title": "Uid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Member"
+      }
+    },
+    "/api/identity/v1/admin/members/{uid}/app-grants/{app_key}": {
+      "put": {
+        "operationId": "set_app_grant_api_identity_v1_admin_members__uid__app_grants__app_key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "title": "Uid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "app_key",
+            "required": true,
+            "schema": {
+              "title": "App Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppGrantPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set App Grant"
+      }
+    },
+    "/api/identity/v1/apps": {
+      "get": {
+        "operationId": "list_installed_apps_api_identity_v1_apps_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstalledAppList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Installed Apps"
+      }
+    },
+    "/api/identity/v1/me": {
+      "get": {
+        "operationId": "get_me_api_identity_v1_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Me"
+      }
+    },
+    "/api/identity/v1/session": {
+      "post": {
+        "operationId": "synchronize_session_api_identity_v1_session_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Synchronize Session"
+      }
+    }
+  }
+}

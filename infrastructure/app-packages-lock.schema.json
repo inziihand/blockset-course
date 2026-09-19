@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stratexec.local/schemas/app-packages-lock.schema.json",
+  "title": "StratExec source App package lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "packages"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "packages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["version", "packageSha256", "installedAt", "files"],
+        "properties": {
+          "version": { "type": "string" },
+          "packageSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "installedAt": { "type": "string", "format": "date-time" },
+          "files": {
+            "type": "object",
+            "additionalProperties": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+          }
+        }
+      }
+    }
+  }
+}

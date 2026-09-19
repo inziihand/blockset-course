@@ -1,0 +1,251 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "StratExec Local App Package Agent",
+    "version": "1.0.0",
+    "description": "Loopback-only source package inspection and apply jobs. This API is not a public runtime service."
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "appPackageAgentHealth",
+        "responses": { "200": { "description": "Agent policy and health" } }
+      }
+    },
+    "/api/app-packages/v1/jobs": {
+      "get": {
+        "operationId": "listAppPackageJobs",
+        "security": [{ "firebaseIdToken": [] }],
+        "responses": {
+          "200": {
+            "description": "Recent administrator package jobs",
+            "content": { "application/json": { "schema": {
+              "type": "object", "required": ["jobs"],
+              "properties": { "jobs": { "type": "array", "items": { "$ref": "#/components/schemas/AppPackageJob" } } }
+            } } }
+          },
+          "401": { "description": "Firebase ID token required" },
+          "403": { "description": "Active verified administrator required" }
+        }
+      }
+    },
+    "/api/app-packages/v1/inspect": {
+      "post": {
+        "operationId": "inspectAppPackage",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [
+          { "name": "adoptExisting", "in": "query", "schema": { "type": "boolean", "default": false } },
+          { "name": "allowDowngrade", "in": "query", "schema": { "type": "boolean", "default": false } },
+          { "name": "X-StratExec-Package-Name", "in": "header", "required": true, "schema": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*\\.zip$" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/zip": { "schema": { "type": "string", "format": "binary" } } }
+        },
+        "responses": {
+          "201": { "description": "Immutable inspected job", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppPackageJob" } } } },
+          "401": { "description": "Firebase ID token required" },
+          "403": { "description": "Active verified administrator required" },
+          "413": { "description": "Package exceeds 256 MiB" },
+          "422": { "description": "Package verification or request validation failed" }
+        }
+      }
+    },
+    "/api/app-packages/v1/jobs/{jobId}/deployment-plan": {
+      "get": {
+        "operationId": "planAppPackageDeployment",
+        "description": "Builds a deterministic read-only runtime impact plan from the verified artifact, installation configuration, and latest normalized cloud inventory. It never enables APIs, changes IAM, creates resources, deploys, or verifies runtime health.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [
+          { "name": "jobId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "installationKey", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,38}[a-z0-9]$" } }
+        ],
+        "responses": {
+          "200": { "description": "Read-only normalized deployment impact plan", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppDeploymentImpactPlan" } } } },
+          "401": { "description": "Firebase ID token required" },
+          "403": { "description": "Active verified administrator required" },
+          "404": { "description": "Package job or installation not found" },
+          "409": { "description": "Stored artifact no longer matches its inspected job" },
+          "422": { "description": "Package, inventory, or installation contract is invalid" }
+        }
+      }
+    },
+    "/api/app-packages/v1/jobs/{jobId}/apply": {
+      "post": {
+        "operationId": "applyAppPackageJob",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "name": "jobId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false, "required": ["confirmation"],
+            "properties": { "confirmation": { "type": "string", "description": "Exact app-key@version value returned by inspect" } }
+          } } }
+        },
+        "responses": {
+          "200": { "description": "Completed package job", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppPackageJob" } } } },
+          "401": { "description": "Firebase ID token required" },
+          "403": { "description": "Active verified administrator required" },
+          "409": { "description": "Job blocked, already active, or apply rolled back" },
+          "422": { "description": "Exact confirmation is missing" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "firebaseIdToken": { "type": "http", "scheme": "bearer", "bearerFormat": "Firebase ID Token" }
+    },
+    "schemas": {
+      "AppDeploymentImpactPlan": {
+        "type": "object",
+        "required": ["schemaVersion", "jobId", "planKind", "mode", "decision", "planFingerprint", "inputFingerprints", "package", "installation", "stateSemantics", "inventory", "changes", "services", "requirements", "migrations", "warnings", "blockers"],
+        "properties": {
+          "schemaVersion": { "const": 1 },
+          "jobId": { "type": "string", "format": "uuid" },
+          "planKind": { "const": "app-runtime-impact" },
+          "mode": { "const": "read-only" },
+          "decision": { "enum": ["reviewable", "blocked"] },
+          "planFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "inputFingerprints": {
+            "type": "object",
+            "required": ["sourcePlanFingerprint", "deploymentContractDigest", "installationDigest", "inventoryDigest"],
+            "properties": {
+              "sourcePlanFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "deploymentContractDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "installationDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "inventoryDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          },
+          "package": {
+            "type": "object",
+            "required": ["appKey", "version", "packageSha256", "signatureStatus", "publisherId", "keyId"],
+            "properties": {
+              "appKey": { "type": "string" },
+              "version": { "type": "string" },
+              "packageSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "signatureStatus": { "enum": ["development-unsigned", "trusted-signed"] },
+              "publisherId": { "type": ["string", "null"] },
+              "keyId": { "type": ["string", "null"] }
+            }
+          },
+          "installation": {
+            "type": "object",
+            "required": ["installationKey", "projectId", "region"],
+            "properties": {
+              "installationKey": { "type": "string" },
+              "projectId": { "type": "string" },
+              "region": { "type": "string" }
+            }
+          },
+          "stateSemantics": { "type": "object", "required": ["planned", "ready", "deployed", "verified"] },
+          "inventory": {
+            "type": "object",
+            "required": ["observedAt", "collectionStatus", "collectorMode", "drift"],
+            "properties": {
+              "observedAt": { "type": "string", "format": "date-time" },
+              "collectionStatus": { "enum": ["complete", "partial", "unavailable"] },
+              "collectorMode": { "enum": ["fixture", "gcloud-read-only", "unavailable"] },
+              "drift": { "type": "array", "items": { "type": "object" } }
+            }
+          },
+          "changes": {
+            "type": "object",
+            "required": ["files", "services", "routes", "secretReferences", "cloudResources"],
+            "properties": {
+              "files": { "type": "array", "items": { "$ref": "#/components/schemas/DeploymentChange" } },
+              "services": { "type": "array", "items": { "$ref": "#/components/schemas/DeploymentChange" } },
+              "routes": { "type": "array", "items": { "$ref": "#/components/schemas/DeploymentChange" } },
+              "secretReferences": { "type": "array", "items": { "$ref": "#/components/schemas/DeploymentChange" } },
+              "cloudResources": { "type": "array", "items": { "$ref": "#/components/schemas/DeploymentChange" } }
+            }
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["serviceKey", "planState", "contractReadiness", "observedDeployment", "verificationState", "selectedTarget", "region", "serviceName", "resources", "publicIngress", "costTier", "downtimeImpact"],
+              "properties": {
+                "serviceKey": { "type": "string" },
+                "planState": { "const": "planned" },
+                "contractReadiness": { "enum": ["blocked", "candidate", "ready"] },
+                "observedDeployment": { "enum": ["absent", "deployed", "unknown"] },
+                "verificationState": { "enum": ["unverified", "verified"] },
+                "selectedTarget": { "type": ["string", "null"] },
+                "region": { "type": ["string", "null"] },
+                "serviceName": { "type": ["string", "null"] },
+                "resources": { "type": ["object", "null"] },
+                "publicIngress": { "type": ["boolean", "null"] },
+                "ingress": { "type": ["string", "null"] },
+                "costTier": { "enum": ["low-variable", "moderate-variable", "moderate-baseline", "high-or-review-required", "host-dependent", "unknown"] },
+                "downtimeImpact": { "enum": ["none", "none-new-resource", "rolling-revision-expected", "review-required", "unknown"] }
+              }
+            }
+          },
+          "requirements": {
+            "type": "object",
+            "required": ["apis", "deploymentAgentIamRoles", "runtimeServiceAccountRoles", "configuration", "secrets"],
+            "properties": {
+              "apis": { "type": "array", "items": { "type": "object", "required": ["name", "enabled", "missing"] } },
+              "deploymentAgentIamRoles": { "type": "array", "items": { "type": "object", "required": ["role", "granted", "missing"] } },
+              "runtimeServiceAccountRoles": { "type": "array", "items": { "type": "object", "required": ["serviceKey", "role"] } },
+              "configuration": { "type": "array", "items": { "type": "object", "required": ["serviceKey", "name", "purpose", "source", "validation", "availability"] } },
+              "secrets": { "type": "array", "items": { "type": "object", "required": ["serviceKey", "environment", "secretName", "purpose", "temporary", "action", "availability"] } }
+            }
+          },
+          "migrations": { "type": "array", "items": { "type": "object", "required": ["serviceKey", "strategy", "reversible", "backupRequired", "maintenanceWindow", "rollbackStrategy", "dataRollback", "blockers"] } },
+          "warnings": { "type": "array", "items": { "type": "string" } },
+          "blockers": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "DeploymentChange": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "enum": ["add", "update", "retain", "remove", "unknown"] }
+        },
+        "additionalProperties": true
+      },
+      "AppPackageJob": {
+        "type": "object",
+        "required": ["schemaVersion", "jobId", "fileName", "status", "appKey", "version", "packageSha256", "planFingerprint", "planContext", "signatureStatus", "applyAllowed", "confirmation", "blockers", "changes", "createdAt", "updatedAt", "createdBy"],
+        "properties": {
+          "schemaVersion": { "const": 1 },
+          "jobId": { "type": "string", "format": "uuid" },
+          "fileName": { "type": "string" },
+          "status": { "enum": ["ready", "blocked", "applying", "succeeded", "failed", "no-op"] },
+          "appKey": { "type": "string" },
+          "version": { "type": "string" },
+          "previousVersion": { "type": ["string", "null"] },
+          "packageSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "planFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$", "description": "Digest of the package, owned files, platform contract, service registry, package lock, installation settings, options and blockers" },
+          "planContext": {
+            "type": "object",
+            "required": ["platformContractDigest", "serviceRegistryDigest", "packageLockDigest", "installationContextDigest"],
+            "properties": {
+              "platformContractDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "serviceRegistryDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "packageLockDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "installationContextDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          },
+          "signatureStatus": { "enum": ["development-unsigned", "trusted-signed"] },
+          "publisherId": { "type": ["string", "null"] },
+          "keyId": { "type": ["string", "null"] },
+          "signedContentDigest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+          "applyAllowed": { "type": "boolean" },
+          "confirmation": { "type": "string" },
+          "blockers": { "type": "array", "items": { "type": "string" } },
+          "changes": { "type": "array", "items": {
+            "type": "object", "required": ["path", "action"],
+            "properties": { "path": { "type": "string" }, "action": { "enum": ["add", "update", "delete", "unchanged"] } }
+          } },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "createdBy": { "type": "object", "required": ["uid", "email"], "properties": { "uid": { "type": "string" }, "email": { "type": "string" } } },
+          "error": { "type": "string" }
+        }
+      }
+    }
+  }
+}

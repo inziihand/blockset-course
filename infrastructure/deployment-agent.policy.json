@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "credentialMode": "attached-service-account-or-workload-identity",
+  "allowServiceAccountKeys": false,
+  "deployerServiceAccountTemplate": "stratexec-deployer-{installationKey}",
+  "allowedTargets": ["cloud-run-service", "firebase-hosting", "vm-docker"],
+  "allowedOperations": ["inspect", "plan", "approve", "apply", "verify", "promote", "rollback", "reconcile", "cancel", "activate"],
+  "allowedIamRoles": [
+    "roles/artifactregistry.admin",
+    "roles/cloudbuild.builds.editor",
+    "roles/compute.instanceAdmin.v1",
+    "roles/compute.osAdminLogin",
+    "roles/firebasehosting.admin",
+    "roles/iam.serviceAccountAdmin",
+    "roles/iam.serviceAccountUser",
+    "roles/iap.tunnelResourceAccessor",
+    "roles/resourcemanager.projectIamAdmin",
+    "roles/run.admin",
+    "roles/secretmanager.admin",
+    "roles/storage.objectCreator"
+  ],
+  "allowedRuntimeIamRoles": [
+    "roles/artifactregistry.reader",
+    "roles/datastore.user",
+    "roles/firebaseauth.admin",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
+    "roles/secretmanager.secretAccessor"
+  ],
+  "cloudRun": {
+    "artifactRepository": "stratexec",
+    "buildSourceBucketTemplate": "{projectId}_cloudbuild",
+    "hostingSiteTemplate": "{projectId}",
+    "builderServiceAccountRoles": [
+      "roles/artifactregistry.writer",
+      "roles/logging.logWriter",
+      "roles/serviceusage.serviceUsageConsumer",
+      "roles/storage.objectViewer"
+    ],
+    "requireImmutableImageDigest": true,
+    "requireStagedVerification": true
+  },
+  "secretManager": {
+    "driver": "gcp-secret-manager",
+    "requireAppScopedLabels": true,
+    "allowedOperations": ["metadata", "create-version", "reference", "disable-version", "rollback-reference", "delete-secret"]
+  },
+  "vmDocker": {
+    "agentPort": 8443,
+    "requireIap": true,
+    "requireOsLogin": true,
+    "allowSshKeys": false,
+    "requireMtls": true,
+    "desiredStateSignature": "Ed25519",
+    "agentServiceAccountRoles": [
+      "roles/artifactregistry.reader",
+      "roles/logging.logWriter",
+      "roles/monitoring.metricWriter",
+      "roles/secretmanager.secretAccessor"
+    ],
+    "requireImmutableImageDigest": true,
+    "requireHostLocalAccountLock": true,
+    "requireVerifiedBackup": true,
+    "tradingActivationFromDeployment": false
+  },
+  "limits": {
+    "requestBytes": 65536,
+    "maxSecretBytes": 32768,
+    "maxBuildSourceBytes": 67108864,
+    "operationTimeoutSeconds": 900,
+    "leaseSeconds": 60,
+    "approvalTtlSeconds": 900,
+    "maxJobs": 500,
+    "maxEventsPerJob": 250
+  }
+}

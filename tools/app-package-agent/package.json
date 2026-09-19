@@ -1,0 +1,15 @@
+{
+  "name": "@stratexec/app-package-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --use-system-ca --env-file-if-exists=../../.env.local --watch src/server.mjs",
+    "start": "node --use-system-ca --env-file-if-exists=../../.env.local src/server.mjs",
+    "build": "node --check src/admin-authorizer.mjs && node --check src/app.mjs && node --check src/package-job-service.mjs && node --check src/runtime-config.mjs && node --check src/server.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
+  }
+}

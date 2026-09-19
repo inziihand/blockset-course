@@ -1,0 +1,443 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "StratExec Deployment Agent API",
+    "version": "1.3.0",
+    "description": "Authenticated deployment jobs plus schema-driven configuration, write-only Secret Manager version control, cancellable pre-write jobs, downloadable evidence and verified logical App activation."
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "deploymentAgentHealth",
+        "responses": { "200": { "description": "Agent policy and executor capability" } }
+      }
+    },
+    "/api/deployments/v1/installations/{installationKey}/apps/{appKey}/settings": {
+      "get": {
+        "operationId": "getAppDeploymentSettings",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/InstallationKey" }, { "$ref": "#/components/parameters/AppKey" }],
+        "responses": {
+          "200": { "description": "Schema fields and metadata-only secret references", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentSettings" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/deployments/v1/installations/{installationKey}/platform-settings": {
+      "get": {
+        "operationId": "getPlatformDeploymentSettings",
+        "description": "Platform OAuth and bootstrap settings are separate from App-owned settings.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/InstallationKey" }],
+        "responses": { "200": { "description": "Platform-owned settings and metadata-only secret references", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentSettings" } } } } }
+      }
+    },
+    "/api/deployments/v1/installations/{installationKey}/apps/{appKey}/settings/bindings": {
+      "get": {
+        "operationId": "resolveAppRuntimeBindings",
+        "description": "Returns only declared configuration and concrete secret-version references; never secret values.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/InstallationKey" }, { "$ref": "#/components/parameters/AppKey" }],
+        "responses": { "200": { "description": "App-scoped runtime bindings and missing-field blockers" } }
+      }
+    },
+    "/api/deployments/v1/installations/{installationKey}/apps/{appKey}/settings/services/{serviceKey}/configuration/{environment}": {
+      "put": {
+        "operationId": "setAppDeploymentConfiguration",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/InstallationKey" }, { "$ref": "#/components/parameters/AppKey" }, { "$ref": "#/components/parameters/ServiceKey" }, { "$ref": "#/components/parameters/Environment" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["configuredValue"], "properties": { "configuredValue": { "type": ["string", "integer", "boolean"] }, "confirmation": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Saved non-secret configuration metadata" }, "409": { "$ref": "#/components/responses/Conflict" } }
+      }
+    },
+    "/api/deployments/v1/installations/{installationKey}/apps/{appKey}/settings/services/{serviceKey}/secrets/{environment}/versions": {
+      "post": {
+        "operationId": "createAppSecretVersion",
+        "description": "Accepts a write-only secret value and returns version metadata. The value is never readable through this API.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/InstallationKey" }, { "$ref": "#/components/parameters/AppKey" }, { "$ref": "#/components/parameters/ServiceKey" }, { "$ref": "#/components/parameters/Environment" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["secretValue"], "properties": { "secretValue": { "type": "string", "writeOnly": true, "minLength": 1, "maxLength": 32768 } } } } } },
+        "responses": { "201": { "description": "Secret version metadata", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SecretReference" } } } } }
+      }
+    },
+    "/api/deployments/v1/installations/{installationKey}/apps/{appKey}/settings/services/{serviceKey}/secrets/{environment}/reference": {
+      "put": {
+        "operationId": "referenceExistingAppSecretVersion",
+        "description": "References only a same-project secret carrying exact installation, App, service and environment labels.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/InstallationKey" }, { "$ref": "#/components/parameters/AppKey" }, { "$ref": "#/components/parameters/ServiceKey" }, { "$ref": "#/components/parameters/Environment" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SecretReferenceRequest" } } } },
+        "responses": { "200": { "description": "Selected secret version metadata", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SecretReference" } } } }, "409": { "$ref": "#/components/responses/Conflict" } }
+      }
+    },
+    "/api/deployments/v1/installations/{installationKey}/apps/{appKey}/settings/services/{serviceKey}/secrets/{environment}/versions/{version}/disable": {
+      "post": {
+        "operationId": "disableAppSecretVersion",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/InstallationKey" }, { "$ref": "#/components/parameters/AppKey" }, { "$ref": "#/components/parameters/ServiceKey" }, { "$ref": "#/components/parameters/Environment" }, { "$ref": "#/components/parameters/Version" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExactConfirmation" } } } },
+        "responses": { "200": { "description": "Disabled version metadata" }, "409": { "$ref": "#/components/responses/Conflict" } }
+      }
+    },
+    "/api/deployments/v1/installations/{installationKey}/apps/{appKey}/settings/services/{serviceKey}/secrets/{environment}/rollback": {
+      "post": {
+        "operationId": "rollbackAppSecretReference",
+        "description": "Moves the runtime reference to an existing enabled version without reading its value.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/InstallationKey" }, { "$ref": "#/components/parameters/AppKey" }, { "$ref": "#/components/parameters/ServiceKey" }, { "$ref": "#/components/parameters/Environment" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["version", "confirmation"], "properties": { "version": { "type": "string", "pattern": "^[1-9][0-9]*$" }, "confirmation": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Rolled-back secret reference", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SecretReference" } } } } }
+      }
+    },
+    "/api/deployments/v1/installations/{installationKey}/apps/{appKey}/settings/services/{serviceKey}/secrets/{environment}/delete": {
+      "delete": {
+        "operationId": "deleteAppSecret",
+        "description": "Deletes the entire secret only after an independent exact confirmation.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/InstallationKey" }, { "$ref": "#/components/parameters/AppKey" }, { "$ref": "#/components/parameters/ServiceKey" }, { "$ref": "#/components/parameters/Environment" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExactConfirmation" } } } },
+        "responses": { "200": { "description": "Secret deletion metadata" }, "409": { "$ref": "#/components/responses/Conflict" } }
+      }
+    },
+    "/api/deployments/v1/jobs": {
+      "get": {
+        "operationId": "listDeploymentJobs",
+        "security": [{ "firebaseIdToken": [] }],
+        "responses": {
+          "200": {
+            "description": "Recent deployment jobs",
+            "content": { "application/json": { "schema": {
+              "type": "object", "required": ["jobs"],
+              "properties": { "jobs": { "type": "array", "items": { "$ref": "#/components/schemas/DeploymentJob" } } }
+            } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/deployments/v1/inspect": {
+      "post": {
+        "operationId": "inspectDeployment",
+        "security": [{ "firebaseIdToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false,
+            "required": ["packageJobId", "installationKey", "appKey"],
+            "properties": {
+              "packageJobId": { "type": "string", "format": "uuid" },
+              "installationKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,38}[a-z0-9]$" },
+              "appKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+            }
+          } } }
+        },
+        "responses": {
+          "201": { "description": "Durable inspected deployment job", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/InvalidRequest" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}": {
+      "get": {
+        "operationId": "getDeploymentJob",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "responses": {
+          "200": { "description": "Deployment job", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "description": "Job not found" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/plan": {
+      "post": {
+        "operationId": "refreshDeploymentPlan",
+        "description": "Refreshes the normalized read-only plan and invalidates any prior approval.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "responses": {
+          "200": { "description": "Refreshed deployment job", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/approve": {
+      "post": {
+        "operationId": "approveDeploymentPlan",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentApprovalRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Fingerprint-bound approval recorded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/apply": {
+      "post": {
+        "operationId": "applyDeployment",
+        "description": "Applies an approved immutable plan through an allowlisted target driver. UNKNOWN invokes reconciliation before any retry.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "responses": {
+          "200": { "description": "Apply or reconciliation result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "501": { "description": "No allowlisted target driver is installed" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/verify": {
+      "post": {
+        "operationId": "verifyDeployment",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "responses": {
+          "200": { "description": "Verification result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/promote": {
+      "post": {
+        "operationId": "promoteDeployment",
+        "description": "Moves production traffic and Hosting routes only after staged verification and exact operator confirmation.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false, "required": ["confirmation"],
+            "properties": { "confirmation": { "type": "string", "description": "Exact PROMOTE app@version fingerprint-prefix value" } }
+          } } }
+        },
+        "responses": {
+          "200": { "description": "Promotion result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/rollback": {
+      "post": {
+        "operationId": "rollbackDeployment",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false, "required": ["confirmation"],
+            "properties": { "confirmation": { "type": "string", "description": "Exact ROLLBACK app@version revision value" } }
+          } } }
+        },
+        "responses": {
+          "200": { "description": "Rollback result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/reconcile": {
+      "post": {
+        "operationId": "reconcileDeployment",
+        "description": "Reads external state for UNKNOWN or interrupted work and never blindly re-sends apply.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "responses": {
+          "200": { "description": "Reconciled deployment job", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/cancel": {
+      "post": {
+        "operationId": "cancelDeploymentBeforeWrite",
+        "description": "Cancels only a job that has not started an external write. Started work must be reconciled or rolled back.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "responses": {
+          "200": { "description": "Cancelled pre-write deployment job", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/activate": {
+      "post": {
+        "operationId": "activateVerifiedApp",
+        "description": "Registers or re-enables the App in Identity only after the exact runtime revision has passed verification.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExactConfirmation" } } } },
+        "responses": {
+          "200": { "description": "Verified App activation evidence", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentJob" } } } },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/events": {
+      "get": {
+        "operationId": "listDeploymentEvents",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "responses": { "200": { "description": "Monotonic deployment events" } }
+      }
+    },
+    "/api/deployments/v1/jobs/{jobId}/evidence": {
+      "get": {
+        "operationId": "getDeploymentEvidence",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/JobId" }],
+        "responses": { "200": { "description": "Allowlisted evidence without tokens or secret values" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "firebaseIdToken": { "type": "http", "scheme": "bearer", "bearerFormat": "Firebase ID Token" }
+    },
+    "parameters": {
+      "JobId": { "name": "jobId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "InstallationKey": { "name": "installationKey", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,38}[a-z0-9]$" } },
+      "AppKey": { "name": "appKey", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" } },
+      "ServiceKey": { "name": "serviceKey", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" } },
+      "Environment": { "name": "environment", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" } },
+      "Version": { "name": "version", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[1-9][0-9]*$" } }
+    },
+    "responses": {
+      "Unauthorized": { "description": "Firebase ID token required" },
+      "Forbidden": { "description": "Active verified administrator, App access and deployment permission required" },
+      "Conflict": { "description": "State, lease, approval, plan or reconciliation conflict" },
+      "InvalidRequest": { "description": "Request or normalized plan validation failed" }
+    },
+    "schemas": {
+      "ExactConfirmation": {
+        "type": "object", "additionalProperties": false, "required": ["confirmation"],
+        "properties": { "confirmation": { "type": "string", "minLength": 1 } }
+      },
+      "SecretReferenceRequest": {
+        "type": "object", "additionalProperties": false, "required": ["secretResource", "version", "confirmation"],
+        "properties": {
+          "secretResource": { "type": "string", "pattern": "^projects/[a-z][a-z0-9-]+/secrets/[A-Za-z0-9_-]+$" },
+          "version": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+          "confirmation": { "type": "string", "minLength": 1 }
+        }
+      },
+      "SecretReference": {
+        "type": "object", "additionalProperties": false,
+        "required": ["secretResource", "version", "state"],
+        "properties": {
+          "secretResource": { "type": "string" }, "version": { "type": "string" }, "state": { "type": "string" },
+          "createTime": { "type": ["string", "null"], "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" }, "updatedBy": { "type": "object" }
+        }
+      },
+      "DeploymentSettings": {
+        "type": "object", "additionalProperties": false,
+        "required": ["schemaVersion", "scope", "installation", "appKey", "appVersion", "secretManagerMode", "platformConfiguration", "services", "stateRevision"],
+        "properties": {
+          "schemaVersion": { "const": 1 }, "scope": { "enum": ["app", "platform"] }, "installation": { "type": "object" },
+          "appKey": { "type": "string" }, "appVersion": { "type": "string" }, "secretManagerMode": { "enum": ["disabled", "gcp-secret-manager"] },
+          "platformConfiguration": { "type": "object" }, "services": { "type": "array", "items": { "type": "object" } }, "stateRevision": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "DeploymentApprovalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["confirmation", "planFingerprint", "packageSha256", "appVersion", "riskConfirmations"],
+        "properties": {
+          "confirmation": { "type": "string" },
+          "planFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "packageSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "appVersion": { "type": "string" },
+          "riskConfirmations": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+          "expiresInSeconds": { "type": "integer", "minimum": 60, "maximum": 3600 }
+        }
+      },
+      "RuntimeLayerStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "vm": { "type": "string" },
+          "agent": { "type": "string" },
+          "worker": { "type": "string" },
+          "strategy": { "type": "string" },
+          "tradingEnabled": { "type": "boolean", "description": "Always false for VM deployment evidence; trading authorization is independent." }
+        }
+      },
+      "RuntimeServiceEvidence": {
+        "type": "object",
+        "required": ["serviceKey", "revision"],
+        "properties": {
+          "serviceKey": { "type": "string" },
+          "revision": { "type": "string" },
+          "imageDigest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+          "vmHostRef": { "type": "string", "pattern": "^gce://" },
+          "runtimeStatus": { "$ref": "#/components/schemas/RuntimeLayerStatus" }
+        }
+      },
+      "RuntimeEvidence": {
+        "type": "object",
+        "properties": {
+          "revision": { "type": ["string", "null"] },
+          "artifactDigest": { "type": ["string", "null"] },
+          "services": { "type": "array", "items": { "$ref": "#/components/schemas/RuntimeServiceEvidence" } }
+        }
+      },
+      "DeploymentJob": {
+        "type": "object",
+        "required": ["schemaVersion", "jobId", "revision", "packageJobId", "appKey", "status", "package", "installation", "planFingerprint", "deployerIdentity", "requiredRiskConfirmations", "blockers", "createdAt", "updatedAt", "createdBy"],
+        "properties": {
+          "schemaVersion": { "const": 1 },
+          "jobId": { "type": "string", "format": "uuid" },
+          "revision": { "type": "integer", "minimum": 1 },
+          "packageJobId": { "type": "string", "format": "uuid" },
+          "appKey": { "type": "string" },
+          "status": {
+            "enum": ["blocked", "awaiting-approval", "approved", "applying", "applied", "verifying", "staged-verified", "verified", "verification-failed", "promoting", "promotion-failed", "unknown", "failed", "rolling-back", "rolled-back", "rollback-failed", "cancelled"]
+          },
+          "package": { "type": "object" },
+          "installation": { "type": "object" },
+          "planFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "plan": { "type": "object" },
+          "deployerIdentity": {
+            "type": "object",
+            "required": ["installationKey", "projectId", "credentialMode", "serviceAccountId", "serviceAccountEmail", "keyFilesAllowed", "requestedRoles", "disallowedRoles", "decision"],
+            "properties": {
+              "credentialMode": { "const": "attached-service-account-or-workload-identity" },
+              "keyFilesAllowed": { "const": false }
+            }
+          },
+          "requiredRiskConfirmations": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+          "blockers": { "type": "array", "items": { "type": "string" } },
+          "approval": { "type": ["object", "null"] },
+          "runtimeEvidence": { "anyOf": [{ "$ref": "#/components/schemas/RuntimeEvidence" }, { "type": "null" }] },
+          "verificationEvidence": { "type": ["object", "null"] },
+          "promotionEvidence": { "type": ["object", "null"] },
+          "activationEvidence": { "type": ["object", "null"] },
+          "rollbackEvidence": { "type": ["object", "null"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "createdBy": { "type": "object" },
+          "lastError": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

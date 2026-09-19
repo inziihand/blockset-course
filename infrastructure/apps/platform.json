@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "appKey": "platform",
+  "version": "0.1.0",
+  "platformCompatibility": {
+    "minimumVersion": "0.1.0",
+    "appContractVersion": 2
+  },
+  "kind": "platform",
+  "displayName": "StratExec Platform Shell",
+  "source": "apps/console/src/shell",
+  "routes": ["/"],
+  "requiredServices": ["identity-api"],
+  "access": {
+    "defaultMode": "admins_only",
+    "allowedModes": ["admins_only"],
+    "adminAllowed": true,
+    "protected": true
+  },
+  "lifecycle": {
+    "category": "core",
+    "removable": false,
+    "defaultStatus": "installed"
+  },
+  "package": { "installable": false, "ownerApp": "platform" },
+  "deploymentDocument": "apps/console/src/shell/DEPLOYMENT.md"
+}

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "platformVersion": "0.1.0",
+  "appContractVersion": 2,
+  "appPackageSchemaVersion": 2,
+  "appDeploymentSchemaVersion": 1,
+  "serviceRegistryVersion": 3,
+  "minimumInstallerVersion": "0.1.0"
+}

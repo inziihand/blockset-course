@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stratexec.local/schemas/app-package.schema.json",
+  "title": "StratExec portable App package",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "packageType",
+    "appKey",
+    "version",
+    "displayName",
+    "platformCompatibility",
+    "requiredServices",
+    "providedServices",
+    "externalServiceDependencies",
+    "appManifest",
+    "deploymentManifest",
+    "serviceFragment",
+    "payloadRoot",
+    "publisher",
+    "integrity"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "packageType": { "const": "stratexec-app" },
+    "appKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$" },
+    "displayName": { "type": "string", "minLength": 1 },
+    "platformCompatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimumVersion", "appContractVersion"],
+      "properties": {
+        "minimumVersion": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$" },
+        "appContractVersion": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "requiredServices": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "providedServices": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "externalServiceDependencies": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "appManifest": { "type": "string", "pattern": "^payload/infrastructure/apps/[a-z][a-z0-9-]*\\.json$" },
+    "deploymentManifest": { "type": "string", "pattern": "^payload/infrastructure/app-deployments/[a-z][a-z0-9-]*\\.json$" },
+    "serviceFragment": {
+      "type": ["string", "null"],
+      "pattern": "^payload/infrastructure/app-services/[a-z][a-z0-9-]*\\.json$"
+    },
+    "payloadRoot": { "const": "payload" },
+    "publisher": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["publisherId", "keyId"],
+          "properties": {
+            "publisherId": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*$" },
+            "keyId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+          }
+        }
+      ]
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "checksumsFile", "signatureFile"],
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "checksumsFile": { "const": "checksums.json" },
+        "signatureFile": { "type": ["string", "null"], "pattern": "^signature\\.json$" }
+      }
+    }
+  }
+}

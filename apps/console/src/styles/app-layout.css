@@ -1,0 +1,63 @@
+/* App Contract: the whole App window, not only its body, follows this policy. */
+:root {
+  --app-compact-max-width: 420px;
+  --app-layout-gap: 16px;
+}
+
+.app-shell[data-display-mode] {
+  padding: 10px 12px 9px;
+}
+
+.app-shell[data-display-mode] .topbar {
+  min-height: 58px;
+  padding: 7px 14px;
+}
+
+.app-shell[data-display-mode="compact"] {
+  max-inline-size: var(--app-compact-max-width);
+  min-inline-size: 0;
+  padding: 8px;
+  overflow-wrap: anywhere;
+}
+.app-shell[data-display-mode="compact"] .topbar { flex-wrap: wrap; padding: 8px 10px; }
+.app-shell[data-display-mode="compact"] .platform-badge { max-inline-size: 100%; white-space: normal; }
+.app-shell[data-display-mode="compact"] .app-content { padding: 12px; }
+.app-shell[data-display-mode="compact"] .platform-dialog { max-inline-size: var(--app-compact-max-width); }
+
+/* Opt-in header policy, owned by the host and independent of App window width. */
+.app-shell[data-header-layout="merged"] { gap: 8px; }
+.app-shell[data-header-layout="merged"] .topbar { min-height: 52px; padding: 3px 12px; }
+.app-shell[data-header-layout="merged"] .app-content { padding: 10px; }
+.merged-brand-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 16px; min-width: 0; }
+.merged-brand-copy > .wordmark { font-size: 20px; }
+.brand .merged-brand-copy h1 { font-size: 18px; font-weight: 650; }
+.merged-home { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; font-size: 12px; }
+@media (max-width: 680px) {
+  .app-shell[data-header-layout="merged"] .topbar { padding: 5px 8px; gap: 8px; }
+  .app-shell[data-header-layout="merged"] .brand { gap: 8px; }
+  .app-shell[data-header-layout="merged"] .app-content { padding: 8px; }
+  .merged-brand-copy { flex-direction: column; align-items: flex-start; gap: 0; }
+  .merged-brand-copy > .wordmark { font-size: 17px; }
+  .brand .merged-brand-copy h1 { font-size: 16px; }
+  .merged-home { width: 44px; padding: 0; }
+  .merged-home > span { display: none; }
+}
+
+.platform-app-frame {
+  inline-size: 100%;
+  min-inline-size: 0;
+  margin-inline: auto;
+  container: app-content / inline-size;
+  overflow-wrap: anywhere;
+}
+.platform-app-frame > * { min-inline-size: 0; }
+
+/* Optional shared layout primitives: Apps choose which content belongs together. */
+.platform-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--app-layout-gap); }
+.platform-grid > * { min-inline-size: 0; }
+@container app-content (min-width: 600px) {
+  .platform-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container app-content (min-width: 1024px) {
+  .platform-grid:not(.platform-grid--two) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

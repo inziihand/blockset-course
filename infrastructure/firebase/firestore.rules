@@ -1,0 +1,71 @@
+rules_version = '2';
+
+// Platform identity data is server-owned. Firebase Admin SDK and other
+// authenticated Google server clients bypass these browser Security Rules.
+// App modules must add an explicit, schema-validated match before exposing
+// their own data to browsers; no generic App storage is opened here.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Canonical member profile and access state. Read and write through the
+    // same-origin Identity API so field-level policy and audit stay server-side.
+    match /members/{userId} {
+      allow read, write: if false;
+
+      match /appGrants/{appKey} {
+        allow read, write: if false;
+      }
+    }
+
+    // Each App owns an explicit schema/rule block. The platform default is deny.
+    match /apps/{appKey}/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Server-written audit and installation metadata.
+    match /adminAuditLogs/{auditId} {
+      allow read, write: if false;
+    }
+
+    match /appPolicies/{appKey} {
+      allow read, write: if false;
+    }
+
+    match /appInstallations/{appKey} {
+      allow read, write: if false;
+    }
+
+    match /platformMeta/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Trading command/runtime collections remain server-only even if their
+    // normalized names are introduced before the Python Worker is complete.
+    match /accountWorkerControls/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /accountWorkerCommands/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /accountWorkerRuntime/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /accountWorkerSnapshots/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /accountWorkerLeases/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /executionAccountLeases/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

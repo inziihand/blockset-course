@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "appKey": "demo-compact",
+  "version": "0.1.0",
+  "platformCompatibility": {
+    "minimumVersion": "0.1.0",
+    "appContractVersion": 2
+  },
+  "kind": "frontend-app",
+  "displayName": "Demo App · 窄版",
+  "source": "apps/console/src/apps/demo",
+  "routes": ["/apps/demo-compact"],
+  "requiredServices": [],
+  "access": {
+    "defaultMode": "public",
+    "allowedModes": ["public"],
+    "adminAllowed": true,
+    "protected": false
+  },
+  "lifecycle": {
+    "category": "sample",
+    "removable": true,
+    "defaultStatus": "installed"
+  },
+  "package": { "installable": false, "ownerApp": "demo" },
+  "deploymentDocument": "apps/console/src/apps/demo/DEPLOYMENT.md",
+  "frontend": {
+    "entryModule": "DemoApp.tsx",
+    "title": "Demo App · 窄版",
+    "subtitle": "大螢幕也保持窄版",
+    "description": "整個 App 視窗（含標題與外框）最大寬度 420 px 並置中；小螢幕依可用空間縮小。",
+    "icon": "Smartphone",
+    "status": "preview",
+    "displayMode": "compact",
+    "order": 20
+  }
+}

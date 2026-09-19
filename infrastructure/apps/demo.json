@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "appKey": "demo",
+  "version": "0.1.0",
+  "platformCompatibility": {
+    "minimumVersion": "0.1.0",
+    "appContractVersion": 2
+  },
+  "kind": "frontend-app",
+  "displayName": "Demo App · 通用",
+  "source": "apps/console/src/apps/demo",
+  "routes": ["/apps/demo"],
+  "requiredServices": [],
+  "access": {
+    "defaultMode": "public",
+    "allowedModes": ["public"],
+    "adminAllowed": true,
+    "protected": false
+  },
+  "lifecycle": {
+    "category": "sample",
+    "removable": true,
+    "defaultStatus": "installed"
+  },
+  "package": { "installable": true, "ownerApp": "demo" },
+  "deploymentDocument": "apps/console/src/apps/demo/DEPLOYMENT.md",
+  "deploymentManifest": "infrastructure/app-deployments/demo.json",
+  "frontend": {
+    "entryModule": "DemoApp.tsx",
+    "title": "Demo App · 通用",
+    "subtitle": "隨可用空間調整版面",
+    "description": "離線示範共用操作與資料狀態；內容依手機、平板與桌面的可用寬度排列。",
+    "icon": "Monitor",
+    "status": "preview",
+    "displayMode": "responsive",
+    "order": 10
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stratexec.local/schemas/app-publisher-trust.schema.json",
+  "title": "StratExec App publisher trust store",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "publishers"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "publishers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["publisherId", "displayName", "status", "keys"],
+        "properties": {
+          "publisherId": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*$" },
+          "displayName": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["active", "disabled"] },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["keyId", "algorithm", "status", "publicKeyPem"],
+              "properties": {
+                "keyId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+                "algorithm": { "const": "ed25519" },
+                "status": { "enum": ["trusted", "disabled", "revoked"] },
+                "publicKeyPem": { "type": "string", "minLength": 1 },
+                "notBefore": { "type": "string", "format": "date-time" },
+                "notAfter": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "installationKey": "customer-key",
+  "displayName": "Customer name",
+  "gcpProjectId": "customer-project-id",
+  "region": "asia-east1",
+  "firebaseWebAppDisplayName": "stratexec-platform",
+  "auth": {
+    "providers": ["google"],
+    "oauthBrandDisplayName": "Customer name",
+    "supportEmail": "support@example.com",
+    "authorizedDomains": ["localhost", "127.0.0.1"]
+  },
+  "enabledApps": ["demo", "demo-compact", "access-control"],
+  "servicePlacements": [
+    {
+      "serviceKey": "identity-api",
+      "selectedTarget": "unassigned",
+      "region": "asia-east1",
+      "serviceName": "customer-identity",
+      "status": "planned"
+    }
+  ]
+}

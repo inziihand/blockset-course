@@ -1,0 +1,1 @@
+"""StratExec platform backend."""
