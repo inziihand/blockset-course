@@ -47,7 +47,7 @@ npm run dev
 - `npm run dev:test`：5176 埠的純離線測試宿主，只有兩個測試 App，不連接券商。
 - `npm run test:e2e`：路由、故障與桌面／手機瀏覽器驗收；安裝方式見 [App 接入簡表](docs/FRONTEND_APP_GUIDE.md)。
 
-客戶安裝預設使用只需選項操作的互動式精靈。一般模式會確認或開啟 gcloud 登入、列出可存取的 GCP projects，讓使用者以編號選擇 project；顯示名稱取自 project 名稱，安裝代號取自 project ID，region 預設為 `asia-east1`，support email 與首位管理員預設為目前 gcloud Google 帳號。缺少 repository npm 相依套件時可用 Y/N 選擇執行 `npm ci`。使用者確認摘要後，精靈會建立被 Git 忽略的 `*.local.json`，執行唯讀 preflight，再以預設為 No 的 Y/N 詢問是否進入正式部署：
+客戶安裝預設使用只需選項操作的互動式精靈。一般模式會確認或開啟 gcloud 登入、列出可存取的 GCP projects，讓使用者以編號選擇 project；顯示名稱取自 project 名稱，安裝代號取自 project ID，region 預設為 `asia-east1`，support email 與首位管理員預設為目前 gcloud Google 帳號。缺少 repository npm 相依套件時可用 Y/N 選擇執行 `npm ci`。使用者確認摘要後，精靈會建立被 Git 忽略的 `*.local.json` 並執行唯讀 preflight；若 Firebase／Google Provider／Web App 已存在，會直接產生 `.env.local`，缺少時則以預設為 No 的 Y/N 詢問是否設定。最後再詢問是否進入正式部署：
 
 ```powershell
 .\scripts\install.ps1

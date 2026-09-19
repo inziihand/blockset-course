@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const source = await readFile(new URL('../install.ps1', import.meta.url), 'utf8');
 const bootstrapSource = await readFile(new URL('../bootstrap-installation.ps1', import.meta.url), 'utf8');
+const localAuthSource = await readFile(new URL('../configure-local-auth.ps1', import.meta.url), 'utf8');
 const planSource = await readFile(new URL('../plan-deployment.mjs', import.meta.url), 'utf8');
 const inventorySource = await readFile(new URL('../inspect-deployment-inventory.mjs', import.meta.url), 'utf8');
 const hostingSource = await readFile(new URL('../render-hosting-config.mjs', import.meta.url), 'utf8');
@@ -54,6 +55,21 @@ test('guided installer uses choices for dependencies, deployment gates, and init
   assert.match(source, /建立可能產生費用的 Cloud Run 等資源/);
   assert.match(source, /建立可由瀏覽器存取、但仍需 App 驗證的公開入口/);
   assert.match(source, /-PrepareOnly does not run discovery/);
+});
+
+test('guided dry run prepares local Google sign-in without free-form input', () => {
+  assert.match(source, /configure-local-auth\.ps1/);
+  assert.match(source, /本機 Google 登入設定已就緒/);
+  assert.match(source, /啟用 Firebase Authentication、設定 Google Provider 並建立 Web App/);
+  assert.doesNotMatch(localAuthSource, /Read-Host/);
+  assert.match(localAuthSource, /projects:list/);
+  assert.match(localAuthSource, /'deploy', '--only', 'auth'/);
+  assert.match(localAuthSource, /apps:create/);
+  assert.match(localAuthSource, /apps:sdkconfig/);
+  assert.match(localAuthSource, /--use-system-ca/);
+  assert.match(localAuthSource, /WriteAllLines/);
+  assert.doesNotMatch(localAuthSource, /STRATEXEC_BOOTSTRAP_ADMIN_EMAILS=/);
+  assert.doesNotMatch(localAuthSource, /disable.*certificate|ssl.*verify.*false/i);
 });
 
 test('gcloud TLS and login failures are reported without weakening verification', () => {

@@ -83,7 +83,8 @@ Set-Location .\stratexec-platform
 4. 視需要用 Y/N 執行 `npm ci`。
 5. 建立被 Git 忽略的 `*.local.json`。
 6. 執行唯讀 dry-run。
-7. 詢問要停在 dry-run，或繼續正式部署。
+7. 已有 Firebase Auth／Web App 時自動產生 `.env.local`；缺少時以 Y/N 詢問是否設定。
+8. 詢問要停止完整部署，或繼續建立 StratExec 雲端 runtime。
 
 若選擇正式部署，首位管理員預設為目前的 gcloud Google 帳號；可能計費資源與公開入口會分開詢問，且兩項都預設為 No。
 
@@ -123,4 +124,4 @@ dry-run 仍可完成，但正式部署會停止。只有在理解帳務影響並
 
 ### Firebase Auth 尚未設定
 
-這表示本機前端已啟動，但根目錄 `.env.local` 尚未取得 Firebase Web App 設定。正式安裝會自動產生該檔；單純離線 Demo 可以忽略此訊息。Google 登入成功也不等於已有管理員權限，完整權限仍由 Identity API 驗證。
+這表示本機前端已啟動，但根目錄 `.env.local` 尚未取得 Firebase Web App 設定。重新執行安裝精靈：若選定 project 已具備 Firebase Auth／Google Provider／Web App，精靈會唯讀取得公開 Web SDK 設定並產生 `.env.local`；缺少雲端設定時，只有在使用者對明確的 Y/N 問題回答 Yes 後才會建立。單純離線 Demo 可以忽略此訊息。Google 登入成功也不等於已有管理員權限，完整權限仍由 Identity API 驗證。

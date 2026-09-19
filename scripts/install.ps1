@@ -441,6 +441,19 @@ function Invoke-ExternalValue {
     return (($output -join [Environment]::NewLine).Trim())
 }
 
+function Invoke-FirebaseLogin {
+    $previousNodeOptions = $env:NODE_OPTIONS
+    if ($env:NODE_OPTIONS -notmatch '(^|\s)--use-system-ca($|\s)') {
+        $env:NODE_OPTIONS = (($env:NODE_OPTIONS, '--use-system-ca') | Where-Object { $_ }) -join ' '
+    }
+    try {
+        Invoke-External $firebaseExecutable @('login')
+    }
+    finally {
+        $env:NODE_OPTIONS = $previousNodeOptions
+    }
+}
+
 function Test-GcloudResource {
     param([Parameter(Mandatory = $true)][string[]] $Arguments)
     $previousPreference = $ErrorActionPreference
@@ -581,8 +594,40 @@ try {
         Write-Host ''
         Write-Host 'Dry run complete. No cloud resources were changed.'
         Write-Host 'The local installation config remains available for reuse.'
+
+        $localAuthCloudChanged = $false
+        $localAuthScript = Join-Path $PSScriptRoot 'configure-local-auth.ps1'
+        $localAuthResult = & $localAuthScript -ConfigPath ([string] $resolvedConfig)
+        if ($localAuthResult.Status -eq 'firebase-cli-access-required') {
+            if (Read-YesNo 'Firebase CLI 尚未登入或無法讀取 projects。現在開啟 Google 登入嗎？') {
+                Invoke-FirebaseLogin
+                $localAuthResult = & $localAuthScript -ConfigPath ([string] $resolvedConfig)
+            }
+        }
+        if ($localAuthResult.Status -eq 'needs-cloud-configuration') {
+            Write-Host "本機 Google 登入尚缺：$($localAuthResult.Missing -join ', ')" -ForegroundColor Yellow
+            if (Read-YesNo '要在選定 project 啟用 Firebase Authentication、設定 Google Provider 並建立 Web App 嗎？' $false) {
+                $localAuthResult = & $localAuthScript -ConfigPath ([string] $resolvedConfig) -ApplyCloudChanges
+            }
+        }
+        if ($localAuthResult.Status -eq 'ready') {
+            Write-Host "本機 Google 登入設定已就緒：$($localAuthResult.OutputPath)" -ForegroundColor Green
+            if ($localAuthResult.CloudChanged) {
+                $localAuthCloudChanged = $true
+                Write-Host '已依授權更新 Firebase Authentication／Web App；尚未部署 StratExec runtime。' -ForegroundColor Yellow
+            }
+        }
+        else {
+            Write-Host '已略過本機 Google 登入設定；離線 Demo 仍可使用。' -ForegroundColor Yellow
+        }
+
         if (-not (Read-YesNo '要繼續正式部署至以上 Google Cloud project 嗎？' $false)) {
-            Write-Host '已停在 dry-run；沒有修改任何雲端資源。'
+            if ($localAuthCloudChanged) {
+                Write-Host '已停止完整部署；只有先前確認的 Firebase Authentication／Web App 設定已變更。'
+            }
+            else {
+                Write-Host '已停在 dry-run；沒有修改任何雲端資源。'
+            }
             exit 0
         }
         $Apply = $true

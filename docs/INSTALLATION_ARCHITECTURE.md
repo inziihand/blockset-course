@@ -45,7 +45,7 @@ customer-a project             customer-b project
    .\scripts\install.ps1
    ```
 
-   再次執行時可沿用精靈偵測到的單一完整 local overlay；有多份時以編號選擇，仍含公開範例值或 `unassigned` placement 的副本會被略過。衝突覆寫不要求鍵入確認字串。唯讀 dry-run 完成後可選擇結束或繼續正式部署；若繼續，首位管理員預設使用目前 gcloud Google 帳號，計費資源與公開 ingress 仍分別確認。自動化或進階操作者可明確傳入 `-ConfigPath`、`-BootstrapAdminEmails` 與確認 switches；`-PrepareOnly` 不執行 discovery，必須搭配既有私人 `-ConfigPath`。正式維運也可把私人 overlay 放在 repository 外。
+   再次執行時可沿用精靈偵測到的單一完整 local overlay；有多份時以編號選擇，仍含公開範例值或 `unassigned` placement 的副本會被略過。衝突覆寫不要求鍵入確認字串。唯讀 dry-run 後，安裝器會讀取 Firebase／Google Provider／Web App 狀態；已就緒時直接合併產生 `.env.local`，缺少時則以預設為 No 的 Y/N 詢問是否使用官方 Firebase Auth 部署設定。這只準備本機 Google 登入，不代表 Identity runtime 已部署。之後可選擇結束或繼續正式部署；若繼續，首位管理員預設使用目前 gcloud Google 帳號，計費資源與公開 ingress 仍分別確認。自動化或進階操作者可明確傳入 `-ConfigPath`、`-BootstrapAdminEmails` 與確認 switches；`-PrepareOnly` 不執行 discovery，必須搭配既有私人 `-ConfigPath`。正式維運也可把私人 overlay 放在 repository 外。
 
 3. 一般互動流程會在同一次執行中詢問是否從 dry-run 進入正式部署，並以 Y/N 分別取得 billing 資源及公開 ingress 的當次授權。以下參數形式保留給自動化或進階操作者：
 

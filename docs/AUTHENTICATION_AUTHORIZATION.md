@@ -4,7 +4,7 @@
 
 ## 設定方式
 
-1. 複製根目錄 `.env.example` 為 `.env.local`，或執行 `scripts/bootstrap-installation.ps1` 產生客戶專屬設定。
+1. 一般使用者執行 `scripts/install.ps1`；精靈會呼叫 `scripts/configure-local-auth.ps1`，從既有 Firebase Web App 產生根目錄 `.env.local`，或在 Y/N 明確確認後設定 Firebase Google Provider／Web App。手動複製 `.env.example` 與直接執行 `bootstrap-installation.ps1` 只保留給開發及進階操作。
 2. `.env.example` 只含通用 placeholder；母版不內建任何客戶 project ID、Web App ID 或管理員信箱。
 3. 公開母版只提供 `infrastructure/environments/installation.example.json`；每個客戶複製為被 Git 忽略的 `*.local.json` 或 repository 外的私人 overlay，再填入自己的 GCP/Firebase project。
 4. 在 Firebase Console 明確檢查 Google Provider、support email 與正式網域，再重新啟動 Vite。
