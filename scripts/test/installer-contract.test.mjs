@@ -34,9 +34,26 @@ test('interactive wizard discovers gcloud defaults and asks for confirmation', (
   assert.match(source, /Get-GcloudWizardContext/);
   assert.match(source, /'projects', 'list', '--format=json\(projectId,name\)'/);
   assert.match(source, /Select-GcloudProject/);
-  assert.match(source, /SupportEmail = \$SupportEmail/);
+  assert.match(source, /\$installationKey = ConvertTo-InstallationKey \$projectId/);
+  assert.match(source, /\$supportEmail = \[string\] \$gcloudContext\.Account/);
   assert.match(source, /安裝設定摘要/);
-  assert.match(source, /使用以上設定並建立本機設定嗎/);
+  assert.match(source, /使用以上自動偵測設定並建立本機設定嗎/);
+  assert.doesNotMatch(source, /客戶／環境顯示名稱/);
+  assert.doesNotMatch(source, /手動輸入 project ID/);
+  assert.doesNotMatch(source, /請輸入 OVERWRITE/);
+  assert.doesNotMatch(source, /請自訂要變更的值/);
+});
+
+test('guided installer uses choices for dependencies, deployment gates, and initial admin', () => {
+  assert.equal(source.match(/Read-Host/g)?.length, 2);
+  assert.match(source, /function Read-MenuSelection/);
+  assert.match(source, /function Read-YesNo/);
+  assert.match(source, /現在執行 npm ci 嗎/);
+  assert.match(source, /要繼續正式部署至以上 Google Cloud project 嗎/);
+  assert.match(source, /使用目前 gcloud Google 帳號作為首位管理員嗎/);
+  assert.match(source, /建立可能產生費用的 Cloud Run 等資源/);
+  assert.match(source, /建立可由瀏覽器存取、但仍需 App 驗證的公開入口/);
+  assert.match(source, /-PrepareOnly does not run discovery/);
 });
 
 test('gcloud TLS and login failures are reported without weakening verification', () => {

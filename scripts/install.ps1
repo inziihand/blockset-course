@@ -20,23 +20,29 @@ if ($Apply -and $FinalizeAdmin) { throw 'Choose either -Apply or -FinalizeAdmin,
 if ($PrepareOnly -and ($Apply -or $FinalizeAdmin)) {
     throw '-PrepareOnly cannot be combined with -Apply or -FinalizeAdmin.'
 }
+if ($PrepareOnly -and -not $ConfigPath) {
+    throw '-PrepareOnly does not run discovery. Provide an existing private -ConfigPath, or run the guided installer without -PrepareOnly.'
+}
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
-function Read-InstallerValue {
+function Read-MenuSelection {
     param(
         [Parameter(Mandatory = $true)][string] $Label,
-        [string] $Default = '',
-        [Parameter(Mandatory = $true)][scriptblock] $Validator,
-        [Parameter(Mandatory = $true)][string] $ValidationMessage
+        [Parameter(Mandatory = $true)][int] $Minimum,
+        [Parameter(Mandatory = $true)][int] $Maximum,
+        [int] $Default
     )
 
     while ($true) {
-        $prompt = if ($Default) { "$Label [$Default]" } else { $Label }
+        $prompt = "$Label [$Default]"
         $value = (Read-Host $prompt).Trim()
-        if (-not $value) { $value = $Default }
-        if (& $Validator $value) { return $value }
-        Write-Host $ValidationMessage -ForegroundColor Yellow
+        if (-not $value) { return $Default }
+        $number = 0
+        if ([int]::TryParse($value, [ref] $number) -and $number -ge $Minimum -and $number -le $Maximum) {
+            return $number
+        }
+        Write-Host "請輸入 $Minimum～$Maximum。" -ForegroundColor Yellow
     }
 }
 
@@ -137,7 +143,17 @@ function Get-GcloudWizardContext {
         'auth', 'list', '--filter=status:ACTIVE', '--format=value(account)'
     ) -Action '讀取目前登入帳號'
     if ([string]::IsNullOrWhiteSpace($account)) {
-        throw '目前沒有啟用中的 gcloud 帳號。請先執行 gcloud auth login，再重新執行安裝精靈。'
+        if (-not (Read-YesNo '目前沒有啟用中的 gcloud 帳號。現在開啟 Google 登入嗎？')) {
+            throw '使用者取消 Google 登入，安裝設定未變更。'
+        }
+        & gcloud auth login
+        if ($LASTEXITCODE -ne 0) { throw 'Google 登入未完成，安裝設定未變更。' }
+        $account = Get-GcloudRequiredValue -Arguments @(
+            'auth', 'list', '--filter=status:ACTIVE', '--format=value(account)'
+        ) -Action '重新讀取目前登入帳號'
+        if ([string]::IsNullOrWhiteSpace($account)) {
+            throw 'Google 登入完成後仍找不到啟用中的 gcloud 帳號。'
+        }
     }
 
     $configuredProject = Get-GcloudRequiredValue -Arguments @(
@@ -169,7 +185,7 @@ function Select-GcloudProject {
     $projects = @($Context.Projects)
     if ($projects.Count -eq 1) {
         Write-Host "自動選用唯一可存取的 project：$($projects[0].name) ($($projects[0].projectId))"
-        return [string] $projects[0].projectId
+        return $projects[0]
     }
 
     Write-Host ''
@@ -180,16 +196,9 @@ function Select-GcloudProject {
         if ($marker) { $defaultSelection = $index + 1 }
         Write-Host "  $($index + 1). $($projects[$index].name) [$($projects[$index].projectId)] $marker"
     }
-    Write-Host '  0. 手動輸入 project ID'
-    $selection = Read-InstallerValue '請選擇 project 編號' ([string] $defaultSelection) {
-        param($value)
-        $number = 0
-        [int]::TryParse($value, [ref] $number) -and $number -ge 0 -and $number -le $projects.Count
-    } "請輸入 0～$($projects.Count)。"
-    if ([int] $selection -gt 0) { return [string] $projects[[int] $selection - 1].projectId }
-    return Read-InstallerValue 'Google Cloud project ID' $Context.ConfiguredProject {
-        param($value) $value -match '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
-    } '請輸入有效的 Google Cloud project ID（不是專案顯示名稱）。'
+    $selection = Read-MenuSelection -Label '請選擇 project 編號' -Minimum 1 `
+        -Maximum $projects.Count -Default $defaultSelection
+    return $projects[$selection - 1]
 }
 
 function Confirm-InstallationDefaults {
@@ -201,37 +210,14 @@ function Confirm-InstallationDefaults {
         [Parameter(Mandatory = $true)][string] $SupportEmail
     )
 
-    while ($true) {
-        Write-Host ''
-        Write-Host '安裝設定摘要' -ForegroundColor Cyan
-        Write-Host "  顯示名稱：$DisplayName"
-        Write-Host "  安裝代號：$InstallationKey"
-        Write-Host "  GCP project：$ProjectId"
-        Write-Host "  GCP region：$Region"
-        Write-Host "  Support email：$SupportEmail"
-        if (Read-YesNo '使用以上設定並建立本機設定嗎？') {
-            return [pscustomobject]@{
-                InstallationKey = $InstallationKey
-                ProjectId = $ProjectId
-                Region = $Region
-                SupportEmail = $SupportEmail
-            }
-        }
-
-        Write-Host '請自訂要變更的值；直接按 Enter 可保留目前設定。' -ForegroundColor Yellow
-        $InstallationKey = Read-InstallerValue '安裝代號（英文小寫、數字與連字號）' $InstallationKey {
-            param($value) $value -match '^[a-z][a-z0-9-]{1,38}[a-z0-9]$'
-        } '安裝代號必須為 3～40 字元，英文小寫開頭，只能包含英文小寫、數字與連字號。'
-        $ProjectId = Read-InstallerValue 'Google Cloud project ID' $ProjectId {
-            param($value) $value -match '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
-        } '請輸入有效的 Google Cloud project ID（不是專案顯示名稱）。'
-        $Region = Read-InstallerValue 'GCP region' $Region {
-            param($value) $value -match '^[a-z]+-[a-z]+[0-9]$'
-        } '請輸入有效的 region，例如 asia-east1。'
-        $SupportEmail = Read-InstallerValue 'Firebase／OAuth support email' $SupportEmail {
-            param($value) $value -match '^.+@.+\..+$'
-        } '請輸入有效的 email。'
-    }
+    Write-Host ''
+    Write-Host '安裝設定摘要' -ForegroundColor Cyan
+    Write-Host "  顯示名稱：$DisplayName"
+    Write-Host "  安裝代號：$InstallationKey"
+    Write-Host "  GCP project：$ProjectId"
+    Write-Host "  GCP region：$Region"
+    Write-Host "  Support email：$SupportEmail"
+    return Read-YesNo '使用以上自動偵測設定並建立本機設定嗎？'
 }
 
 function Write-InstallationConfig {
@@ -324,73 +310,48 @@ function New-InteractiveInstallationConfig {
             Write-Host "  $($index + 1). $($existingConfigs[$index].FullName)"
         }
         Write-Host '  0. 建立新的安裝設定'
-        $selection = Read-InstallerValue '請選擇設定編號' '' {
-            param($value)
-            $number = 0
-            [int]::TryParse($value, [ref] $number) -and $number -ge 0 -and $number -le $existingConfigs.Count
-        } "請輸入 0～$($existingConfigs.Count)。"
-        if ([int] $selection -gt 0) { return $existingConfigs[[int] $selection - 1].FullName }
+        $selection = Read-MenuSelection -Label '請選擇設定編號' -Minimum 0 `
+            -Maximum $existingConfigs.Count -Default 0
+        if ($selection -gt 0) { return $existingConfigs[$selection - 1].FullName }
     }
 
     Write-Host ''
     Write-Host 'StratExec 安裝設定精靈' -ForegroundColor Cyan
     Write-Host '本階段只建立被 Git 忽略的本機設定，接著執行唯讀 dry-run。'
-    if ($PrepareOnly) {
-        Write-Host 'PrepareOnly 模式不查詢 gcloud；請手動輸入安裝資料。'
-    }
-    else {
-        Write-Host '正在讀取目前 gcloud 帳號與可存取的既有 Google Cloud projects。'
-    }
+    Write-Host '正在讀取目前 gcloud 帳號與可存取的既有 Google Cloud projects。'
     Write-Host ''
 
-    $gcloudContext = if ($PrepareOnly) { $null } else { Get-GcloudWizardContext }
-    if ($gcloudContext) {
-        Write-Host "gcloud 帳號：$($gcloudContext.Account)" -ForegroundColor Green
-    }
+    $gcloudContext = Get-GcloudWizardContext
+    Write-Host "gcloud 帳號：$($gcloudContext.Account)" -ForegroundColor Green
 
-    $displayName = Read-InstallerValue '客戶／環境顯示名稱' '' {
-        param($value) -not [string]::IsNullOrWhiteSpace($value)
-    } '顯示名稱不可空白。'
-    $suggestedKey = ConvertTo-InstallationKey $displayName
-    if ($PrepareOnly) {
-        $installationKey = Read-InstallerValue '安裝代號（英文小寫、數字與連字號）' $suggestedKey {
-            param($value) $value -match '^[a-z][a-z0-9-]{1,38}[a-z0-9]$'
-        } '安裝代號必須為 3～40 字元，英文小寫開頭，只能包含英文小寫、數字與連字號。'
-        $projectId = Read-InstallerValue '既有 Google Cloud project ID' '' {
-            param($value) $value -match '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
-        } '請輸入有效的 Google Cloud project ID（不是專案顯示名稱）。'
-        $region = Read-InstallerValue 'GCP region' 'asia-east1' {
-            param($value) $value -match '^[a-z]+-[a-z]+[0-9]$'
-        } '請輸入有效的 region，例如 asia-east1。'
-        $supportEmail = Read-InstallerValue 'Firebase／OAuth support email' '' {
-            param($value) $value -match '^.+@.+\..+$'
-        } '請輸入有效的 email。'
+    $selectedProject = Select-GcloudProject -Context $gcloudContext
+    $projectId = [string] $selectedProject.projectId
+    $displayName = if ([string]::IsNullOrWhiteSpace([string] $selectedProject.name)) {
+        $projectId
     }
     else {
-        $installationKey = $suggestedKey
-        $projectId = Select-GcloudProject -Context $gcloudContext
-        $region = 'asia-east1'
-        $supportEmail = if ($gcloudContext.Account -match '^.+@.+\..+$') {
-            [string] $gcloudContext.Account
-        }
-        else {
-            Read-InstallerValue 'Firebase／OAuth support email' '' {
-                param($value) $value -match '^.+@.+\..+$'
-            } '請輸入有效的 email。'
-        }
+        [string] $selectedProject.name
     }
+    $installationKey = ConvertTo-InstallationKey $projectId
+    $region = 'asia-east1'
+    if ($gcloudContext.Account -notmatch '^.+@.+\..+$') {
+        throw '目前 gcloud 帳號不是可用的 email；請切換到 Google 使用者帳號後重試。'
+    }
+    $supportEmail = [string] $gcloudContext.Account
 
     $confirmed = Confirm-InstallationDefaults -DisplayName $displayName -InstallationKey $installationKey `
         -ProjectId $projectId -Region $region -SupportEmail $supportEmail
-    $installationKey = $confirmed.InstallationKey
-    $projectId = $confirmed.ProjectId
-    $region = $confirmed.Region
-    $supportEmail = $confirmed.SupportEmail
+    if (-not $confirmed) {
+        Write-Host '已取消建立安裝設定；沒有修改本機或雲端資源。' -ForegroundColor Yellow
+        exit 0
+    }
 
     $configPath = Join-Path $environmentDirectory "$installationKey.local.json"
     if (Test-Path -LiteralPath $configPath) {
-        $confirmation = Read-Host "設定檔已存在。若要覆寫，請輸入 OVERWRITE：$configPath"
-        if ($confirmation -cne 'OVERWRITE') { throw '未確認覆寫，安裝設定未變更。' }
+        if (-not (Read-YesNo "設定檔已存在，使用自動偵測值取代嗎？$configPath" $false)) {
+            Write-Host '已保留既有設定；沒有修改本機或雲端資源。' -ForegroundColor Yellow
+            exit 0
+        }
     }
 
     $configuration = [ordered]@{
@@ -542,6 +503,17 @@ function Write-InstallState {
 Assert-Command 'node'
 Assert-Command 'npm'
 Assert-Command 'gcloud'
+if (-not (Test-Path -LiteralPath $localFirebase)) {
+    if (-not (Read-YesNo '尚未安裝 repository 的 npm 相依套件。現在執行 npm ci 嗎？')) {
+        Write-Host '已取消安裝相依套件；沒有修改雲端資源。' -ForegroundColor Yellow
+        exit 0
+    }
+    Invoke-External 'npm' @('ci')
+    if (-not (Test-Path -LiteralPath $localFirebase)) {
+        throw 'npm ci 完成後仍找不到 repository 內的 Firebase CLI。'
+    }
+    $firebaseExecutable = $localFirebase
+}
 Assert-Command $firebaseExecutable
 
 Push-Location $repoRoot
@@ -609,8 +581,12 @@ try {
         Write-Host ''
         Write-Host 'Dry run complete. No cloud resources were changed.'
         Write-Host 'The local installation config remains available for reuse.'
-        Write-Host 'Apply requires both -ConfirmBillableResources and -ConfirmPublicIngress.'
-        exit 0
+        if (-not (Read-YesNo '要繼續正式部署至以上 Google Cloud project 嗎？' $false)) {
+            Write-Host '已停在 dry-run；沒有修改任何雲端資源。'
+            exit 0
+        }
+        $Apply = $true
+        Write-Host '已選擇正式部署；執行任何計費或公開服務變更前仍會逐項確認。' -ForegroundColor Yellow
     }
 
     $notDeployable = @($deploymentPlan.plan | Where-Object { -not $_.deployable })
@@ -627,7 +603,11 @@ try {
 
     $admins = Get-RequestedAdmins
     if ($admins.Count -eq 0) {
-        throw 'At least one bootstrap administrator email is required through the process environment or -BootstrapAdminEmails.'
+        if (-not (Read-YesNo '使用目前 gcloud Google 帳號作為首位管理員嗎？')) {
+            Write-Host '已取消選擇首位管理員；沒有修改任何雲端資源。' -ForegroundColor Yellow
+            exit 0
+        }
+        $admins = @($activeAccount.Trim().ToLowerInvariant())
     }
 
     if ($FinalizeAdmin) {
@@ -763,14 +743,22 @@ $serviceEvidence
         exit 0
     }
 
-    if (-not $ConfirmBillableResources) {
-        throw 'Apply requires -ConfirmBillableResources immediately before enabling APIs, builds, and Cloud Run resources.'
-    }
-    if (-not $ConfirmPublicIngress) {
-        throw 'Apply requires -ConfirmPublicIngress before allowing browser access to the selected app-authenticated APIs.'
-    }
     if ($billingEnabled -ne 'True') {
         throw 'Cloud Billing is disabled. Link or enable billing only after separate explicit authorization, then re-run.'
+    }
+    if (-not $ConfirmBillableResources) {
+        if (-not (Read-YesNo '即將啟用 APIs、執行建置並建立可能產生費用的 Cloud Run 等資源，是否繼續？' $false)) {
+            Write-Host '已取消可能產生費用的資源變更；沒有執行部署。' -ForegroundColor Yellow
+            exit 0
+        }
+        $ConfirmBillableResources = $true
+    }
+    if (-not $ConfirmPublicIngress) {
+        if (-not (Read-YesNo '即將建立可由瀏覽器存取、但仍需 App 驗證的公開入口，是否繼續？' $false)) {
+            Write-Host '已取消公開入口變更；沒有執行部署。' -ForegroundColor Yellow
+            exit 0
+        }
+        $ConfirmPublicIngress = $true
     }
 
     $resumeState = $null

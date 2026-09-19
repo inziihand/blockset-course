@@ -2,7 +2,7 @@
 
 ## 安裝體驗目標
 
-本母版預設由 AI Agent 協助不熟悉 Firebase／GCP 的使用者完成安裝。使用者只需指定目標 project、首位管理員信箱及在必要時核准帳務／公開服務等高影響動作；資源盤點、可重入建立、服務選型、容器建置、runtime 設定、部署與驗收應由 AI Agent 依 [部署目標決策規格](DEPLOYMENT_TARGET_POLICY.md) 執行。
+本母版預設由 AI Agent 協助不熟悉 Firebase／GCP 的使用者完成安裝。預設精靈只要求使用者操作編號選單或 Y/N：目標 project 從 gcloud 可存取清單選取；顯示名稱、安裝代號、region、support email 與首位管理員由 project metadata／目前 Google 帳號推導。名稱、project ID、email、路徑、`.env.local` 與覆寫確認字串都不應要求一般使用者手動輸入。資源盤點、可重入建立、服務選型、容器建置、runtime 設定、部署與驗收應由 AI Agent 依 [部署目標決策規格](DEPLOYMENT_TARGET_POLICY.md) 執行；帳務與公開服務等高影響動作仍以預設為 No 的獨立 Y/N 在動作前確認。
 
 「一鍵安裝」是端到端結果契約，不是單純執行某支腳本。只有 Hosting、Firebase Auth、Firestore、Identity／Market Data API、管理員角色及 App route 全部驗收完成，才可回報成功。`install.ps1` 已涵蓋批次 1～5；底層 `bootstrap-installation.ps1` 仍只負責 Firebase／Firestore 基礎。程式與 dry-run 已完成，不表示任何客戶環境已實際部署。
 
@@ -37,15 +37,15 @@ customer-a project             customer-b project
 建立新客戶（AI Agent 預設使用單一入口）：
 
 1. 在 GCP 建立客戶專屬 project，確認資料位置與帳務。
-2. 執行互動式安裝入口；一般模式會讀取目前 gcloud 帳號、列出可存取的 projects 並預選現行 project。使用者只需輸入顯示名稱、在有多個 project 時選擇目標，並確認由精靈產生的安裝代號、`asia-east1` region 與 support email 摘要。確認後，精靈自動建立被 Git 忽略的 `<installation>.local.json`，再執行唯讀 dry-run：
+2. 執行互動式安裝入口；一般模式會讀取目前 gcloud 帳號、列出可存取的 projects 並預選現行 project。使用者只需以編號選擇目標並用 Y/N 確認摘要；顯示名稱取自 project 名稱，安裝代號取自 project ID，region 使用 `asia-east1`，support email 使用目前 gcloud Google 帳號。確認後，精靈自動建立被 Git 忽略的 `<installation>.local.json`，再執行唯讀 dry-run：
 
    ```powershell
    .\scripts\install.ps1
    ```
 
-   再次執行時可沿用精靈偵測到的單一完整 local overlay；仍含公開範例值或 `unassigned` placement 的副本會被略過並重新提問。摘要若需調整，可改填安裝代號、project、region 或 support email。自動化或進階操作者仍可明確傳入 `-ConfigPath`；只想產生設定、不執行任何 gcloud 指令時可加上 `-PrepareOnly`，此模式會改為手動詢問必要值。正式維運也可把私人 overlay 放在 repository 外。
+   再次執行時可沿用精靈偵測到的單一完整 local overlay；有多份時以編號選擇，仍含公開範例值或 `unassigned` placement 的副本會被略過。衝突覆寫不要求鍵入確認字串。唯讀 dry-run 完成後可選擇結束或繼續正式部署；若繼續，首位管理員預設使用目前 gcloud Google 帳號，計費資源與公開 ingress 仍分別確認。自動化或進階操作者可明確傳入 `-ConfigPath`、`-BootstrapAdminEmails` 與確認 switches；`-PrepareOnly` 不執行 discovery，必須搭配既有私人 `-ConfigPath`。正式維運也可把私人 overlay 放在 repository 外。
 
-3. AI Agent 確認 billing 與公開 ingress 已取得當次授權後，設定本次 bootstrap 管理員並執行：
+3. 一般互動流程會在同一次執行中詢問是否從 dry-run 進入正式部署，並以 Y/N 分別取得 billing 資源及公開 ingress 的當次授權。以下參數形式保留給自動化或進階操作者：
 
    ```powershell
    $env:STRATEXEC_BOOTSTRAP_ADMIN_EMAILS = "admin@example.com"
