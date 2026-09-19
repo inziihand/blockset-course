@@ -607,7 +607,8 @@ try {
 
     if (-not $Apply -and -not $FinalizeAdmin) {
         Write-Host ''
-        Write-Host 'Dry run complete. No cloud or local files were changed.'
+        Write-Host 'Dry run complete. No cloud resources were changed.'
+        Write-Host 'The local installation config remains available for reuse.'
         Write-Host 'Apply requires both -ConfirmBillableResources and -ConfirmPublicIngress.'
         exit 0
     }

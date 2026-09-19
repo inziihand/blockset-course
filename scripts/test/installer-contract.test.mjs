@@ -13,6 +13,9 @@ test('installer defaults to a non-mutating dry run', () => {
   const firstMutation = source.indexOf("'services', 'enable'");
   assert.ok(dryRunExit > 0);
   assert.ok(firstMutation > dryRunExit);
+  assert.match(source, /Dry run complete\. No cloud resources were changed\./);
+  assert.match(source, /The local installation config remains available for reuse\./);
+  assert.doesNotMatch(source, /No cloud or local files were changed/);
 });
 
 test('installer starts an interactive local-config wizard when ConfigPath is omitted', () => {
