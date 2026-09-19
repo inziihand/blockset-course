@@ -15,6 +15,26 @@ test('installer defaults to a non-mutating dry run', () => {
   assert.ok(firstMutation > dryRunExit);
 });
 
+test('installer starts an interactive local-config wizard when ConfigPath is omitted', () => {
+  assert.doesNotMatch(source, /\[Parameter\(Mandatory = \$true\)\]\s*\[string\] \$ConfigPath/);
+  assert.match(source, /if \(-not \$ConfigPath\)/);
+  assert.match(source, /New-InteractiveInstallationConfig/);
+  assert.match(source, /Read-Host/);
+  assert.match(source, /\*\.local\.json/);
+  assert.match(source, /Test-InstallationConfigReady/);
+  assert.match(source, /略過尚未填完的安裝設定/);
+  assert.match(source, /selectedTarget = 'cloud-run-service'/);
+  assert.match(source, /UTF8Encoding\]::new\(\$false\)/);
+});
+
+test('wizard-only preparation stops before cloud command checks and mutations', () => {
+  const prepareOnlyExit = source.indexOf('if ($PrepareOnly) {');
+  const commandChecks = source.indexOf("Assert-Command 'gcloud'");
+  const firstMutation = source.indexOf("'services', 'enable'");
+  assert.ok(prepareOnlyExit > 0 && commandChecks > prepareOnlyExit);
+  assert.ok(firstMutation > commandChecks);
+});
+
 test('deployment helpers require an explicit private installation path', () => {
   for (const helperSource of [planSource, inventorySource, hostingSource]) {
     assert.match(helperSource, /Usage:/);

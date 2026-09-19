@@ -37,14 +37,15 @@ customer-a project             customer-b project
 建立新客戶（AI Agent 預設使用單一入口）：
 
 1. 在 GCP 建立客戶專屬 project，確認資料位置與帳務。
-2. 複製 `installation.example.json` 為 `<customer>.local.json` 並填值；正式維運也可放在 repository 外的私人路徑。
-3. 先執行唯讀 dry-run：
+2. 執行互動式安裝入口；精靈詢問非機密安裝資料、自動建立被 Git 忽略的 `<installation>.local.json`，再執行唯讀 dry-run：
 
    ```powershell
-   .\scripts\install.ps1 -ConfigPath .\infrastructure\environments\<customer>.local.json
+   .\scripts\install.ps1
    ```
 
-4. AI Agent 確認 billing 與公開 ingress 已取得當次授權後，設定本次 bootstrap 管理員並執行：
+   再次執行時可沿用精靈偵測到的單一完整 local overlay；仍含公開範例值或 `unassigned` placement 的副本會被略過並重新提問。自動化或進階操作者仍可明確傳入 `-ConfigPath`；只想產生設定、不查詢 GCP 時可加上 `-PrepareOnly`。正式維運也可把私人 overlay 放在 repository 外。
+
+3. AI Agent 確認 billing 與公開 ingress 已取得當次授權後，設定本次 bootstrap 管理員並執行：
 
    ```powershell
    $env:STRATEXEC_BOOTSTRAP_ADMIN_EMAILS = "admin@example.com"
@@ -52,9 +53,9 @@ customer-a project             customer-b project
      -Apply -ConfirmBillableResources -ConfirmPublicIngress
    ```
 
-5. 若 Google Provider／OAuth consent 需要帳號本人處理，AI Agent 在此停下並提供最少操作；完成後從同一步重跑。
-6. 安裝器依部署計畫逐一呼叫 target executor，為每個 Cloud Run Service 建立自己的 runtime service account，不提交服務帳號 key；Service 的 IAM、環境相依、短期 secret 與未授權驗證皆由 fragment 宣告。Market Data 的 fragment 依賴 Identity，因此會在 Identity 後部署並注入其 URL；V1 固定 `maxInstances=1`，以每 UID 60 次／分鐘與 15 秒有界記憶體快取控制 Demo 流量。
-7. 首位管理員以已驗證的 Google 帳號登入；Console 自動呼叫 Identity session。再執行：
+4. 若 Google Provider／OAuth consent 需要帳號本人處理，AI Agent 在此停下並提供最少操作；完成後從同一步重跑。
+5. 安裝器依部署計畫逐一呼叫 target executor，為每個 Cloud Run Service 建立自己的 runtime service account，不提交服務帳號 key；Service 的 IAM、環境相依、短期 secret 與未授權驗證皆由 fragment 宣告。Market Data 的 fragment 依賴 Identity，因此會在 Identity 後部署並注入其 URL；V1 固定 `maxInstances=1`，以每 UID 60 次／分鐘與 15 秒有界記憶體快取控制 Demo 流量。
+6. 首位管理員以已驗證的 Google 帳號登入；Console 自動呼叫 Identity session。再執行：
 
    ```powershell
    .\scripts\install.ps1 -ConfigPath .\infrastructure\environments\<customer>.local.json -FinalizeAdmin

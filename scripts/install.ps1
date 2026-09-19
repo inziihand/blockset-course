@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
     [string] $ConfigPath,
+
+    [switch] $PrepareOnly,
 
     [switch] $Apply,
 
@@ -16,8 +17,225 @@ param(
 
 $ErrorActionPreference = 'Stop'
 if ($Apply -and $FinalizeAdmin) { throw 'Choose either -Apply or -FinalizeAdmin, not both.' }
+if ($PrepareOnly -and ($Apply -or $FinalizeAdmin)) {
+    throw '-PrepareOnly cannot be combined with -Apply or -FinalizeAdmin.'
+}
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+
+function Read-InstallerValue {
+    param(
+        [Parameter(Mandatory = $true)][string] $Label,
+        [string] $Default = '',
+        [Parameter(Mandatory = $true)][scriptblock] $Validator,
+        [Parameter(Mandatory = $true)][string] $ValidationMessage
+    )
+
+    while ($true) {
+        $prompt = if ($Default) { "$Label [$Default]" } else { $Label }
+        $value = (Read-Host $prompt).Trim()
+        if (-not $value) { $value = $Default }
+        if (& $Validator $value) { return $value }
+        Write-Host $ValidationMessage -ForegroundColor Yellow
+    }
+}
+
+function ConvertTo-InstallationKey {
+    param([Parameter(Mandatory = $true)][string] $Value)
+
+    $candidate = $Value.Trim().ToLowerInvariant() -replace '[^a-z0-9]+', '-'
+    $candidate = $candidate.Trim('-')
+    if (-not $candidate -or $candidate[0] -notmatch '[a-z]') { return 'customer-installation' }
+    if ($candidate.Length -gt 40) { $candidate = $candidate.Substring(0, 40).TrimEnd('-') }
+    if ($candidate.Length -lt 3) { return 'customer-installation' }
+    return $candidate
+}
+
+function Get-DefaultServiceName {
+    param([Parameter(Mandatory = $true)][string] $InstallationKey)
+
+    $prefix = $InstallationKey
+    if ($prefix.Length -gt 53) { $prefix = $prefix.Substring(0, 53).TrimEnd('-') }
+    return "$prefix-identity"
+}
+
+function Read-YesNo {
+    param(
+        [Parameter(Mandatory = $true)][string] $Label,
+        [bool] $DefaultYes = $true
+    )
+
+    $suffix = if ($DefaultYes) { '[Y/n]' } else { '[y/N]' }
+    while ($true) {
+        $answer = (Read-Host "$Label $suffix").Trim().ToLowerInvariant()
+        if (-not $answer) { return $DefaultYes }
+        if ($answer -in @('y', 'yes')) { return $true }
+        if ($answer -in @('n', 'no')) { return $false }
+        Write-Host '請輸入 Y 或 N。' -ForegroundColor Yellow
+    }
+}
+
+function Write-InstallationConfig {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][hashtable] $Configuration
+    )
+
+    $directory = Split-Path -Parent $Path
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    $temporaryPath = Join-Path $directory ".$(Split-Path -Leaf $Path).$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $json = $Configuration | ConvertTo-Json -Depth 10
+        [System.IO.File]::WriteAllText(
+            $temporaryPath,
+            "$json$([Environment]::NewLine)",
+            [System.Text.UTF8Encoding]::new($false)
+        )
+        Move-Item -LiteralPath $temporaryPath -Destination $Path -Force
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryPath) {
+            Remove-Item -LiteralPath $temporaryPath -Force
+        }
+    }
+}
+
+function Test-InstallationConfigReady {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][string] $IdentityServiceKey
+    )
+
+    try {
+        $candidate = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+        $placement = @($candidate.servicePlacements | Where-Object {
+            $_.serviceKey -eq $IdentityServiceKey
+        }) | Select-Object -First 1
+        return (
+            $candidate.installationKey -match '^[a-z][a-z0-9-]{1,38}[a-z0-9]$' -and
+            -not [string]::IsNullOrWhiteSpace([string] $candidate.displayName) -and
+            $candidate.displayName -ne 'Customer name' -and
+            $candidate.gcpProjectId -match '^[a-z][a-z0-9-]{4,28}[a-z0-9]$' -and
+            $candidate.gcpProjectId -ne 'customer-project-id' -and
+            $candidate.region -match '^[a-z]+-[a-z]+[0-9]$' -and
+            $candidate.auth.supportEmail -match '^.+@.+\..+$' -and
+            $candidate.auth.supportEmail -ne 'support@example.com' -and
+            $placement -and
+            $placement.selectedTarget -eq 'cloud-run-service' -and
+            $placement.region -eq $candidate.region -and
+            $placement.serviceName -match '^[a-z][a-z0-9-]{1,61}[a-z0-9]$'
+        )
+    }
+    catch {
+        return $false
+    }
+}
+
+function New-InteractiveInstallationConfig {
+    $environmentDirectory = Join-Path $repoRoot 'infrastructure\environments'
+    $serviceRegistry = Get-Content -LiteralPath (Join-Path $repoRoot 'infrastructure\services.json') -Raw |
+        ConvertFrom-Json
+    $identityServices = @($serviceRegistry.services | Where-Object {
+        $_.capabilities -contains 'identity:session' -and
+        $_.deployment.allowedTargets -contains 'cloud-run-service'
+    })
+    if ($identityServices.Count -ne 1) {
+        throw 'Installation wizard requires exactly one Cloud Run capable identity:session service.'
+    }
+    $identityServiceKey = [string] $identityServices[0].key
+    $localConfigs = @(Get-ChildItem -LiteralPath $environmentDirectory -Filter '*.local.json' -File)
+    $existingConfigs = @($localConfigs | Where-Object {
+        Test-InstallationConfigReady -Path $_.FullName -IdentityServiceKey $identityServiceKey
+    })
+    $incompleteConfigs = @($localConfigs | Where-Object {
+        -not (Test-InstallationConfigReady -Path $_.FullName -IdentityServiceKey $identityServiceKey)
+    })
+    foreach ($incompleteConfig in $incompleteConfigs) {
+        Write-Host "略過尚未填完的安裝設定：$($incompleteConfig.FullName)" -ForegroundColor Yellow
+    }
+    if ($existingConfigs.Count -eq 1) {
+        $existingPath = $existingConfigs[0].FullName
+        if (Read-YesNo "偵測到既有安裝設定 $existingPath，直接使用嗎？") {
+            return $existingPath
+        }
+    }
+    elseif ($existingConfigs.Count -gt 1) {
+        Write-Host '偵測到多份可用的本機安裝設定：' -ForegroundColor Cyan
+        for ($index = 0; $index -lt $existingConfigs.Count; $index += 1) {
+            Write-Host "  $($index + 1). $($existingConfigs[$index].FullName)"
+        }
+        Write-Host '  0. 建立新的安裝設定'
+        $selection = Read-InstallerValue '請選擇設定編號' '' {
+            param($value)
+            $number = 0
+            [int]::TryParse($value, [ref] $number) -and $number -ge 0 -and $number -le $existingConfigs.Count
+        } "請輸入 0～$($existingConfigs.Count)。"
+        if ([int] $selection -gt 0) { return $existingConfigs[[int] $selection - 1].FullName }
+    }
+
+    Write-Host ''
+    Write-Host 'StratExec 安裝設定精靈' -ForegroundColor Cyan
+    Write-Host '本階段只建立被 Git 忽略的本機設定，接著執行唯讀 dry-run。'
+    Write-Host '請先準備一個目前 gcloud 帳號可存取的既有 Google Cloud project。'
+    Write-Host ''
+
+    $displayName = Read-InstallerValue '客戶／環境顯示名稱' '' {
+        param($value) -not [string]::IsNullOrWhiteSpace($value)
+    } '顯示名稱不可空白。'
+    $suggestedKey = ConvertTo-InstallationKey $displayName
+    $installationKey = Read-InstallerValue '安裝代號（英文小寫、數字與連字號）' $suggestedKey {
+        param($value) $value -match '^[a-z][a-z0-9-]{1,38}[a-z0-9]$'
+    } '安裝代號必須為 3～40 字元，英文小寫開頭，只能包含英文小寫、數字與連字號。'
+    $projectId = Read-InstallerValue '既有 Google Cloud project ID' '' {
+        param($value) $value -match '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
+    } '請輸入有效的 Google Cloud project ID（不是專案顯示名稱）。'
+    $region = Read-InstallerValue 'GCP region' 'asia-east1' {
+        param($value) $value -match '^[a-z]+-[a-z]+[0-9]$'
+    } '請輸入有效的 region，例如 asia-east1。'
+    $supportEmail = Read-InstallerValue 'Firebase／OAuth support email' '' {
+        param($value) $value -match '^.+@.+\..+$'
+    } '請輸入有效的 email。'
+
+    $configPath = Join-Path $environmentDirectory "$installationKey.local.json"
+    if (Test-Path -LiteralPath $configPath) {
+        $confirmation = Read-Host "設定檔已存在。若要覆寫，請輸入 OVERWRITE：$configPath"
+        if ($confirmation -cne 'OVERWRITE') { throw '未確認覆寫，安裝設定未變更。' }
+    }
+
+    $configuration = [ordered]@{
+        schemaVersion = 1
+        installationKey = $installationKey
+        displayName = $displayName
+        gcpProjectId = $projectId
+        region = $region
+        firebaseWebAppDisplayName = 'stratexec-platform'
+        auth = [ordered]@{
+            providers = @('google')
+            oauthBrandDisplayName = $displayName
+            supportEmail = $supportEmail
+            authorizedDomains = @('localhost', '127.0.0.1')
+        }
+        enabledApps = @('demo', 'demo-compact', 'access-control')
+        servicePlacements = @(
+            [ordered]@{
+                serviceKey = $identityServiceKey
+                selectedTarget = 'cloud-run-service'
+                region = $region
+                serviceName = Get-DefaultServiceName $installationKey
+                status = 'planned'
+            }
+        )
+    }
+    Write-InstallationConfig -Path $configPath -Configuration $configuration
+    Write-Host ''
+    Write-Host "已建立本機安裝設定：$configPath" -ForegroundColor Green
+    Write-Host '管理員 email、OAuth secret、服務帳號 key 與其他秘密不會寫入此檔案。'
+    return $configPath
+}
+
+if (-not $ConfigPath) {
+    $ConfigPath = New-InteractiveInstallationConfig
+}
 $resolvedConfig = Resolve-Path -LiteralPath $ConfigPath
 $installation = Get-Content -LiteralPath $resolvedConfig -Raw | ConvertFrom-Json
 $registry = Get-Content -LiteralPath (Join-Path $repoRoot 'infrastructure\services.json') -Raw | ConvertFrom-Json
@@ -27,6 +245,13 @@ $stateDirectory = Join-Path $repoRoot ".stratexec\installations\$($installation.
 $statePath = Join-Path $stateDirectory 'state.json'
 $generatedFirebase = Join-Path $stateDirectory 'firebase.json'
 $artifactRepository = 'stratexec'
+
+if ($PrepareOnly) {
+    Write-Host ''
+    Write-Host "設定準備完成：$resolvedConfig"
+    Write-Host '尚未查詢或修改任何雲端資源。'
+    exit 0
+}
 
 function Assert-Command {
     param([Parameter(Mandatory = $true)][string] $Name)
