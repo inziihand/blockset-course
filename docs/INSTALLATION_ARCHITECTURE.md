@@ -1,5 +1,7 @@
 # 客戶安裝與後端模組化
 
+第一次執行前的電腦、CLI、Google 帳號、project 與費用條件見[安裝前置作業](INSTALLATION_PREREQUISITES.md)。
+
 ## 安裝體驗目標
 
 本母版預設由 AI Agent 協助不熟悉 Firebase／GCP 的使用者完成安裝。預設精靈只要求使用者操作編號選單或 Y/N：目標 project 從 gcloud 可存取清單選取；顯示名稱、安裝代號、region、support email 與首位管理員由 project metadata／目前 Google 帳號推導。名稱、project ID、email、路徑、`.env.local` 與覆寫確認字串都不應要求一般使用者手動輸入。資源盤點、可重入建立、服務選型、容器建置、runtime 設定、部署與驗收應由 AI Agent 依 [部署目標決策規格](DEPLOYMENT_TARGET_POLICY.md) 執行；帳務與公開服務等高影響動作仍以預設為 No 的獨立 Y/N 在動作前確認。

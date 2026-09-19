@@ -4,6 +4,8 @@ React 控制台與 Python 交易執行核心的 Monorepo。首個市場為 **台
 
 建立日期：2026-09-16。狀態：**P0 規劃完成，P1 的 React 平台已具備 App 承載、共用前端服務、Firebase Google 登入、登入後 Identity session、平台 Identity API、會員／App 權限與 App 安裝生命週期管理。AI Agent 安裝器批次 1～5、App 套件批次 1～3，以及 Deployment Agent 第 4～10 批的可信簽章、部署契約、唯讀影響計畫、安全控制平面、設定／秘密輸入、Cloud Run target driver、網頁驗收與 VM Agent／VM Docker target driver已實作；target driver、Secret Manager 與 VM host runtime 預設停用，尚未對客戶雲端 apply。母版不預載業務後端 App；交易後端與券商尚未接入，不能下單。**
 
+第一次從 GitHub 安裝前，先閱讀[安裝前置作業](docs/INSTALLATION_PREREQUISITES.md)。文件區分離線 Demo、唯讀 dry-run 與可能產生費用的正式雲端安裝，並列出必要及不必安裝的工具。
+
 ## 本機啟動
 
 在本專案根目錄使用 Node.js 22.12 以上的 22 LTS（本次驗證為 22.17.0）及 npm：
@@ -76,6 +78,7 @@ npm run dev
 
 | 文件 | 用途 |
 | --- | --- |
+| [安裝前置作業](docs/INSTALLATION_PREREQUISITES.md) | GitHub 下載後的工具、帳號、project、費用與安全準備 |
 | [架構規劃](docs/ARCHITECTURE.md) | 責任、狀態權威、部署及故障處理 |
 | [共用資料與 API 契約](docs/CONTRACTS.md) | 帳戶、商品、委託、成交及前端狀態 |
 | [台指期與 Shioaji 規格](docs/TAIFEX_SHIOAJI.md) | 乘數、交易日、回報、平倉與券商驗證 |
