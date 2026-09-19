@@ -75,6 +75,165 @@ function Read-YesNo {
     }
 }
 
+function Invoke-GcloudCapture {
+    param([Parameter(Mandatory = $true)][string[]] $Arguments)
+
+    if (-not (Get-Command 'gcloud' -ErrorAction SilentlyContinue)) {
+        throw '找不到 gcloud CLI。請先安裝 Google Cloud CLI，再重新執行安裝精靈。'
+    }
+
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    try {
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & gcloud @Arguments 1> $stdoutPath 2> $stderrPath
+        $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $previousPreference
+        $stdout = Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue
+        $stderr = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+        return [pscustomobject]@{
+            ExitCode = $exitCode
+            StdOut = if ($null -eq $stdout) { '' } else { $stdout.Trim() }
+            StdErr = if ($null -eq $stderr) { '' } else { $stderr.Trim() }
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+        Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Throw-GcloudCommandFailure {
+    param(
+        [Parameter(Mandatory = $true)][string] $Action,
+        [Parameter(Mandatory = $true)] $Result
+    )
+
+    $details = @($Result.StdErr, $Result.StdOut) | Where-Object { $_ } | Select-Object -First 1
+    $detailText = [string] $details
+    if ($detailText -match 'CERTIFICATE_VERIFY_FAILED|SSLCertVerificationError|unable to get local issuer certificate') {
+        throw "gcloud 執行「${Action}」時無法驗證 Google TLS 憑證。請修復 Google Cloud CLI／系統 CA 信任後重試；安裝器不會停用 TLS 驗證。原始訊息：$detailText"
+    }
+    if ($detailText -match 'gcloud auth login|invalid_grant|reauth|credentials') {
+        throw "gcloud 執行「${Action}」時需要重新登入。請先執行 gcloud auth login，再重新執行安裝精靈。原始訊息：$detailText"
+    }
+    throw "gcloud 無法${Action}（exit code $($Result.ExitCode)）。原始訊息：$detailText"
+}
+
+function Get-GcloudRequiredValue {
+    param(
+        [Parameter(Mandatory = $true)][string[]] $Arguments,
+        [Parameter(Mandatory = $true)][string] $Action
+    )
+
+    $result = Invoke-GcloudCapture -Arguments $Arguments
+    if ($result.ExitCode -ne 0) { Throw-GcloudCommandFailure -Action $Action -Result $result }
+    return [string] $result.StdOut
+}
+
+function Get-GcloudWizardContext {
+    $account = Get-GcloudRequiredValue -Arguments @(
+        'auth', 'list', '--filter=status:ACTIVE', '--format=value(account)'
+    ) -Action '讀取目前登入帳號'
+    if ([string]::IsNullOrWhiteSpace($account)) {
+        throw '目前沒有啟用中的 gcloud 帳號。請先執行 gcloud auth login，再重新執行安裝精靈。'
+    }
+
+    $configuredProject = Get-GcloudRequiredValue -Arguments @(
+        'config', 'get-value', 'project'
+    ) -Action '讀取預設 project'
+    $projectsJson = Get-GcloudRequiredValue -Arguments @(
+        'projects', 'list', '--format=json(projectId,name)'
+    ) -Action '列出可存取的 Google Cloud projects'
+    $projects = if ([string]::IsNullOrWhiteSpace($projectsJson)) {
+        @()
+    }
+    else {
+        @($projectsJson | ConvertFrom-Json | Sort-Object name, projectId)
+    }
+    if ($projects.Count -eq 0) {
+        throw '目前帳號沒有可列出的 Google Cloud project。請先建立 project 或取得 project 存取權。'
+    }
+
+    return [pscustomobject]@{
+        Account = $account.Trim()
+        ConfiguredProject = $configuredProject.Trim()
+        Projects = $projects
+    }
+}
+
+function Select-GcloudProject {
+    param([Parameter(Mandatory = $true)] $Context)
+
+    $projects = @($Context.Projects)
+    if ($projects.Count -eq 1) {
+        Write-Host "自動選用唯一可存取的 project：$($projects[0].name) ($($projects[0].projectId))"
+        return [string] $projects[0].projectId
+    }
+
+    Write-Host ''
+    Write-Host '可存取的 Google Cloud projects：' -ForegroundColor Cyan
+    $defaultSelection = 1
+    for ($index = 0; $index -lt $projects.Count; $index += 1) {
+        $marker = if ($projects[$index].projectId -eq $Context.ConfiguredProject) { '（目前預設）' } else { '' }
+        if ($marker) { $defaultSelection = $index + 1 }
+        Write-Host "  $($index + 1). $($projects[$index].name) [$($projects[$index].projectId)] $marker"
+    }
+    Write-Host '  0. 手動輸入 project ID'
+    $selection = Read-InstallerValue '請選擇 project 編號' ([string] $defaultSelection) {
+        param($value)
+        $number = 0
+        [int]::TryParse($value, [ref] $number) -and $number -ge 0 -and $number -le $projects.Count
+    } "請輸入 0～$($projects.Count)。"
+    if ([int] $selection -gt 0) { return [string] $projects[[int] $selection - 1].projectId }
+    return Read-InstallerValue 'Google Cloud project ID' $Context.ConfiguredProject {
+        param($value) $value -match '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
+    } '請輸入有效的 Google Cloud project ID（不是專案顯示名稱）。'
+}
+
+function Confirm-InstallationDefaults {
+    param(
+        [Parameter(Mandatory = $true)][string] $DisplayName,
+        [Parameter(Mandatory = $true)][string] $InstallationKey,
+        [Parameter(Mandatory = $true)][string] $ProjectId,
+        [Parameter(Mandatory = $true)][string] $Region,
+        [Parameter(Mandatory = $true)][string] $SupportEmail
+    )
+
+    while ($true) {
+        Write-Host ''
+        Write-Host '安裝設定摘要' -ForegroundColor Cyan
+        Write-Host "  顯示名稱：$DisplayName"
+        Write-Host "  安裝代號：$InstallationKey"
+        Write-Host "  GCP project：$ProjectId"
+        Write-Host "  GCP region：$Region"
+        Write-Host "  Support email：$SupportEmail"
+        if (Read-YesNo '使用以上設定並建立本機設定嗎？') {
+            return [pscustomobject]@{
+                InstallationKey = $InstallationKey
+                ProjectId = $ProjectId
+                Region = $Region
+                SupportEmail = $SupportEmail
+            }
+        }
+
+        Write-Host '請自訂要變更的值；直接按 Enter 可保留目前設定。' -ForegroundColor Yellow
+        $InstallationKey = Read-InstallerValue '安裝代號（英文小寫、數字與連字號）' $InstallationKey {
+            param($value) $value -match '^[a-z][a-z0-9-]{1,38}[a-z0-9]$'
+        } '安裝代號必須為 3～40 字元，英文小寫開頭，只能包含英文小寫、數字與連字號。'
+        $ProjectId = Read-InstallerValue 'Google Cloud project ID' $ProjectId {
+            param($value) $value -match '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
+        } '請輸入有效的 Google Cloud project ID（不是專案顯示名稱）。'
+        $Region = Read-InstallerValue 'GCP region' $Region {
+            param($value) $value -match '^[a-z]+-[a-z]+[0-9]$'
+        } '請輸入有效的 region，例如 asia-east1。'
+        $SupportEmail = Read-InstallerValue 'Firebase／OAuth support email' $SupportEmail {
+            param($value) $value -match '^.+@.+\..+$'
+        } '請輸入有效的 email。'
+    }
+}
+
 function Write-InstallationConfig {
     param(
         [Parameter(Mandatory = $true)][string] $Path,
@@ -176,25 +335,57 @@ function New-InteractiveInstallationConfig {
     Write-Host ''
     Write-Host 'StratExec 安裝設定精靈' -ForegroundColor Cyan
     Write-Host '本階段只建立被 Git 忽略的本機設定，接著執行唯讀 dry-run。'
-    Write-Host '請先準備一個目前 gcloud 帳號可存取的既有 Google Cloud project。'
+    if ($PrepareOnly) {
+        Write-Host 'PrepareOnly 模式不查詢 gcloud；請手動輸入安裝資料。'
+    }
+    else {
+        Write-Host '正在讀取目前 gcloud 帳號與可存取的既有 Google Cloud projects。'
+    }
     Write-Host ''
+
+    $gcloudContext = if ($PrepareOnly) { $null } else { Get-GcloudWizardContext }
+    if ($gcloudContext) {
+        Write-Host "gcloud 帳號：$($gcloudContext.Account)" -ForegroundColor Green
+    }
 
     $displayName = Read-InstallerValue '客戶／環境顯示名稱' '' {
         param($value) -not [string]::IsNullOrWhiteSpace($value)
     } '顯示名稱不可空白。'
     $suggestedKey = ConvertTo-InstallationKey $displayName
-    $installationKey = Read-InstallerValue '安裝代號（英文小寫、數字與連字號）' $suggestedKey {
-        param($value) $value -match '^[a-z][a-z0-9-]{1,38}[a-z0-9]$'
-    } '安裝代號必須為 3～40 字元，英文小寫開頭，只能包含英文小寫、數字與連字號。'
-    $projectId = Read-InstallerValue '既有 Google Cloud project ID' '' {
-        param($value) $value -match '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
-    } '請輸入有效的 Google Cloud project ID（不是專案顯示名稱）。'
-    $region = Read-InstallerValue 'GCP region' 'asia-east1' {
-        param($value) $value -match '^[a-z]+-[a-z]+[0-9]$'
-    } '請輸入有效的 region，例如 asia-east1。'
-    $supportEmail = Read-InstallerValue 'Firebase／OAuth support email' '' {
-        param($value) $value -match '^.+@.+\..+$'
-    } '請輸入有效的 email。'
+    if ($PrepareOnly) {
+        $installationKey = Read-InstallerValue '安裝代號（英文小寫、數字與連字號）' $suggestedKey {
+            param($value) $value -match '^[a-z][a-z0-9-]{1,38}[a-z0-9]$'
+        } '安裝代號必須為 3～40 字元，英文小寫開頭，只能包含英文小寫、數字與連字號。'
+        $projectId = Read-InstallerValue '既有 Google Cloud project ID' '' {
+            param($value) $value -match '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
+        } '請輸入有效的 Google Cloud project ID（不是專案顯示名稱）。'
+        $region = Read-InstallerValue 'GCP region' 'asia-east1' {
+            param($value) $value -match '^[a-z]+-[a-z]+[0-9]$'
+        } '請輸入有效的 region，例如 asia-east1。'
+        $supportEmail = Read-InstallerValue 'Firebase／OAuth support email' '' {
+            param($value) $value -match '^.+@.+\..+$'
+        } '請輸入有效的 email。'
+    }
+    else {
+        $installationKey = $suggestedKey
+        $projectId = Select-GcloudProject -Context $gcloudContext
+        $region = 'asia-east1'
+        $supportEmail = if ($gcloudContext.Account -match '^.+@.+\..+$') {
+            [string] $gcloudContext.Account
+        }
+        else {
+            Read-InstallerValue 'Firebase／OAuth support email' '' {
+                param($value) $value -match '^.+@.+\..+$'
+            } '請輸入有效的 email。'
+        }
+    }
+
+    $confirmed = Confirm-InstallationDefaults -DisplayName $displayName -InstallationKey $installationKey `
+        -ProjectId $projectId -Region $region -SupportEmail $supportEmail
+    $installationKey = $confirmed.InstallationKey
+    $projectId = $confirmed.ProjectId
+    $region = $confirmed.Region
+    $supportEmail = $confirmed.SupportEmail
 
     $configPath = Join-Path $environmentDirectory "$installationKey.local.json"
     if (Test-Path -LiteralPath $configPath) {
@@ -378,11 +569,14 @@ try {
     $identityPlacement = $identity.Placement
     $identityService = $identity.Service
 
-    $activeAccount = Invoke-ExternalValue 'gcloud' @('auth', 'list', '--filter=status:ACTIVE', '--format=value(account)')
+    $activeAccount = Get-GcloudRequiredValue -Arguments @(
+        'auth', 'list', '--filter=status:ACTIVE', '--format=value(account)'
+    ) -Action '讀取目前登入帳號'
     if (-not $activeAccount) { throw 'No active gcloud account. Run gcloud auth login first.' }
-    if (-not (Test-GcloudResource @('projects', 'describe', $projectId, '--format=value(projectId)'))) {
-        throw "The active account cannot access project $projectId."
-    }
+    $projectCheck = Get-GcloudRequiredValue -Arguments @(
+        'projects', 'describe', $projectId, '--format=value(projectId)'
+    ) -Action "驗證 project $projectId 的存取權"
+    if ($projectCheck -ne $projectId) { throw "gcloud 回傳的 project 與安裝設定不一致：$projectCheck" }
     $billingEnabled = Invoke-ExternalValue 'gcloud' @(
         'billing', 'projects', 'describe', $projectId, '--format=value(billingEnabled)'
     )

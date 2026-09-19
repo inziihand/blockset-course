@@ -37,13 +37,13 @@ customer-a project             customer-b project
 建立新客戶（AI Agent 預設使用單一入口）：
 
 1. 在 GCP 建立客戶專屬 project，確認資料位置與帳務。
-2. 執行互動式安裝入口；精靈詢問非機密安裝資料、自動建立被 Git 忽略的 `<installation>.local.json`，再執行唯讀 dry-run：
+2. 執行互動式安裝入口；一般模式會讀取目前 gcloud 帳號、列出可存取的 projects 並預選現行 project。使用者只需輸入顯示名稱、在有多個 project 時選擇目標，並確認由精靈產生的安裝代號、`asia-east1` region 與 support email 摘要。確認後，精靈自動建立被 Git 忽略的 `<installation>.local.json`，再執行唯讀 dry-run：
 
    ```powershell
    .\scripts\install.ps1
    ```
 
-   再次執行時可沿用精靈偵測到的單一完整 local overlay；仍含公開範例值或 `unassigned` placement 的副本會被略過並重新提問。自動化或進階操作者仍可明確傳入 `-ConfigPath`；只想產生設定、不查詢 GCP 時可加上 `-PrepareOnly`。正式維運也可把私人 overlay 放在 repository 外。
+   再次執行時可沿用精靈偵測到的單一完整 local overlay；仍含公開範例值或 `unassigned` placement 的副本會被略過並重新提問。摘要若需調整，可改填安裝代號、project、region 或 support email。自動化或進階操作者仍可明確傳入 `-ConfigPath`；只想產生設定、不執行任何 gcloud 指令時可加上 `-PrepareOnly`，此模式會改為手動詢問必要值。正式維運也可把私人 overlay 放在 repository 外。
 
 3. AI Agent 確認 billing 與公開 ingress 已取得當次授權後，設定本次 bootstrap 管理員並執行：
 

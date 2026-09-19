@@ -45,13 +45,13 @@ npm run dev
 - `npm run dev:test`：5176 埠的純離線測試宿主，只有兩個測試 App，不連接券商。
 - `npm run test:e2e`：路由、故障與桌面／手機瀏覽器驗收；安裝方式見 [App 接入簡表](docs/FRONTEND_APP_GUIDE.md)。
 
-客戶安裝預設使用互動式精靈。它會詢問顯示名稱、安裝代號、既有 GCP project ID、region 與 support email，自動建立被 Git 忽略的 `*.local.json`，然後執行唯讀 preflight：
+客戶安裝預設使用互動式精靈。一般模式會先確認 gcloud 登入狀態、列出可存取的 GCP projects，讓使用者選擇 project；安裝代號由顯示名稱產生，region 預設為 `asia-east1`，support email 預設為目前 gcloud 帳號。使用者確認摘要後，精靈會建立被 Git 忽略的 `*.local.json`，然後執行唯讀 preflight：
 
 ```powershell
 .\scripts\install.ps1
 ```
 
-再次執行時，精靈會詢問是否沿用偵測到的單一完整 `.local.json`；仍含公開範例值或 `unassigned` placement 的副本會被略過並重新提問。自動化或進階操作者仍可用 `-ConfigPath <path>` 明確指定 repository 內或外的私人 overlay；`-PrepareOnly` 只產生設定，不查詢 GCP。preflight 不會修改雲端；Identity apply 與日後安裝的 App runtime 仍需帳務、IAM 與公開 ingress 的當次明確確認。完整流程見 [客戶安裝與後端模組化](docs/INSTALLATION_ARCHITECTURE.md)。
+再次執行時，精靈會詢問是否沿用偵測到的單一完整 `.local.json`；仍含公開範例值或 `unassigned` placement 的副本會被略過並重新提問。摘要若不正確，可進入進階輸入修改安裝代號、project、region 或 support email。自動化或進階操作者仍可用 `-ConfigPath <path>` 明確指定 repository 內或外的私人 overlay；`-PrepareOnly` 只產生設定、不執行任何 gcloud 指令，因此會改為手動詢問必要值。preflight 不會修改雲端；Identity apply 與日後安裝的 App runtime 仍需帳務、IAM 與公開 ingress 的當次明確確認。完整流程見 [客戶安裝與後端模組化](docs/INSTALLATION_ARCHITECTURE.md)。
 
 目前保留原 React 專案的 Shell／Drawer／App Registry 模式、桌面與手機導覽、淺色／深色／暖紙／跟隨系統主題，並新增 URL 導覽、lazy App 容器、錯誤隔離、共用 UI／API transport，以及管理員限定的「會員與權限」App。管理員可在平台介面安裝、停用、重新啟用或邏輯移除非核心 App，並分別管理整體 App grant 與 manifest 宣告的 App-local 功能權限；移除會立即關閉導覽與路由，但保留資料與相依 runtime 供審查後處理。母版不綁定單一 Firebase 專案；每個客戶／環境使用自己的本機 installation overlay、GCP/Firebase project 與 `.env.local`。平台 Identity API 驗證 Firebase ID Token，會員與 App 授權由 Firestore 的伺服器端資料管理；瀏覽器規則預設全拒絕。母版只預載共用內容的通用／窄版純前端 Demo；股票行情 Demo 已從母版抽離，後續以外部 ZIP 驗證 backend-aware App 的可移植安裝。沒有搬入源版會員資料、舊憑證、DeriStrat 或交易連線。詳見 [登入與權限規格](docs/AUTHENTICATION_AUTHORIZATION.md)、[安裝與資料分層](docs/INSTALLATION_ARCHITECTURE.md)、[Console 說明](apps/console/README.md)、[Backend-aware App 規格](docs/BACKEND_APP_CONTRACT.md) 及 [App 契約](docs/FRONTEND_APP_GUIDE.md)。
 

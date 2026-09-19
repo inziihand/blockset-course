@@ -27,6 +27,22 @@ test('installer starts an interactive local-config wizard when ConfigPath is omi
   assert.match(source, /UTF8Encoding\]::new\(\$false\)/);
 });
 
+test('interactive wizard discovers gcloud defaults and asks for confirmation', () => {
+  assert.match(source, /Get-GcloudWizardContext/);
+  assert.match(source, /'projects', 'list', '--format=json\(projectId,name\)'/);
+  assert.match(source, /Select-GcloudProject/);
+  assert.match(source, /SupportEmail = \$SupportEmail/);
+  assert.match(source, /安裝設定摘要/);
+  assert.match(source, /使用以上設定並建立本機設定嗎/);
+});
+
+test('gcloud TLS and login failures are reported without weakening verification', () => {
+  assert.match(source, /CERTIFICATE_VERIFY_FAILED\|SSLCertVerificationError/);
+  assert.match(source, /安裝器不會停用 TLS 驗證/);
+  assert.match(source, /gcloud auth login/);
+  assert.doesNotMatch(source, /disable.*certificate|ssl.*verify.*false/i);
+});
+
 test('wizard-only preparation stops before cloud command checks and mutations', () => {
   const prepareOnlyExit = source.indexOf('if ($PrepareOnly) {');
   const commandChecks = source.indexOf("Assert-Command 'gcloud'");
