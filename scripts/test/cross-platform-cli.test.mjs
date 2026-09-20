@@ -48,6 +48,48 @@ test('local lifecycle allocates consecutive ports for multiple checkouts', () =>
   assert.match(viteConfigSource, /target: identityOrigin/);
 });
 
+test('managed health rejects a response served by another checkout', async () => {
+  let processChecks = 0;
+  const response = { ok: true };
+  const result = await runtimeInternals.waitForManagedHttp('http://127.0.0.1:5176/', 123, {
+    attempts: 1,
+    fetchImpl: async () => response,
+    processExistsImpl: () => {
+      processChecks += 1;
+      return processChecks === 1;
+    },
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(result, null);
+  assert.equal(processChecks, 2);
+});
+
+test('local lifecycle retries the next port when another checkout wins the race', async () => {
+  const availability = new Map([
+    [5176, [true, false]],
+    [5177, [true]],
+  ]);
+  const launched = [];
+  const stopped = [];
+  const result = await runtimeInternals.launchOnAvailablePort([5176, 5177], {
+    label: 'StratExec Console',
+    portAvailableImpl: async (port) => availability.get(port).shift(),
+    launch: (port) => {
+      launched.push(port);
+      return { pid: port };
+    },
+    ready: async (_managedProcess, port) => port === 5177,
+    stopProcessImpl: (pid) => stopped.push(pid),
+    waitForProcessExitImpl: async () => {},
+  });
+
+  assert.deepEqual(launched, [5176, 5177]);
+  assert.deepEqual(stopped, [5176]);
+  assert.equal(result.port, 5177);
+  assert.equal(result.managedProcess.pid, 5177);
+});
+
 test('installation keys and ready overlays stay deterministic', () => {
   assert.equal(convertToInstallationKey('My Project 123'), 'my-project-123');
   assert.equal(convertToInstallationKey('123'), 'customer-installation');

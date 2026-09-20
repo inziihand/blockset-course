@@ -9,7 +9,6 @@ import {
   readJson,
   run,
   spawnDetached,
-  waitForHttp,
   writeJsonAtomic,
 } from './common.mjs';
 
@@ -122,13 +121,6 @@ async function portAvailable(port) {
   });
 }
 
-async function firstAvailablePort(candidates) {
-  for (const candidate of candidates) {
-    if (await portAvailable(candidate)) return candidate;
-  }
-  return null;
-}
-
 function processExists(pid) {
   try {
     process.kill(pid, 0);
@@ -136,6 +128,63 @@ function processExists(pid) {
   } catch {
     return false;
   }
+}
+
+const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function waitForManagedHttp(url, pid, options = {}) {
+  const attempts = options.attempts ?? 40;
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const processExistsImpl = options.processExistsImpl ?? processExists;
+  const sleepImpl = options.sleepImpl ?? sleep;
+  const validate = options.validate ?? (() => true);
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (!processExistsImpl(pid)) return null;
+    try {
+      const response = await fetchImpl(url, { signal: AbortSignal.timeout(2000) });
+      if (response.ok && await validate(response)) {
+        // A competing checkout may have claimed this port after our availability
+        // probe. Its HTTP response is not proof that our child process survived.
+        await sleepImpl(300);
+        return processExistsImpl(pid) ? response : null;
+      }
+    } catch {
+      // The managed process may still be starting.
+    }
+    if (attempt < attempts) await sleepImpl(500);
+  }
+  return null;
+}
+
+async function launchOnAvailablePort(candidates, options) {
+  const portAvailableImpl = options.portAvailableImpl ?? portAvailable;
+  const stopProcessImpl = options.stopProcessImpl ?? stopManagedPid;
+  const waitForProcessExitImpl = options.waitForProcessExitImpl ?? waitForProcessExit;
+
+  for (const port of candidates) {
+    if (!await portAvailableImpl(port)) continue;
+    const managedProcess = options.launch(port);
+    let failure;
+    try {
+      if (await options.ready(managedProcess, port)) return { managedProcess, port };
+    } catch (error) {
+      failure = error;
+    }
+
+    if (managedProcess?.pid) {
+      stopProcessImpl(managedProcess.pid);
+      await waitForProcessExitImpl(managedProcess.pid);
+    }
+
+    // If the port is now occupied after our child exited, another checkout won
+    // the race. Retry the next candidate. An available port means this service
+    // failed for a reason unrelated to allocation, so preserve that failure.
+    if (!await portAvailableImpl(port)) continue;
+    if (failure) throw failure;
+    throw new Error(`${options.label} 未通過健康檢查。請查看 .stratexec/local-runtime 日誌。`);
+  }
+  return null;
 }
 
 async function waitForProcessExit(pid) {
@@ -209,12 +258,6 @@ export async function startLocal(repoRoot, options = {}) {
   if (adc.exitCode !== 0) throw new Error('缺少 Application Default Credentials。請重新執行 npm run setup。');
 
   if (await pathExists(paths.processes)) await stopLocal(repoRoot, { quiet: true });
-  const identityPort = await firstAvailablePort(IDENTITY_PORTS);
-  if (!identityPort) throw new Error('Identity API 連接埠 8180、8181、8184～8189 都已被其他程式使用。');
-  const frontendPort = await firstAvailablePort(FRONTEND_PORTS);
-  if (!frontendPort) throw new Error('Console 連接埠 5175～5180 都已被其他程式使用。');
-  const identityUrl = `http://127.0.0.1:${identityPort}`;
-
   const pythonPath = await ensureVirtualEnvironment(repoRoot, options.guided ?? false);
   const viteScript = path.join(repoRoot, 'node_modules', 'vite', 'bin', 'vite.js');
   if (!await pathExists(viteScript)) throw new Error('找不到 Vite。請先執行 npm run setup。');
@@ -226,41 +269,60 @@ export async function startLocal(repoRoot, options = {}) {
   let identityProcess;
   let frontendProcess;
   try {
-    identityProcess = spawnDetached(pythonPath, [
-      '-m', 'uvicorn', 'stratexec.api.main:app', '--app-dir', 'backend/src',
-      '--host', '127.0.0.1', '--port', String(identityPort),
-    ], {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        GOOGLE_CLOUD_PROJECT: projectId,
-        STRATEXEC_BOOTSTRAP_ADMIN_EMAILS: bootstrapAdminEmail,
+    const identity = await launchOnAvailablePort(IDENTITY_PORTS, {
+      label: 'Identity API',
+      launch: (port) => spawnDetached(pythonPath, [
+        '-m', 'uvicorn', 'stratexec.api.main:app', '--app-dir', 'backend/src',
+        '--host', '127.0.0.1', '--port', String(port),
+      ], {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          GOOGLE_CLOUD_PROJECT: projectId,
+          STRATEXEC_BOOTSTRAP_ADMIN_EMAILS: bootstrapAdminEmail,
+        },
+        stdoutFd: identityOut,
+        stderrFd: identityErr,
+      }),
+      ready: async (managedProcess, port) => {
+        const identityUrl = `http://127.0.0.1:${port}`;
+        const health = await waitForManagedHttp(`${identityUrl}/healthz`, managedProcess.pid);
+        if (!health) return false;
+        return Boolean(await waitForManagedHttp(
+          `${identityUrl}/api/identity/v1/apps`, managedProcess.pid, { attempts: 10 },
+        ));
       },
-      stdoutFd: identityOut,
-      stderrFd: identityErr,
     });
-    const identityHealth = await waitForHttp(`${identityUrl}/healthz`);
-    if (!identityHealth) throw new Error('Identity API 未通過健康檢查。請查看 .stratexec/local-runtime 日誌。');
-    const apps = await waitForHttp(`${identityUrl}/api/identity/v1/apps`, 10);
-    if (!apps) throw new Error('Identity API 已啟動，但 Firestore App 清冊驗證失敗。');
-
-    frontendProcess = spawnDetached(process.execPath, [
-      viteScript, 'apps/console', '--host', '127.0.0.1',
-      '--port', String(frontendPort), '--strictPort',
-    ], {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        STRATEXEC_IDENTITY_BASE_URL: identityUrl,
-      },
-      stdoutFd: frontendOut,
-      stderrFd: frontendErr,
-    });
-    const frontendUrl = `http://127.0.0.1:${frontendPort}/`;
-    const frontendHealth = await waitForHttp(frontendUrl);
-    if (!frontendHealth || !((await frontendHealth.text()).includes('StratExec'))) {
-      throw new Error('StratExec Console 未通過健康檢查。請查看 .stratexec/local-runtime 日誌。');
+    if (!identity) {
+      throw new Error('Identity API 連接埠 8180、8181、8184～8189 都已被其他程式使用。');
     }
+    identityProcess = identity.managedProcess;
+    const identityUrl = `http://127.0.0.1:${identity.port}`;
+
+    const frontend = await launchOnAvailablePort(FRONTEND_PORTS, {
+      label: 'StratExec Console',
+      launch: (port) => spawnDetached(process.execPath, [
+        viteScript, 'apps/console', '--host', '127.0.0.1',
+        '--port', String(port), '--strictPort',
+      ], {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          STRATEXEC_IDENTITY_BASE_URL: identityUrl,
+        },
+        stdoutFd: frontendOut,
+        stderrFd: frontendErr,
+      }),
+      ready: (managedProcess, port) => waitForManagedHttp(
+        `http://127.0.0.1:${port}/`, managedProcess.pid,
+        { validate: async (response) => (await response.text()).includes('StratExec') },
+      ),
+    });
+    if (!frontend) {
+      throw new Error('Console 連接埠 5175～5180 都已被其他程式使用。');
+    }
+    frontendProcess = frontend.managedProcess;
+    const frontendUrl = `http://127.0.0.1:${frontend.port}/`;
 
     await writeJsonAtomic(paths.settings, {
       schemaVersion: 1,
@@ -296,4 +358,10 @@ export async function startLocal(repoRoot, options = {}) {
   }
 }
 
-export const runtimeInternals = { compatiblePython, venvPythonPath, portRange };
+export const runtimeInternals = {
+  compatiblePython,
+  venvPythonPath,
+  portRange,
+  waitForManagedHttp,
+  launchOnAvailablePort,
+};
