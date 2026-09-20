@@ -184,10 +184,13 @@ describe('會員與權限 App', () => {
     };
     const inspectPackage = vi.fn(async () => packageJob);
     const applyJob = vi.fn(async () => ({ ...packageJob, status: 'succeeded' as const, applyAllowed: false }));
+    const activateSource = vi.fn(async () => ({ ...packageJob, status: 'succeeded' as const, applyAllowed: false,
+      sourceRegistration: { required: true, status: 'succeeded' as const } }));
     const packageApi: AppPackageApi = {
       listJobs: vi.fn(async () => []),
       inspectPackage,
       applyJob,
+      activateSource,
     };
     const api: AccessControlApi = {
       listMembers: vi.fn(async () => [member]),
@@ -219,6 +222,8 @@ describe('會員與權限 App', () => {
       packageJob.jobId, 'course-app@1.0.0', undefined,
     ));
     expect(await screen.findByText(/來源套件已完成驗證與套用/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '完成平台登錄' }));
+    await waitFor(() => expect(activateSource).toHaveBeenCalledWith(packageJob.jobId, undefined));
   });
 
   test('sends ZIP bytes and apply confirmation to the same-origin Package Agent', async () => {

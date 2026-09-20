@@ -66,11 +66,13 @@ test('applies a confirmed job serially and records the durable result', async ()
     const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
     const target = await prepareTarget(directory);
     let validations = 0;
+    const activations = [];
     const jobs = createPackageJobService({
       rootPath: target,
       stateRoot: join(directory, 'state'),
       allowUnsignedApply: true,
       validateInstall: async () => { validations += 1; },
+      sourceActivator: { activate: async (input) => { activations.push(input); } },
     });
     const inspected = await jobs.inspect({
       content: await readFile(packed.zipPath),
@@ -101,10 +103,15 @@ test('applies a confirmed job serially and records the durable result', async ()
       jobId: inspected.jobId,
       confirmation: 'demo@0.1.0',
       actor: { uid: 'admin-1', email: 'admin@example.com' },
+      token: 'firebase-token',
     });
     assert.equal(applied.status, 'succeeded');
     assert.equal(applied.result.applied, true);
     assert.equal(validations, 1);
+    assert.equal(activations.length, 1);
+    assert.equal(activations[0].token, 'firebase-token');
+    assert.deepEqual(activations[0].activation.allowedAccessModes, ['public']);
+    assert.equal(applied.sourceRegistration.status, 'succeeded');
     assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'demo', 'DemoApp.tsx')), true);
     const history = await jobs.listJobs();
     assert.equal(history[0].status, 'succeeded');

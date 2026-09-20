@@ -171,6 +171,17 @@ class AppInstallationPatch(ApiModel):
     action: AppLifecycleAction
 
 
+class SourceAppActivation(ApiModel):
+    display_name: str = Field(min_length=1, max_length=128)
+    category: AppCategory = AppCategory.APPLICATION
+    removable: bool = True
+    protected: bool = False
+    default_access_mode: AppAccessMode = AppAccessMode.ADMINS_ONLY
+    allowed_access_modes: list[AppAccessMode] = Field(default_factory=lambda: [AppAccessMode.ADMINS_ONLY])
+    entitlements: list[AppEntitlement] = Field(default_factory=list, max_length=32)
+    admin_allowed: bool = True
+
+
 class VerifiedAppActivation(ApiModel):
     display_name: str = Field(min_length=1, max_length=128)
     category: AppCategory = AppCategory.APPLICATION

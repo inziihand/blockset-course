@@ -19,6 +19,7 @@ from stratexec.identity.models import (
     Member,
     MemberList,
     MemberPatch,
+    SourceAppActivation,
     InstalledAppList,
     VerifiedAppActivation,
 )
@@ -206,6 +207,24 @@ def create_app(service: IdentityService | None = None) -> FastAPI:
     ) -> AppInstallation:
         try:
             return request.app.state.identity_service.update_app_installation(actor, app_key, patch)
+        except AccessDenied as exc:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/identity/v1/admin/app-installations/{app_key}/source-activation",
+        response_model=AppInstallation,
+        response_model_by_alias=True,
+    )
+    def activate_source_app(
+        app_key: str,
+        activation: SourceAppActivation,
+        request: Request,
+        actor: Annotated[Member, Depends(authenticated_member)],
+    ) -> AppInstallation:
+        try:
+            return request.app.state.identity_service.activate_source_app(actor, app_key, activation)
         except AccessDenied as exc:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
         except ValueError as exc:

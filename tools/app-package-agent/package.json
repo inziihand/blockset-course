@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --use-system-ca --env-file-if-exists=../../.env.local --watch src/server.mjs",
     "start": "node --use-system-ca --env-file-if-exists=../../.env.local src/server.mjs",
-    "build": "node --check src/admin-authorizer.mjs && node --check src/app.mjs && node --check src/package-job-service.mjs && node --check src/runtime-config.mjs && node --check src/server.mjs",
+    "build": "node --check src/admin-authorizer.mjs && node --check src/app.mjs && node --check src/identity-source-client.mjs && node --check src/package-job-service.mjs && node --check src/runtime-config.mjs && node --check src/server.mjs",
     "test": "node --test"
   },
   "engines": {

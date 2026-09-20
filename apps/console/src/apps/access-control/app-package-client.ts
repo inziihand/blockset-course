@@ -33,6 +33,12 @@ export type AppPackageJob = {
   appliedBy?: { uid: string; email: string };
   error?: string;
   result?: { applied: boolean };
+  sourceRegistration?: {
+    required: boolean;
+    status: 'not-required' | 'pending' | 'succeeded';
+    registeredAt?: string;
+    error?: string;
+  };
 };
 
 export type AppPackageInspectOptions = {
@@ -44,6 +50,7 @@ export type AppPackageApi = {
   listJobs(signal?: AbortSignal): Promise<AppPackageJob[]>;
   inspectPackage(file: File, options: AppPackageInspectOptions, signal?: AbortSignal): Promise<AppPackageJob>;
   applyJob(jobId: string, confirmation: string, signal?: AbortSignal): Promise<AppPackageJob>;
+  activateSource(jobId: string, signal?: AbortSignal): Promise<AppPackageJob>;
 };
 
 type GetToken = (forceRefresh?: boolean) => Promise<string>;
@@ -103,6 +110,13 @@ export function createAppPackageApi(getToken: GetToken, request: Request = fetch
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ confirmation }),
+      }, signal);
+    },
+    activateSource(jobId, signal) {
+      return send<AppPackageJob>(`jobs/${encodeURIComponent(jobId)}/source-activation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       }, signal);
     },
   };

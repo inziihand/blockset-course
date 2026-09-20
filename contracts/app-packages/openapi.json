@@ -90,6 +90,21 @@
           "422": { "description": "Exact confirmation is missing" }
         }
       }
+    },
+    "/api/app-packages/v1/jobs/{jobId}/source-activation": {
+      "post": {
+        "operationId": "activateSourceInstalledApp",
+        "description": "Registers a completed source-installed frontend App with Identity API by forwarding only the transient administrator token.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "name": "jobId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Source App registered", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppPackageJob" } } } },
+          "401": { "description": "Firebase ID token required" },
+          "403": { "description": "Active verified administrator required" },
+          "409": { "description": "Job or installed source no longer matches" },
+          "503": { "description": "Identity API unavailable" }
+        }
+      }
     }
   },
   "components": {
@@ -243,6 +258,16 @@
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" },
           "createdBy": { "type": "object", "required": ["uid", "email"], "properties": { "uid": { "type": "string" }, "email": { "type": "string" } } },
+          "sourceRegistration": {
+            "type": "object",
+            "required": ["required", "status"],
+            "properties": {
+              "required": { "type": "boolean" },
+              "status": { "enum": ["not-required", "pending", "succeeded"] },
+              "registeredAt": { "type": "string", "format": "date-time" },
+              "error": { "type": "string" }
+            }
+          },
           "error": { "type": "string" }
         }
       }

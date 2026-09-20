@@ -22,6 +22,7 @@ from stratexec.identity.models import (
     MemberPatch,
     MemberRole,
     MemberStatus,
+    SourceAppActivation,
     VerifiedAppActivation,
 )
 from stratexec.identity.service import AccessDenied, IdentityService, MemberNotFound
@@ -441,6 +442,25 @@ def test_backend_app_requires_verified_deployment_before_reinstall() -> None:
     assert installed.deployment_job_id == "00000000-0000-4000-8000-000000000000"
     assert repository.policies["premium-course"].access_mode is AppAccessMode.GRANT_REQUIRED
     assert repository.policies["premium-course"].entitlements[0].display_name == "新版課程功能"
+
+
+def test_source_installed_frontend_app_is_registered_without_runtime_evidence() -> None:
+    repository = FakeRepository()
+    service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
+    actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
+
+    installed = service.activate_source_app(actor, "options-strategy-lab", SourceAppActivation(
+        display_name="選擇權策略分析",
+        category=AppCategory.APPLICATION,
+        default_access_mode=AppAccessMode.GRANT_REQUIRED,
+        allowed_access_modes=[AppAccessMode.GRANT_REQUIRED],
+    ))
+
+    assert installed.status is AppInstallationStatus.INSTALLED
+    assert installed.required_services == []
+    assert installed.runtime_revision is None
+    assert repository.policies["options-strategy-lab"].access_mode is AppAccessMode.GRANT_REQUIRED
+    assert "options-strategy-lab" in service.list_installed_app_keys()
 
 
 def test_installed_backend_app_without_runtime_evidence_is_not_available() -> None:

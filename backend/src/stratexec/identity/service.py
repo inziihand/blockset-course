@@ -20,6 +20,7 @@ from .models import (
     MemberPatch,
     MemberRole,
     MemberStatus,
+    SourceAppActivation,
     VerifiedAppActivation,
 )
 from .ports import ClaimsWriter, MemberRepository, TokenVerifier
@@ -266,6 +267,68 @@ class IdentityService:
             deployment_job_id=activation.deployment_job_id,
             runtime_revision=activation.runtime_revision,
             runtime_verified_at=activation.verified_at,
+            updated_at=datetime.now(timezone.utc),
+            updated_by=actor.uid,
+        )
+        installed = self._repository.set_app_installation(updated, actor_uid=actor.uid)
+        if existing_policy is None:
+            policy = AppPolicy(
+                app_key=app_key,
+                display_name=activation.display_name,
+                access_mode=activation.default_access_mode,
+                allowed_access_modes=activation.allowed_access_modes,
+                entitlements=activation.entitlements,
+                admin_allowed=activation.admin_allowed,
+                protected=False,
+                updated_by=actor.uid,
+            )
+        else:
+            policy = existing_policy.model_copy(update={
+                "display_name": activation.display_name,
+                "allowed_access_modes": activation.allowed_access_modes,
+                "entitlements": activation.entitlements,
+                "updated_at": datetime.now(timezone.utc),
+                "updated_by": actor.uid,
+            })
+        self._repository.set_app_policy(policy, actor_uid=actor.uid)
+        return installed
+
+    def activate_source_app(
+        self,
+        actor: Member,
+        app_key: str,
+        activation: SourceAppActivation,
+    ) -> AppInstallation:
+        """Register a verified source-installed App that has no backend services."""
+        self._require_admin(actor)
+        self._validate_app_key(app_key)
+        if activation.protected or app_key == self.PROTECTED_ACCESS_APP:
+            raise AccessDenied("Protected platform Apps cannot be registered by Package Agent.")
+        if activation.default_access_mode not in activation.allowed_access_modes:
+            raise ValueError("Default App access mode must be included in allowed access modes.")
+        entitlement_keys = [item.key for item in activation.entitlements]
+        if len(entitlement_keys) != len(set(entitlement_keys)):
+            raise ValueError("App entitlement keys must be unique.")
+        current = next(
+            (item for item in self._repository.list_app_installations() if item.app_key == app_key),
+            None,
+        )
+        if current and current.protected:
+            raise AccessDenied("Protected platform Apps cannot change installation state.")
+        existing_policy = next(
+            (policy for policy in self._repository.list_app_policies() if policy.app_key == app_key),
+            None,
+        )
+        if existing_policy and existing_policy.access_mode not in activation.allowed_access_modes:
+            raise ValueError("The existing App access mode is no longer supported by this App package.")
+        updated = AppInstallation(
+            app_key=app_key,
+            display_name=activation.display_name,
+            status=AppInstallationStatus.INSTALLED,
+            category=activation.category,
+            removable=activation.removable,
+            protected=False,
+            required_services=[],
             updated_at=datetime.now(timezone.utc),
             updated_by=actor.uid,
         )

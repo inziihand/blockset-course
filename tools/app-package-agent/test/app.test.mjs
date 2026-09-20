@@ -33,6 +33,7 @@ test('creates inspect jobs and applies them through the authenticated API', asyn
         return { jobId: sampleJob.jobId, mode: 'read-only', decision: 'reviewable' };
       },
       apply: async (input) => { calls.push(['apply', input]); return { ...sampleJob, status: 'succeeded' }; },
+      activateSource: async (input) => { calls.push(['activateSource', input]); return { ...sampleJob, status: 'succeeded' }; },
     },
     authorizeAdmin: async (token) => { assert.equal(token, 'firebase-token'); return actor; },
   });
@@ -63,6 +64,16 @@ test('creates inspect jobs and applies them through the authenticated API', asyn
   });
   assert.equal(applied.status, 200);
   assert.equal(applied.body.status, 'succeeded');
+  assert.equal(calls[2][1].token, 'firebase-token');
+
+  const activated = await app({
+    method: 'POST',
+    url: `/api/app-packages/v1/jobs/${sampleJob.jobId}/source-activation`,
+    headers: { authorization: 'Bearer firebase-token' },
+    body: Buffer.from('{}'),
+  });
+  assert.equal(activated.status, 200);
+  assert.equal(calls[3][0], 'activateSource');
 });
 
 test('publishes an OpenAPI contract for package and read-only deployment-plan routes', async () => {
@@ -73,4 +84,6 @@ test('publishes an OpenAPI contract for package and read-only deployment-plan ro
   assert.deepEqual(contract.paths['/api/app-packages/v1/jobs/{jobId}/deployment-plan'].get.security, [{ firebaseIdToken: [] }]);
   assert.ok(contract.paths['/api/app-packages/v1/jobs/{jobId}/apply'].post);
   assert.deepEqual(contract.paths['/api/app-packages/v1/jobs/{jobId}/apply'].post.security, [{ firebaseIdToken: [] }]);
+  assert.ok(contract.paths['/api/app-packages/v1/jobs/{jobId}/source-activation'].post);
+  assert.deepEqual(contract.paths['/api/app-packages/v1/jobs/{jobId}/source-activation'].post.security, [{ firebaseIdToken: [] }]);
 });

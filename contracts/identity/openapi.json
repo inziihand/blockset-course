@@ -715,6 +715,59 @@
         "title": "MemberStatus",
         "type": "string"
       },
+      "SourceAppActivation": {
+        "properties": {
+          "adminAllowed": {
+            "default": true,
+            "title": "Adminallowed",
+            "type": "boolean"
+          },
+          "allowedAccessModes": {
+            "items": {
+              "$ref": "#/components/schemas/AppAccessMode"
+            },
+            "title": "Allowedaccessmodes",
+            "type": "array"
+          },
+          "category": {
+            "$ref": "#/components/schemas/AppCategory",
+            "default": "application"
+          },
+          "defaultAccessMode": {
+            "$ref": "#/components/schemas/AppAccessMode",
+            "default": "admins_only"
+          },
+          "displayName": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Displayname",
+            "type": "string"
+          },
+          "entitlements": {
+            "items": {
+              "$ref": "#/components/schemas/AppEntitlement"
+            },
+            "maxItems": 32,
+            "title": "Entitlements",
+            "type": "array"
+          },
+          "protected": {
+            "default": false,
+            "title": "Protected",
+            "type": "boolean"
+          },
+          "removable": {
+            "default": true,
+            "title": "Removable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "displayName"
+        ],
+        "title": "SourceAppActivation",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -969,6 +1022,60 @@
           }
         ],
         "summary": "Update App Installation"
+      }
+    },
+    "/api/identity/v1/admin/app-installations/{app_key}/source-activation": {
+      "post": {
+        "operationId": "activate_source_app_api_identity_v1_admin_app_installations__app_key__source_activation_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_key",
+            "required": true,
+            "schema": {
+              "title": "App Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceAppActivation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppInstallation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Activate Source App"
       }
     },
     "/api/identity/v1/admin/app-installations/{app_key}/verified-activation": {

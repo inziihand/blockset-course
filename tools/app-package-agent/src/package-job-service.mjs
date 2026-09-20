@@ -3,6 +3,7 @@ import { access, copyFile, mkdir, open, readFile, readdir, rm, stat, writeFile }
 import { basename, dirname, join, resolve } from 'node:path';
 import { createAppDeploymentImpactPlan } from '../../../scripts/lib/app-deployment-impact-plan.mjs';
 import { installAppPackage, planAppPackageInstall } from '../../../scripts/lib/app-installer.mjs';
+import { readInstallationConfig } from '../../../scripts/lib/installation-config.mjs';
 import { validateInstalledApp } from '../../../scripts/lib/app-validation.mjs';
 
 const MAX_PACKAGE_BYTES = 256 * 1024 * 1024;
@@ -34,6 +35,22 @@ function safePackageName(value) {
   return name;
 }
 
+function sourceActivationFromManifest(app) {
+  if (!Array.isArray(app.requiredServices) || app.requiredServices.length > 0) {
+    throw new PackageJobError('Only a source-installed App without backend services can use source activation.', 409);
+  }
+  return {
+    displayName: app.displayName,
+    category: app.lifecycle.category,
+    removable: app.lifecycle.removable,
+    protected: app.access.protected,
+    defaultAccessMode: app.access.defaultMode,
+    allowedAccessModes: app.access.allowedModes,
+    entitlements: app.access.entitlements ?? [],
+    adminAllowed: app.access.adminAllowed,
+  };
+}
+
 async function writeJob(path, job) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, json(job), 'utf8');
@@ -50,6 +67,7 @@ export function createPackageJobService({
   allowUnsignedApply = false,
   now = () => new Date(),
   inventoryProvider,
+  sourceActivator,
   validateInstall = ({ rootPath: installedRoot, plan }) => validateInstalledApp({
     rootPath: installedRoot,
     appKey: plan.appKey,
@@ -80,15 +98,9 @@ export function createPackageJobService({
     if (!installationKeyPattern.test(installationKey ?? '')) {
       throw new PackageJobError('Invalid installation key.');
     }
-    try {
-      return JSON.parse(await readFile(
-        join(repositoryRoot, 'infrastructure', 'environments', `${installationKey}.json`),
-        'utf8',
-      ));
-    } catch (error) {
-      if (error?.code === 'ENOENT') throw new PackageJobError('Installation configuration was not found.', 404);
-      throw error;
-    }
+    const installation = await readInstallationConfig(repositoryRoot, installationKey);
+    if (!installation) throw new PackageJobError('Installation configuration was not found.', 404);
+    return installation;
   }
 
   async function loadInventory({ installation, job }) {
@@ -189,6 +201,9 @@ export function createPackageJobService({
           blockers,
           changes: plan.changes,
           options: { adoptExisting: Boolean(adoptExisting), allowDowngrade: Boolean(allowDowngrade) },
+          sourceRegistration: plan.app.requiredServices.length === 0
+            ? { required: true, status: 'pending' }
+            : { required: false, status: 'not-required' },
           createdAt,
           updatedAt: createdAt,
           createdBy: actor,
@@ -220,7 +235,7 @@ export function createPackageJobService({
       return { jobId: job.jobId, ...plan };
     },
 
-    async apply({ jobId, confirmation, actor }) {
+    async apply({ jobId, confirmation, actor, token }) {
       let job = await readJob(jobId);
       if (job.status !== 'ready' || job.applyAllowed !== true) {
         throw new PackageJobError('Package job is not ready to apply.', 409);
@@ -269,12 +284,30 @@ export function createPackageJobService({
           expectedPlanFingerprint: job.planFingerprint,
           postApply: validateInstall,
         });
+        let sourceRegistration = job.sourceRegistration;
+        if (plan.app.requiredServices.length === 0 && sourceActivator) {
+          try {
+            await sourceActivator.activate({
+              appKey: plan.app.appKey,
+              token,
+              activation: sourceActivationFromManifest(plan.app),
+            });
+            sourceRegistration = { required: true, status: 'succeeded', registeredAt: now().toISOString() };
+          } catch (error) {
+            sourceRegistration = {
+              required: true,
+              status: 'pending',
+              error: error instanceof Error ? error.message : 'Identity API registration failed.',
+            };
+          }
+        }
         job = {
           ...job,
           status: result.applied ? 'succeeded' : 'no-op',
           applyAllowed: false,
           updatedAt: now().toISOString(),
           result,
+          sourceRegistration,
         };
         await writeJob(jobPath(jobId), job);
         return publicJob(job);
@@ -292,6 +325,43 @@ export function createPackageJobService({
       } finally {
         await lock?.close();
         await rm(applyLockPath, { force: true });
+      }
+    },
+
+    async activateSource({ jobId, actor, token }) {
+      let job = await readJob(jobId);
+      if (!['succeeded', 'no-op'].includes(job.status)) {
+        throw new PackageJobError('Source App registration requires a completed package job.', 409);
+      }
+      if (!sourceActivator) throw new PackageJobError('Identity source activation is unavailable.', 503);
+      try {
+        const manifestPath = join(repositoryRoot, 'infrastructure', 'apps', `${job.appKey}.json`);
+        const app = JSON.parse(await readFile(manifestPath, 'utf8'));
+        if (app.appKey !== job.appKey || app.version !== job.version) {
+          throw new PackageJobError('Installed App manifest no longer matches the package job.', 409);
+        }
+        await validateInstalledApp({ rootPath: repositoryRoot, appKey: job.appKey });
+        await sourceActivator.activate({ appKey: job.appKey, token, activation: sourceActivationFromManifest(app) });
+        job = {
+          ...job,
+          updatedAt: now().toISOString(),
+          sourceRegistration: { required: true, status: 'succeeded', registeredAt: now().toISOString(), registeredBy: actor },
+        };
+        await writeJob(jobPath(jobId), job);
+        return publicJob(job);
+      } catch (error) {
+        job = {
+          ...job,
+          updatedAt: now().toISOString(),
+          sourceRegistration: {
+            required: true,
+            status: 'pending',
+            error: error instanceof Error ? error.message : 'Identity API registration failed.',
+          },
+        };
+        await writeJob(jobPath(jobId), job);
+        if (error instanceof PackageJobError) throw error;
+        throw new PackageJobError(job.sourceRegistration.error, Number(error?.status) || 503);
       }
     },
   };

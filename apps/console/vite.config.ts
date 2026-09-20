@@ -1,9 +1,19 @@
 import react from '@vitejs/plugin-react';
+import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
-const identityOrigin = process.env.STRATEXEC_IDENTITY_BASE_URL ?? 'http://127.0.0.1:8180';
+export default defineConfig(({ mode }) => {
+  const environment = {
+    ...loadEnv(mode, '../..', ''),
+    ...process.env,
+  };
+  const identityOrigin = environment.STRATEXEC_IDENTITY_BASE_URL ?? 'http://127.0.0.1:8180';
+  const packageAgentOrigin = environment.STRATEXEC_APP_PACKAGE_AGENT_BASE_URL
+    ?? `http://127.0.0.1:${environment.STRATEXEC_APP_PACKAGE_AGENT_PORT ?? '8182'}`;
+  const deploymentAgentOrigin = environment.STRATEXEC_DEPLOYMENT_AGENT_BASE_URL
+    ?? `http://127.0.0.1:${environment.STRATEXEC_DEPLOYMENT_AGENT_PORT ?? '8183'}`;
 
-export default defineConfig({
+  return ({
   plugins: [react()],
   // Keep one environment contract at the monorepo root. Only VITE_* values
   // are exposed to browser code; server-only admin settings remain private.
@@ -11,15 +21,15 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/identity': { target: identityOrigin, changeOrigin: false },
-      '/api/app-packages': { target: 'http://127.0.0.1:8182', changeOrigin: false },
-      '/api/deployments': { target: 'http://127.0.0.1:8183', changeOrigin: false },
+      '/api/app-packages': { target: packageAgentOrigin, changeOrigin: false },
+      '/api/deployments': { target: deploymentAgentOrigin, changeOrigin: false },
     },
   },
   preview: {
     proxy: {
       '/api/identity': { target: identityOrigin, changeOrigin: false },
-      '/api/app-packages': { target: 'http://127.0.0.1:8182', changeOrigin: false },
-      '/api/deployments': { target: 'http://127.0.0.1:8183', changeOrigin: false },
+      '/api/app-packages': { target: packageAgentOrigin, changeOrigin: false },
+      '/api/deployments': { target: deploymentAgentOrigin, changeOrigin: false },
     },
   },
   define: {
@@ -32,4 +42,5 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     restoreMocks: true,
   },
+  });
 });

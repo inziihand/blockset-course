@@ -19,6 +19,8 @@ test('package scripts expose a Node-only local lifecycle', () => {
   assert.equal(packageJson.scripts.setup, 'node --use-system-ca scripts/stratexec.mjs setup');
   assert.equal(packageJson.scripts['start:local'], 'node --use-system-ca scripts/stratexec.mjs start');
   assert.equal(packageJson.scripts['stop:local'], 'node --use-system-ca scripts/stratexec.mjs stop');
+  assert.match(packageJson.scripts['dev:app-packages'], /--env-file-if-exists=\.env\.local/);
+  assert.match(packageJson.scripts['dev:deployments'], /--env-file-if-exists=\.env\.local/);
   assert.doesNotMatch(packageJson.scripts.setup, /powershell|pwsh|\.ps1/i);
 });
 
@@ -46,6 +48,10 @@ test('local lifecycle allocates consecutive ports for multiple checkouts', () =>
   assert.match(runtimeSource, /STRATEXEC_IDENTITY_BASE_URL: identityUrl/);
   assert.match(viteConfigSource, /STRATEXEC_IDENTITY_BASE_URL/);
   assert.match(viteConfigSource, /target: identityOrigin/);
+  assert.match(viteConfigSource, /STRATEXEC_APP_PACKAGE_AGENT_PORT/);
+  assert.match(viteConfigSource, /target: packageAgentOrigin/);
+  assert.match(viteConfigSource, /STRATEXEC_DEPLOYMENT_AGENT_PORT/);
+  assert.match(viteConfigSource, /target: deploymentAgentOrigin/);
 });
 
 test('managed health rejects a response served by another checkout', async () => {

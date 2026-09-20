@@ -169,7 +169,8 @@ function AppManagementPanel({ installations, pending, packageApi, settingsApi, d
   const [confirmation, setConfirmation] = useState('');
   const closeConfirmation = () => { setRemoveTarget(null); setConfirmation(''); };
   return <>
-    {packageApi && <AppPackageInstaller api={packageApi} signal={signal} onJobsChange={setPackageJobs} />}
+    {packageApi && <AppPackageInstaller api={packageApi} signal={signal} onJobsChange={setPackageJobs}
+      registeredAppKeys={new Set(installations.map((installation) => installation.appKey))} onRegistered={onReload} />}
     {deploymentApi && <DeploymentLifecycleManager api={deploymentApi} packageJobs={packageJobs}
       installations={installations} installationKey={installationKey} signal={signal}
       onOpenSettings={(appKey, displayName) => setSettingsTarget({ appKey, displayName })}
@@ -225,7 +226,13 @@ function AppManagementPanel({ installations, pending, packageApi, settingsApi, d
   </>;
 }
 
-function AppPackageInstaller({ api, signal, onJobsChange }: { api: AppPackageApi; signal?: AbortSignal; onJobsChange?(jobs: AppPackageJob[]): void }) {
+function AppPackageInstaller({ api, signal, onJobsChange, registeredAppKeys, onRegistered }: {
+  api: AppPackageApi;
+  signal?: AbortSignal;
+  onJobsChange?(jobs: AppPackageJob[]): void;
+  registeredAppKeys: ReadonlySet<string>;
+  onRegistered(): Promise<void>;
+}) {
   const fileInputId = useId();
   const [jobs, setJobs] = useState<AppPackageJob[]>([]);
   const [selectedJob, setSelectedJob] = useState<AppPackageJob | null>(null);
@@ -233,14 +240,20 @@ function AppPackageInstaller({ api, signal, onJobsChange }: { api: AppPackageApi
   const [adoptExisting, setAdoptExisting] = useState(false);
   const [allowDowngrade, setAllowDowngrade] = useState(false);
   const [confirmation, setConfirmation] = useState('');
-  const [busy, setBusy] = useState<'loading' | 'inspect' | 'apply' | ''>('loading');
+  const [busy, setBusy] = useState<'loading' | 'inspect' | 'apply' | 'register' | ''>('loading');
   const [available, setAvailable] = useState(false);
   const [error, setError] = useState('');
 
   const loadJobs = useCallback(async () => {
     setBusy('loading');
     setError('');
-    try { const next = await api.listJobs(signal); setJobs(next); onJobsChange?.(next); setAvailable(true); }
+    try {
+      const next = await api.listJobs(signal);
+      setJobs(next);
+      setSelectedJob((current) => current ?? next[0] ?? null);
+      onJobsChange?.(next);
+      setAvailable(true);
+    }
     catch (caught) {
       if (!signal?.aborted) {
         setAvailable(false);
@@ -273,8 +286,21 @@ function AppPackageInstaller({ api, signal, onJobsChange }: { api: AppPackageApi
     if (!selectedJob) return;
     setBusy('apply');
     setError('');
-    try { replaceJob(await api.applyJob(selectedJob.jobId, confirmation, signal)); }
+    try {
+      replaceJob(await api.applyJob(selectedJob.jobId, confirmation, signal));
+      await onRegistered();
+    }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'App 套件套用失敗。'); }
+    finally { setBusy(''); }
+  };
+  const activateSource = async () => {
+    if (!selectedJob) return;
+    setBusy('register');
+    setError('');
+    try {
+      replaceJob(await api.activateSource(selectedJob.jobId, signal));
+      await onRegistered();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'App 平台登錄失敗。'); }
     finally { setBusy(''); }
   };
   const changeCounts = selectedJob?.changes.reduce<Record<string, number>>((counts, change) => {
@@ -285,6 +311,8 @@ function AppPackageInstaller({ api, signal, onJobsChange }: { api: AppPackageApi
     ready: '可套用', blocked: '已阻擋', applying: '套用中', succeeded: '已完成', failed: '失敗', 'no-op': '無差異',
   };
   const actionLabels = { add: '新增', update: '更新', delete: '刪除', unchanged: '未變更' } as const;
+  const needsRegistration = Boolean(selectedJob && ['succeeded', 'no-op'].includes(selectedJob.status)
+    && !registeredAppKeys.has(selectedJob.appKey));
 
   return <section className="access-package-installer" aria-labelledby="app-package-installer-title">
     <header>
@@ -344,7 +372,15 @@ function AppPackageInstaller({ api, signal, onJobsChange }: { api: AppPackageApi
         {selectedJob.changes.slice(0, 100).map((change) => <li key={change.path}><span>{actionLabels[change.action]}</span>{change.path}</li>)}
       </ul></details>}
       {selectedJob.status === 'succeeded' || selectedJob.status === 'no-op'
-        ? <p className="access-package-success">{selectedJob.status === 'succeeded' ? '來源套件已完成驗證與套用；正式環境仍需另行部署。' : '目前來源內容已與此套件一致。'}</p>
+        ? <>
+          <p className="access-package-success">{selectedJob.status === 'succeeded' ? '來源套件已完成驗證與套用。' : '目前來源內容已與此套件一致。'}</p>
+          {needsRegistration && <div className="access-package-apply">
+            <p>此純前端 App 尚未登錄 Identity API；完成登錄後即可依原會員權限規則啟用。</p>
+            <Button disabled={Boolean(busy)} onClick={() => void activateSource()}>
+              {busy === 'register' ? '登錄中…' : '完成平台登錄'}
+            </Button>
+          </div>}
+        </>
         : <div className="access-package-apply">
           <Field label={`輸入「${selectedJob.confirmation}」才可套用`} value={confirmation}
             autoComplete="off" onChange={(event) => setConfirmation(event.currentTarget.value)} />

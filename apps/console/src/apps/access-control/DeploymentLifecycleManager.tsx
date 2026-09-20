@@ -51,20 +51,38 @@ export function DeploymentLifecycleManager({
   const [events, setEvents] = useState<DeploymentEvent[]>([]);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const readyPackages = useMemo(() => packageJobs.filter(sourceReady), [packageJobs]);
-  const selected = jobs.find((job) => job.jobId === selectedId) ?? jobs[0];
+  const readySourcePackages = useMemo(() => packageJobs.filter(sourceReady), [packageJobs]);
+  const requiredServicesByApp = useMemo(
+    () => new Map(installations.map((installation) => [installation.appKey, installation.requiredServices])),
+    [installations],
+  );
+  const deploymentJobs = useMemo(
+    () => jobs.filter((job) => (requiredServicesByApp.get(job.appKey)?.length ?? 1) > 0),
+    [jobs, requiredServicesByApp],
+  );
+  const readyPackages = useMemo(
+    () => readySourcePackages.filter((job) => (requiredServicesByApp.get(job.appKey)?.length ?? 1) > 0),
+    [readySourcePackages, requiredServicesByApp],
+  );
+  const frontendOnlyPackages = useMemo(
+    () => readySourcePackages.filter((job) => requiredServicesByApp.get(job.appKey)?.length === 0),
+    [readySourcePackages, requiredServicesByApp],
+  );
+  const selected = deploymentJobs.find((job) => job.jobId === selectedId) ?? deploymentJobs[0];
 
   const load = useCallback(async () => {
     try {
       const next = await api.listJobs(signal);
       setJobs(next);
-      setSelectedId((current) => current || next[0]?.jobId || '');
       setError('');
     } catch (caught) {
       if (!signal?.aborted) setError(caught instanceof Error ? caught.message : 'Deployment Agent 無法連線。');
     }
   }, [api, signal]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!deploymentJobs.some((job) => job.jobId === selectedId)) setSelectedId(deploymentJobs[0]?.jobId ?? '');
+  }, [deploymentJobs, selectedId]);
   useEffect(() => {
     if (!jobs.some((job) => transient.has(job.status))) return undefined;
     const timer = window.setInterval(() => void load(), 2_000);
@@ -118,7 +136,7 @@ export function DeploymentLifecycleManager({
   };
 
   const latestPackage = new Map([...packageJobs].reverse().map((job) => [job.appKey, job]));
-  const latestDeployment = new Map([...jobs].reverse().map((job) => [job.appKey, job]));
+  const latestDeployment = new Map([...deploymentJobs].reverse().map((job) => [job.appKey, job]));
   const allAppKeys = [...new Set([...installations.map((item) => item.appKey), ...latestPackage.keys(), ...latestDeployment.keys()])];
   const installationByKey = new Map(installations.map((item) => [item.appKey, item]));
   const allRisksConfirmed = selected?.requiredRiskConfirmations.every((risk) => confirmedRisks.includes(risk)) ?? false;
@@ -140,14 +158,17 @@ export function DeploymentLifecycleManager({
       <div className="access-lifecycle-head" role="row"><span>App</span><span>來源</span><span>後端</span><span>驗證</span><span>啟用</span></div>
       {allAppKeys.map((appKey) => {
         const app = installationByKey.get(appKey); const source = latestPackage.get(appKey); const job = latestDeployment.get(appKey);
+        const frontendOnly = app?.requiredServices.length === 0;
         const logicallyAvailable = app?.status === 'installed' && (
           app.protected || app.requiredServices.length === 0 || Boolean(app.deploymentJobId && app.runtimeRevision && app.runtimeVerifiedAt)
         );
         return <div role="row" key={appKey}>
           <span><strong>{app?.displayName ?? job?.plan.app?.displayName ?? appKey}</strong><small>{appKey}</small></span>
           <StateCell ok={sourceReady(source)} label={sourceReady(source) ? '已套用' : '未完成'} detail={source ? source.status : '無工作'} />
-          <StateCell ok={deployed(job)} label={deployed(job) ? '已部署' : '未部署'} detail={job ? stateLabel[job.status] ?? job.status : '無工作'} />
-          <StateCell ok={verified(job)} label={verified(job) ? '已驗證' : '未驗證'} detail={job?.verificationEvidence?.verifiedAt ?? '無證據'} />
+          <StateCell ok={frontendOnly || deployed(job)} label={frontendOnly ? '不需要' : deployed(job) ? '已部署' : '未部署'}
+            detail={frontendOnly ? '純前端 App' : job ? stateLabel[job.status] ?? job.status : '無工作'} />
+          <StateCell ok={frontendOnly || verified(job)} label={frontendOnly ? '不需要' : verified(job) ? '已驗證' : '未驗證'}
+            detail={frontendOnly ? '隨 Console 建置驗證' : job?.verificationEvidence?.verifiedAt ?? '無證據'} />
           <StateCell ok={logicallyAvailable} label={logicallyAvailable ? '可用' : '不可用'}
             detail={app?.status === 'installed' && !logicallyAvailable ? '缺少部署驗證證據' : app?.status ?? '尚未登錄'} />
         </div>;
@@ -155,18 +176,23 @@ export function DeploymentLifecycleManager({
     </div>
 
     <div className="access-deployment-create">
-      <label>已套用來源套件<select aria-label="已套用來源套件" value={packageJobId} onChange={(event) => setPackageJobId(event.target.value)}>
-        <option value="">選擇套件工作</option>
-        {readyPackages.map((job) => <option key={job.jobId} value={job.jobId}>{job.appKey}@{job.version} · {job.fileName}</option>)}
-      </select></label>
-      <Button disabled={!packageJobId || !installationKey || Boolean(busy)} onClick={() => void inspect()}>
-        {busy === 'inspect' ? '建立中…' : '建立部署計畫'}</Button>
-      {!installationKey && <small>請先設定 VITE_STRATEXEC_INSTALLATION_KEY。</small>}
+      {readyPackages.length > 0 ? <>
+        <label>需部署後端的來源套件<select aria-label="需部署後端的來源套件" value={packageJobId} onChange={(event) => setPackageJobId(event.target.value)}>
+          <option value="">選擇套件工作</option>
+          {readyPackages.map((job) => <option key={job.jobId} value={job.jobId}>{job.appKey}@{job.version} · {job.fileName}</option>)}
+        </select></label>
+        <Button disabled={!packageJobId || !installationKey || Boolean(busy)} onClick={() => void inspect()}>
+          {busy === 'inspect' ? '建立中…' : '建立部署計畫'}</Button>
+        {!installationKey && <small>請先設定 VITE_STRATEXEC_INSTALLATION_KEY。</small>}
+      </> : <small className="access-deployment-note">目前沒有需要部署後端的來源套件。</small>}
+      {frontendOnlyPackages.length > 0 && <small className="access-deployment-note">
+        純前端 App（{frontendOnlyPackages.map((job) => job.appKey).join('、')}）已完成來源套用，不需建立後端部署計畫。
+      </small>}
     </div>
 
-    {jobs.length > 0 && <div className="access-deployment-workspace">
+    {deploymentJobs.length > 0 && <div className="access-deployment-workspace">
       <label>部署工作<select aria-label="部署工作" value={selected?.jobId ?? ''} onChange={(event) => setSelectedId(event.target.value)}>
-        {jobs.map((job) => <option key={job.jobId} value={job.jobId}>{job.appKey}@{job.package.version} · {stateLabel[job.status] ?? job.status}</option>)}
+        {deploymentJobs.map((job) => <option key={job.jobId} value={job.jobId}>{job.appKey}@{job.package.version} · {stateLabel[job.status] ?? job.status}</option>)}
       </select></label>
       {selected && <>
         <ol className="access-deployment-steps" aria-label="部署步驟">

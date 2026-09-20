@@ -7,7 +7,7 @@ import { createBuildSourceProvider } from './build-source.mjs';
 import { createCloudRunDeploymentExecutor } from './cloud-run-executor.mjs';
 import { createIdentityDeploymentAuthorizer } from './authorizer.mjs';
 import { createIdentityLifecycleClient } from './identity-lifecycle-client.mjs';
-import { createDeploymentJobService } from './deployment-job-service.mjs';
+import { createDeploymentJobService, DeploymentJobError } from './deployment-job-service.mjs';
 import { createDeploymentSettingsService } from './deployment-settings-service.mjs';
 import { createUnavailableDeploymentExecutor } from './executor.mjs';
 import { createGcpCloudControlPlane } from './gcp-cloud-control-plane.mjs';
@@ -21,6 +21,7 @@ import { createExternalEd25519DesiredStateSigner } from './desired-state-signer.
 import { createMtlsJsonRequest, createVmAgentClient } from './vm-agent-client.mjs';
 import { createVmDockerDeploymentExecutor } from './vm-docker-executor.mjs';
 import { loadDeploymentAgentPolicy } from '../../../scripts/lib/deployment-agent-policy.mjs';
+import { readInstallationConfig } from '../../../scripts/lib/installation-config.mjs';
 
 const installationKeyPattern = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/;
 const config = resolveDeploymentAgentConfig();
@@ -67,13 +68,10 @@ if (config.targetMode === 'gcp-cloud-run') {
   });
 }
 const installationProvider = async (installationKey) => {
-  if (!installationKeyPattern.test(installationKey ?? '')) throw Object.assign(new Error('Invalid installation key.'), { status: 422 });
-  try {
-    return JSON.parse(await readFile(join(config.repositoryRoot, 'infrastructure', 'environments', `${installationKey}.json`), 'utf8'));
-  } catch (error) {
-    if (error?.code === 'ENOENT') throw Object.assign(new Error('Installation configuration was not found.'), { status: 404 });
-    throw error;
-  }
+  if (!installationKeyPattern.test(installationKey ?? '')) throw new DeploymentJobError('Invalid installation key.', 422);
+  const installation = await readInstallationConfig(config.repositoryRoot, installationKey);
+  if (!installation) throw new DeploymentJobError('Installation configuration was not found.', 404);
+  return installation;
 };
 const deploymentProvider = async (appKey) => {
   if (!/^[a-z][a-z0-9-]*$/.test(appKey ?? '')) throw Object.assign(new Error('Invalid App key.'), { status: 422 });

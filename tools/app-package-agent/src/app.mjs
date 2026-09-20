@@ -37,8 +37,10 @@ export function createPackageAgentApp({ jobs, authorizeAdmin = createIdentityAdm
       return response(404, { error: '找不到 App 套件管理 API。' });
     }
     let actor;
+    let token;
     try {
-      actor = await authorizeAdmin(bearerToken(requestHeaders));
+      token = bearerToken(requestHeaders);
+      actor = await authorizeAdmin(token);
     } catch (error) {
       const status = error instanceof AdminAuthorizationError ? error.status : 503;
       return response(status, { error: status === 401 ? '請先登入。' : status === 403 ? '需要平台管理員權限。' : '平台權限服務暫時無法使用。' },
@@ -68,8 +70,12 @@ export function createPackageAgentApp({ jobs, authorizeAdmin = createIdentityAdm
       const applyMatch = requestUrl.pathname.match(/^\/api\/app-packages\/v1\/jobs\/([^/]+)\/apply$/);
       if (method === 'POST' && applyMatch) {
         const payload = parseJsonBody(body);
-        const job = await jobs.apply({ jobId: applyMatch[1], confirmation: payload.confirmation, actor });
+        const job = await jobs.apply({ jobId: applyMatch[1], confirmation: payload.confirmation, actor, token });
         return response(200, job);
+      }
+      const sourceActivationMatch = requestUrl.pathname.match(/^\/api\/app-packages\/v1\/jobs\/([^/]+)\/source-activation$/);
+      if (method === 'POST' && sourceActivationMatch) {
+        return response(200, await jobs.activateSource({ jobId: sourceActivationMatch[1], actor, token }));
       }
       return response(404, { error: '找不到 App 套件管理 API。' });
     } catch (error) {

@@ -117,6 +117,7 @@
 .access-deployment-create label, .access-deployment-workspace > label { display: grid; gap: 4px; color: var(--color-text-secondary); font-size: 11px; }
 .access-deployment-create select, .access-deployment-workspace select { min-width: 0; min-height: 40px; padding: 6px 8px; border: 1px solid var(--color-border-hover); border-radius: 8px; background: var(--color-surface-control); color: inherit; }
 .access-deployment-create > small { grid-column: 1 / -1; color: var(--color-warning); }
+.access-deployment-create > .access-deployment-note { color: var(--color-text-secondary); }
 .access-deployment-workspace { min-width: 0; display: grid; gap: 10px; padding: 12px; border: 1px solid var(--color-border-default); border-radius: 10px; background: var(--color-surface-muted); }
 .access-deployment-steps { min-width: 0; display: grid; grid-template-columns: repeat(7, minmax(88px, 1fr)); gap: 4px; margin: 0; padding: 0; overflow-x: auto; list-style: none; }
 .access-deployment-steps li { min-width: 88px; padding: 7px; border: 1px solid var(--color-border-default); border-radius: 7px; color: var(--color-text-muted); font-size: 10px; text-align: center; white-space: nowrap; }
