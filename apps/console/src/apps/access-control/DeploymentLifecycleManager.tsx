@@ -57,15 +57,21 @@ export function DeploymentLifecycleManager({
     [installations],
   );
   const deploymentJobs = useMemo(
-    () => jobs.filter((job) => (requiredServicesByApp.get(job.appKey)?.length ?? 1) > 0),
+    () => jobs.filter((job) => requiredServicesByApp.has(job.appKey)
+      ? (requiredServicesByApp.get(job.appKey)?.length ?? 0) > 0
+      : (job.plan.app?.requiredServices ?? job.plan.services).length > 0),
     [jobs, requiredServicesByApp],
   );
   const readyPackages = useMemo(
-    () => readySourcePackages.filter((job) => (requiredServicesByApp.get(job.appKey)?.length ?? 1) > 0),
+    () => readySourcePackages.filter((job) => requiredServicesByApp.has(job.appKey)
+      ? (requiredServicesByApp.get(job.appKey)?.length ?? 0) > 0
+      : job.sourceRegistration?.required !== true),
     [readySourcePackages, requiredServicesByApp],
   );
   const frontendOnlyPackages = useMemo(
-    () => readySourcePackages.filter((job) => requiredServicesByApp.get(job.appKey)?.length === 0),
+    () => readySourcePackages.filter((job) => requiredServicesByApp.has(job.appKey)
+      ? requiredServicesByApp.get(job.appKey)?.length === 0
+      : job.sourceRegistration?.required === true),
     [readySourcePackages, requiredServicesByApp],
   );
   const selected = deploymentJobs.find((job) => job.jobId === selectedId) ?? deploymentJobs[0];

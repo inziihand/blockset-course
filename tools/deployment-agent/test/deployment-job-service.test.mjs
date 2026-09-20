@@ -111,6 +111,24 @@ async function inspectAndApprove(target) {
   });
 }
 
+test('does not create a backend deployment job for a frontend-only App', async () => {
+  const target = await fixture();
+  try {
+    const plan = deploymentPlan();
+    plan.app.requiredServices = [];
+    plan.services = [];
+    plan.changes.cloudResources = [];
+    target.setPlan(plan);
+    await assert.rejects(
+      () => target.service.inspect({
+        packageJobId, installationKey: 'customer-a', appKey: 'quotes', token: 'firebase-token', actor,
+      }),
+      /Frontend-only App packages do not require a backend deployment job/,
+    );
+    assert.equal((await target.service.listJobs()).length, 0);
+  } finally { await target.cleanup(); }
+});
+
 test('binds approval to immutable inputs and records apply, verify and rollback evidence', async () => {
   const target = await fixture();
   try {

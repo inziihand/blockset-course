@@ -393,6 +393,9 @@ export function createDeploymentJobService({
       assertActor(actor);
       if (!actor.permissions.includes(`app:${appKey}:access`)) throw new DeploymentJobError('App access permission is required.', 403);
       const built = await buildJobPlan({ packageJobId, installationKey, appKey, token, actor });
+      if ((built.plan.app?.requiredServices ?? built.plan.services).length === 0) {
+        throw new DeploymentJobError('Frontend-only App packages do not require a backend deployment job.', 409);
+      }
       const createdAt = now().toISOString();
       const job = {
         schemaVersion: 1,
