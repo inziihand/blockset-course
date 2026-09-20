@@ -164,4 +164,3 @@ export async function fetchJson(url, options = {}) {
   const text = await response.text();
   return text ? JSON.parse(text) : null;
 }
-
