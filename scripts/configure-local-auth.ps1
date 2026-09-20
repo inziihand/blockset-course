@@ -205,6 +205,9 @@ function Get-FirebaseState {
         $appsPayload = Get-FirebasePayload $appsResult.Value
         $apps = if ($appsPayload.apps) { @($appsPayload.apps) } else { @($appsPayload) }
         $webApp = $apps | Where-Object { $_.displayName -eq $WebAppName } | Select-Object -First 1
+        if (-not $webApp -and $apps.Count -eq 1 -and $apps[0].displayName -eq 'Default Web App') {
+            $webApp = $apps[0]
+        }
         if (-not $webApp) { $missing += 'web-app' }
     }
     $missing += Get-IdentityReadiness -ProjectId $ProjectId -RequiredDomains $RequiredDomains
@@ -230,11 +233,6 @@ function Write-AuthDeploymentConfig {
                 googleSignIn = [ordered]@{
                     oAuthBrandDisplayName = $DisplayName
                     supportEmail = $SupportEmail
-                    authorizedRedirectUris = @(
-                        'http://localhost', 'http://127.0.0.1',
-                        'http://localhost:5175', 'http://127.0.0.1:5175',
-                        'http://localhost:3001', 'http://127.0.0.1:3001'
-                    )
                 }
             }
         }
@@ -246,6 +244,30 @@ function Write-AuthDeploymentConfig {
         "$($firebaseConfig | ConvertTo-Json -Depth 10)$([Environment]::NewLine)",
         [System.Text.UTF8Encoding]::new($false)
     )
+}
+
+function Set-AuthorizedDomains {
+    param(
+        [Parameter(Mandatory = $true)][string] $ProjectId,
+        [Parameter(Mandatory = $true)][string[]] $RequiredDomains
+    )
+
+    $headers = Get-GcloudHeaders -ProjectId $ProjectId
+    $configUri = "https://identitytoolkit.googleapis.com/admin/v2/projects/$ProjectId/config"
+    $identityConfig = Invoke-RestMethod -Method Get -Uri $configUri -Headers $headers
+    $authorizedDomains = @(
+        @($identityConfig.authorizedDomains) + $RequiredDomains |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_) } |
+            Sort-Object -Unique
+    )
+    if ($authorizedDomains.Count -eq @($identityConfig.authorizedDomains).Count) { return }
+
+    $body = @{ authorizedDomains = $authorizedDomains } | ConvertTo-Json -Depth 5
+    Invoke-RestMethod -Method Patch `
+        -Uri "${configUri}?updateMask=authorizedDomains" `
+        -Headers $headers `
+        -ContentType 'application/json' `
+        -Body $body | Out-Null
 }
 
 if (-not (Get-Command 'gcloud' -ErrorAction SilentlyContinue)) { throw 'Required command is not available: gcloud' }
@@ -281,6 +303,12 @@ try {
             'services', 'enable', 'firebase.googleapis.com', 'identitytoolkit.googleapis.com',
             '--project', $projectId, '--quiet'
         )
+        if ($state.Missing -contains 'web-app') {
+            $createResult = Invoke-ExternalJsonResult $firebaseExecutable @(
+                'apps:create', 'WEB', $webAppName, '--project', $projectId, '--json'
+            )
+            if (-not $createResult.Succeeded) { throw "Unable to create Firebase Web App: $($createResult.Error)" }
+        }
         $authConfigPath = Join-Path $repoRoot ".stratexec\installations\$installationKey\local-auth.firebase.json"
         Write-AuthDeploymentConfig -Path $authConfigPath `
             -DisplayName ([string] $config.auth.oauthBrandDisplayName) `
@@ -289,13 +317,7 @@ try {
             'deploy', '--only', 'auth', '--project', $projectId,
             '--config', $authConfigPath, '--non-interactive'
         )
-
-        if ($state.Missing -contains 'web-app') {
-            $createResult = Invoke-ExternalJsonResult $firebaseExecutable @(
-                'apps:create', 'WEB', $webAppName, '--project', $projectId, '--json'
-            )
-            if (-not $createResult.Succeeded) { throw "Unable to create Firebase Web App: $($createResult.Error)" }
-        }
+        Set-AuthorizedDomains -ProjectId $projectId -RequiredDomains $requiredDomains
         $cloudChanged = $true
         for ($attempt = 1; $attempt -le 5; $attempt += 1) {
             $state = Get-FirebaseState -ProjectId $projectId -WebAppName $webAppName -RequiredDomains $requiredDomains

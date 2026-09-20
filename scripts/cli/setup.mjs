@@ -313,6 +313,40 @@ async function identityReadiness(projectId, requiredDomains) {
   return [...new Set(missing)].sort();
 }
 
+async function ensureAuthorizedDomains(projectId, requiredDomains) {
+  const configUri = `https://identitytoolkit.googleapis.com/admin/v2/projects/${projectId}/config`;
+  const headers = authHeaders(projectId, accessToken());
+  const config = await fetchJson(configUri, { headers });
+  const authorizedDomains = [...new Set([
+    ...(config.authorizedDomains ?? []),
+    ...requiredDomains,
+  ])];
+  if (authorizedDomains.length === (config.authorizedDomains ?? []).length) return;
+  await fetchJson(`${configUri}?updateMask=authorizedDomains`, {
+    method: 'PATCH',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify({ authorizedDomains }),
+  });
+}
+
+export function authDeploymentConfig(displayName, supportEmail) {
+  return {
+    auth: {
+      providers: {
+        googleSignIn: {
+          oAuthBrandDisplayName: displayName,
+          supportEmail,
+        },
+      },
+    },
+  };
+}
+
+export function selectWebApp(apps, displayName) {
+  return apps.find((app) => app.displayName === displayName)
+    ?? (apps.length === 1 && apps[0].displayName === 'Default Web App' ? apps[0] : null);
+}
+
 async function firebaseState(repoRoot, installation) {
   const projectsResult = runFirebaseJson(repoRoot, ['projects:list', '--json']);
   if (!projectsResult.succeeded) {
@@ -333,7 +367,7 @@ async function firebaseState(repoRoot, installation) {
     }
     const payload = firebasePayload(appsResult.value);
     const apps = payload?.apps ?? payload ?? [];
-    webApp = apps.find((app) => app.displayName === installation.firebaseWebAppDisplayName) ?? null;
+    webApp = selectWebApp(apps, installation.firebaseWebAppDisplayName);
     if (!webApp) missing.push('web-app');
   }
   missing.push(...await identityReadiness(installation.gcpProjectId, installation.auth.authorizedDomains ?? []));
@@ -347,34 +381,24 @@ async function applyAuthConfiguration(repoRoot, installation, state) {
     runFirebase(repoRoot, ['projects:addfirebase', projectId, '--non-interactive']);
   }
   gcloud(['services', 'enable', ...REQUIRED_LOCAL_APIS, '--project', projectId, '--quiet']);
-  const authConfigPath = path.join(
-    repoRoot, '.stratexec', 'installations', installation.installationKey, 'local-auth.firebase.json',
-  );
-  await writeJsonAtomic(authConfigPath, {
-    auth: {
-      providers: {
-        googleSignIn: {
-          oAuthBrandDisplayName: installation.auth.oauthBrandDisplayName,
-          supportEmail: installation.auth.supportEmail,
-          authorizedRedirectUris: [
-            'http://localhost', 'http://127.0.0.1',
-            'http://localhost:5175', 'http://127.0.0.1:5175',
-            'http://localhost:3001', 'http://127.0.0.1:3001',
-          ],
-        },
-      },
-    },
-  });
-  runFirebase(repoRoot, [
-    'deploy', '--only', 'auth', '--project', projectId,
-    '--config', authConfigPath, '--non-interactive',
-  ]);
   if (state.missing.includes('web-app')) {
     runFirebase(repoRoot, [
       'apps:create', 'WEB', installation.firebaseWebAppDisplayName,
       '--project', projectId, '--json',
     ]);
   }
+  const authConfigPath = path.join(
+    repoRoot, '.stratexec', 'installations', installation.installationKey, 'local-auth.firebase.json',
+  );
+  await writeJsonAtomic(authConfigPath, authDeploymentConfig(
+    installation.auth.oauthBrandDisplayName,
+    installation.auth.supportEmail,
+  ));
+  runFirebase(repoRoot, [
+    'deploy', '--only', 'auth', '--project', projectId,
+    '--config', authConfigPath, '--non-interactive',
+  ]);
+  await ensureAuthorizedDomains(projectId, installation.auth.authorizedDomains ?? []);
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     const refreshed = await firebaseState(repoRoot, installation);
     if (refreshed.status === 'ready') return refreshed;

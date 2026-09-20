@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { installationConfigReady, convertToInstallationKey } from '../cli/setup.mjs';
+import {
+  authDeploymentConfig,
+  installationConfigReady,
+  convertToInstallationKey,
+  selectWebApp,
+} from '../cli/setup.mjs';
 
 const packageJson = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 const cliSource = await readFile(new URL('../stratexec.mjs', import.meta.url), 'utf8');
@@ -55,4 +60,28 @@ test('setup keeps local installation separate from formal cloud deployment', () 
   assert.match(setupSource, /firestoreReady/);
   assert.match(setupSource, /configureLocalAuth/);
   assert.match(setupSource, /startLocal/);
+});
+
+test('Firebase Auth bootstrap separates OAuth redirects from local authorized domains', () => {
+  assert.deepEqual(authDeploymentConfig('Customer', 'owner@example.com'), {
+    auth: {
+      providers: {
+        googleSignIn: {
+          oAuthBrandDisplayName: 'Customer',
+          supportEmail: 'owner@example.com',
+        },
+      },
+    },
+  });
+  assert.doesNotMatch(JSON.stringify(authDeploymentConfig('Customer', 'owner@example.com')), /localhost|127\.0\.0\.1/);
+  assert.match(setupSource, /updateMask=authorizedDomains/);
+  assert.ok(setupSource.indexOf("'apps:create'") < setupSource.indexOf("'deploy', '--only', 'auth'"));
+});
+
+test('Firebase Auth bootstrap resumes from the CLI auto-created default Web App', () => {
+  const defaultApp = { appId: 'default-app', displayName: 'Default Web App' };
+  const requestedApp = { appId: 'requested-app', displayName: 'Customer Web App' };
+  assert.equal(selectWebApp([defaultApp], 'Customer Web App'), defaultApp);
+  assert.equal(selectWebApp([defaultApp, requestedApp], 'Customer Web App'), requestedApp);
+  assert.equal(selectWebApp([{ appId: 'other', displayName: 'Other App' }], 'Customer Web App'), null);
 });
