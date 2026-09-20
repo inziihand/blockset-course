@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Home, Menu, Settings, UserRound } from 'lucide-react';
+import { Menu, Settings, UserRound } from 'lucide-react';
 import AppLauncherPanel from './AppLauncherPanel';
 import { BrandMark, Wordmark } from './Brand';
 import OffCanvasDrawer from './OffCanvasDrawer';
@@ -97,7 +97,7 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
                   : <div className="app-title-copy"><h1>{definition.title}</h1><p>{definition.subtitle}</p></div>
               ) : <div><h1>{pathname === '/' ? <Wordmark /> : '找不到頁面'}</h1><p>{pathname === '/' ? '策略執行平台' : '請返回平台首頁'}</p></div>}
             </div>
-            {definition ? <button type="button" className="platform-button merged-home" onClick={openHome} aria-label="返回平台首頁" title="返回平台首頁"><Home size={16} aria-hidden="true" /><span>返回平台首頁</span></button> : <span className="platform-badge">{pathname === '/' ? '平台首頁' : '找不到頁面'}</span>}
+            {!definition ? <span className="platform-badge">{pathname === '/' ? '平台首頁' : '找不到頁面'}</span> : null}
           </header>
           {pathname === '/' ? <AppLauncherPanel apps={accessibleApps} onSelectApp={selectApp} /> : (
             <section className="app-content card" aria-label={definition?.title ?? '找不到頁面'}>

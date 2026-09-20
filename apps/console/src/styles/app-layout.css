@@ -30,15 +30,12 @@
 .merged-brand-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 16px; min-width: 0; }
 .merged-brand-copy > .wordmark { font-size: 20px; }
 .brand .merged-brand-copy h1 { font-size: 18px; font-weight: 650; }
-.merged-home { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; font-size: 12px; }
 @media (max-width: 680px) {
   .app-shell[data-header-layout="merged"] .topbar { padding: 5px 8px; gap: 8px; }
   .app-shell[data-header-layout="merged"] .brand { gap: 8px; }
   .merged-brand-copy { flex-direction: column; align-items: flex-start; gap: 0; }
   .merged-brand-copy > .wordmark { font-size: 17px; }
   .brand .merged-brand-copy h1 { font-size: 16px; }
-  .merged-home { width: 44px; padding: 0; }
-  .merged-home > span { display: none; }
 }
 
 .platform-app-frame {

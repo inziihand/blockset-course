@@ -99,7 +99,7 @@ describe('URL-owned App navigation', () => {
     expect(main.getAttribute('data-display-mode')).toBe('compact');
     expect(within(main).getByRole('heading', { name: '測試甲', level: 1 }).closest('.topbar')).toBeTruthy();
     expect(main.querySelector('.app-content-heading')).toBeNull();
-    expect(screen.getByRole('button', { name: '返回平台首頁' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '返回平台首頁' })).toBeNull();
     await userEvent.click(rail().getByRole('button', { name: '測試乙' }));
     await screen.findByText('測試乙內容');
     expect(main.hasAttribute('data-header-layout')).toBe(false);
@@ -107,7 +107,7 @@ describe('URL-owned App navigation', () => {
     expect(main.querySelector('.app-content-heading')).toBeNull();
     goTo('/apps/alpha');
     await screen.findByText('測試甲內容');
-    await userEvent.click(screen.getByRole('button', { name: '返回平台首頁' }));
+    await goHomeWithDrawer();
     expect(main.hasAttribute('data-header-layout')).toBe(false);
     expect(screen.getByRole('heading', { name: '你的策略工作空間' })).toBeTruthy();
   });
@@ -134,7 +134,7 @@ describe('URL-owned App navigation', () => {
     goTo('/apps/alpha');
     await screen.findByText('測試甲內容');
     expect(windowElement.getAttribute('data-display-mode')).toBe('compact');
-    await userEvent.click(screen.getByRole('button', { name: '返回平台首頁' }));
+    await goHomeWithDrawer();
     expect(screen.getByRole('heading', { name: '你的策略工作空間' })).toBeTruthy();
     expect(windowElement.hasAttribute('data-display-mode')).toBe(false);
     goTo('/apps/alpha');
