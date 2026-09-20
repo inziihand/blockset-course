@@ -13,6 +13,7 @@ import { buildInfo } from '../shared/buildInfo';
 import { useAuth } from '../shared/auth';
 import { firebaseAuthConfiguration } from '../shared/auth/config';
 import { APP_LIFECYCLE_CHANGED_EVENT, fetchInstalledAppKeys } from '../shared/api/appLifecycle';
+import { APP_HEADER_ACTIONS_HOST_ID } from '../shared/ui/AppHeaderActions';
 
 export default function AppShell(props: { apps?: readonly ShellAppDefinition[] }) {
   return <NotificationProvider><PlatformShell {...props} /></NotificationProvider>;
@@ -97,7 +98,9 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
                   : <div className="app-title-copy"><h1>{definition.title}</h1><p>{definition.subtitle}</p></div>
               ) : <div><h1>{pathname === '/' ? <Wordmark /> : '找不到頁面'}</h1><p>{pathname === '/' ? '策略執行平台' : '請返回平台首頁'}</p></div>}
             </div>
-            {!definition ? <span className="platform-badge">{pathname === '/' ? '平台首頁' : '找不到頁面'}</span> : null}
+            {definition ? <div className="app-header-controls">
+              <div id={APP_HEADER_ACTIONS_HOST_ID} className="platform-app-header-actions" role="group" aria-label="App 操作" />
+            </div> : <span className="platform-badge">{pathname === '/' ? '平台首頁' : '找不到頁面'}</span>}
           </header>
           {pathname === '/' ? <AppLauncherPanel apps={accessibleApps} onSelectApp={selectApp} /> : (
             <section className="app-content card" aria-label={definition?.title ?? '找不到頁面'}>

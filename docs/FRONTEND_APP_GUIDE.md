@@ -58,12 +58,27 @@
 
 `preview` 只表示 UI 可開啟，不代表已登入、已連線或可交易。網址是目前頁面的唯一來源；App 不另存一份 activeApp。實際部署時，靜態主機需將 `/apps/*` 等前端路徑 rewrite 到 `index.html`，但不能覆蓋 `/api/*`。
 
-### 標題列密度
+### 標題列密度與 App 操作
 
-- Registry 可選 `headerLayout: 'merged'`，由 Host 將平台品牌、App 標題與返回首頁合併為一列；省略或設為 `standard` 保留原本的平台頂列與 App 標題列。
+- Registry 可選 `headerLayout: 'merged'`，由 Host 將平台品牌與 App 標題合併為一列；省略或設為 `standard` 則顯示 App 標題與副標。兩者都由 Host 擁有標題列，不由 App 重建。
 - 這是標題排列方式，與 `displayMode` 的視窗寬度規則相互獨立；不以 App key 寫特例，也不讓 App CSS 隱藏或覆寫平台標題。
-- 手機允許合併標題換行，返回首頁縮為具可及名稱的 44 px 圖示按鈕。
+- 平台首頁導覽統一由桌面側欄或 Drawer 提供；App 不在標題列或本文重複建立「返回平台首頁」。未知路由、載入失敗或明確工作流程仍可提供返回動作。
+- App 若有作用於整個工作區的「檔案／模板／工具」等操作，使用 `AppHeaderActions` 掛入 Host 提供的標題列操作區；不要用 absolute positioning、負 margin 或 App CSS 越界定位到 `.topbar`。
+- 標題列操作會隨目前 App 掛載與卸載，不可在切換 App 後殘留。按鈕必須有可及名稱與至少 44×44 CSS px 的操作面積；窄版可改用圖示或換行，但不可造成整頁水平溢出。
 - App 內部可收合次要說明，但帳戶、環境、可交易狀態與異常警告不可一起藏起來。
+
+```tsx
+import { AppHeaderActions } from '../../shared/ui/AppHeaderActions';
+
+export default function ExampleApp() {
+  return <>
+    <AppHeaderActions>
+      <button type="button" aria-label="開啟檔案選單">檔案</button>
+    </AppHeaderActions>
+    <main>App 內容</main>
+  </>;
+}
+```
 
 ## 顯示模式與裝置適配
 
@@ -73,7 +88,7 @@
 | `responsive` | 依內容容器排列為單欄 | 維持原有寬版 App 視窗，內容依可用空間展開 |
 
 - 規格套用於 `main.app-shell` 整個 App 視窗，包含 StratExec 頂列、App 標題列、內容與頁尾；不是只縮窄 App 本文。外部平台側欄及 Drawer 保持原有行為，不調整瀏覽器視窗的大小。兩種模式都必須支援鍵盤與觸控。
-- 420 px 是包含邊框與內距的最大寬度（border-box），不是強制寬度；內容可用寬度會再扣除視窗內距。高度依內容延伸，不鎖定手機長寬比或縮放整頁；預設沿用頁面垂直捲動。App 視窗固定由頁面頂端排列，內容高度或頁籤切換不得觸發整窗垂直重新置中。
+- 420 px 是包含邊框與內距的最大寬度（border-box），不是強制寬度；內容可用寬度會再扣除視窗內距。App 視窗與內容容器的高度依內容延伸，不用 `100vh`／`100dvh`、固定高度或只為與鄰欄齊高而製造大片留白；同一 grid row 內的卡片可以互相 stretch。預設沿用頁面垂直捲動，並由頁面頂端排列；內容高度或頁籤切換不得觸發整窗垂直重新置中。
 - 尺寸與共用斷點集中在 `src/styles/app-layout.css`。App 不覆寫 `.app-shell`、`.platform-app-frame` 或 `--app-compact-max-width`。
 - `npm run check:boundaries` 會拒絕 App CSS 選取 `html`／`body`／`#root`、平台 Shell 或共用 UI 內部 class；App 只能在自己的根節點安排版面，或設定平台明確公開的 CSS 變數。
 - `.platform-app-frame` 保留為具名 `app-content` inline-size 容器，不另限制為 420 px；App 依實際內容容器寬度調整排列，不能用「PC 的 viewport 很寬」推斷自己也很寬。[Container Queries 官方說明](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Containment/Container_queries)。
@@ -98,6 +113,7 @@ export default function ExampleApp() {
 ## App 接入驗收
 
 - 註冊定義、網址直開／重新整理／前進後退正常；新 App 不需增加 Shell 的業務分支。
+- 標題列操作位於 Host 的 `.topbar`、鍵盤可達，切換 App／返回首頁後不殘留；App 沒有操作時不保留空白操作區。
 - 以 320／390／768／1440 px viewport 檢查兩種模式；compact 的整個 App 視窗在寬畫面維持 420 px 並於可用區域置中，頂列、標題、內容與頁尾均在窄版範圍內；responsive 維持寬版，內容不被裁切。
 - 鍵盤可操作、觸控按鈕可點、dialog 可取消與返回焦點；主題切換後文字仍可讀。
 - 離開 App 會清理工作，晚到回應不更新新畫面；載入／渲染／資料錯誤有共用提示。
@@ -108,7 +124,7 @@ export default function ExampleApp() {
 - App 安裝生命週期由 Identity API 的 `appInstallations` 管理，與 React 元件掛載生命週期及 App 權限政策分開。
 - 非核心 App 可經管理介面 `install`、`disable`、`enable`、`uninstall`；`access-control` 與平台核心不可停用或移除。
 - 邏輯移除立即影響首頁、導覽、直接網址及伺服器端 `appAccess`，但不刪除 bundle、業務資料或相依服務。這使新手可安全重裝，也避免單一 App 誤刪共用服務。
-- Props 提供唯讀 `displayMode`、`onOpenAppMenu`、`onOpenHome`、本次掛載的 `signal`。
+- Props 提供唯讀 `displayMode`、`onOpenAppMenu`、`onOpenHome`、本次掛載的 `signal`。一般首頁導覽由平台側欄／Drawer 處理；`onOpenHome` 保留給錯誤復原或明確工作流程，不用來重建固定標題列按鈕。
 - App 必須清理 timer、事件監聽、訂閱；請求傳入 `signal`。離開 App、故障解除掛載或關網頁，不是停止策略命令。
 - 平台隔離 lazy 載入／React 渲染錯誤；事件處理與 Promise 錯誤由 App 處理。故障頁可返回首頁或重新載入前端，不重送命令。
 - 每個 App 沒有獨立權限沙箱；不要載入不受信任的程式碼。

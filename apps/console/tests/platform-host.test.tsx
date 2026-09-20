@@ -7,6 +7,7 @@ import AppShell from '../src/shell/AppShell';
 import { appRegistry, validateAppRegistry } from '../src/shell/appRegistry';
 import type { ShellAppDefinition, ShellAppProps } from '../src/shell/types';
 import { ThemeProvider } from '../src/shared/theme/ThemeProvider';
+import { AppHeaderActions } from '../src/shared/ui/AppHeaderActions';
 
 // Fixtures are injected into the test host only, never registered in production.
 const makeApp = (key: string, title: string, overrides: Partial<ShellAppDefinition> = {}): ShellAppDefinition => ({
@@ -90,6 +91,27 @@ describe('App Registry contract', () => {
 });
 
 describe('URL-owned App navigation', () => {
+  it('renders App-owned actions in the platform title bar and removes them when leaving the App', async () => {
+    window.history.replaceState({}, '', '/apps/alpha');
+    const HeaderActionFixture = () => <>
+      <AppHeaderActions><button type="button">測試操作</button></AppHeaderActions>
+      <p>標題列操作測試內容</p>
+    </>;
+    renderHost([
+      makeApp('alpha', '測試甲', { load: async () => ({ default: HeaderActionFixture }) }),
+      makeApp('beta', '測試乙'),
+    ]);
+
+    const action = await screen.findByRole('button', { name: '測試操作' });
+    expect(action.closest('.topbar')).toBeTruthy();
+    expect(action.closest('.app-content')).toBeNull();
+    expect(screen.getByRole('group', { name: 'App 操作' }).contains(action)).toBe(true);
+
+    await userEvent.click(rail().getByRole('button', { name: '測試乙' }));
+    await screen.findByText('測試乙內容');
+    expect(screen.queryByRole('button', { name: '測試操作' })).toBeNull();
+  });
+
   it('uses the App identity in the topbar and preserves the opted-in merged treatment', async () => {
     window.history.replaceState({}, '', '/apps/alpha');
     renderHost([makeApp('alpha', '測試甲', { headerLayout: 'merged', displayMode: 'compact' }), makeApp('beta', '測試乙')]);

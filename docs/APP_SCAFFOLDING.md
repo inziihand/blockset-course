@@ -41,6 +41,8 @@ infrastructure/app-services/<app-key>.json
 8. Manifest 必須宣告 `lifecycle`。一般 App 預設為 `category: application`、`removable: true`、`defaultStatus: installed`；只有平台核心可使用 `core` 與 `removable: false`。
 9. 至少驗證 Registry／路由可載入與基本 empty state。
 10. Manifest 必須填 `version`、`platformCompatibility`、`package` 與 `frontend` metadata。一般獨立 App 使用 `package.installable: true`、`ownerApp: <app-key>`；平台核心或共用來源別名不可設為可安裝。
+11. App 不建立第二套品牌列、平台標題或「返回平台首頁」按鈕。若有作用於整個工作區的檔案、模板、匯出或工具操作，使用平台 `AppHeaderActions`；區塊內動作仍留在所屬卡片。
+12. App 根容器與頁面高度依內容延伸，不以 viewport 固定高度或最小高度製造空白；需要同列齊底時只在該 grid row 內使用 stretch。
 
 ## 預設不執行
 
