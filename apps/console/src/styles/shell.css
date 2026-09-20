@@ -71,7 +71,7 @@ svg { flex-shrink: 0; }
 .empty-label { margin-top: 28px; background: var(--color-surface-muted); }
 .shell-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 2px 5px; color: var(--color-text-secondary); font-size: 11px; }
 .test-host-banner { position: fixed; top: 0; left: var(--app-rail-width); right: 0; z-index: 10; padding: 3px 8px; text-align: center; font-size: 11px; background: var(--color-surface-active); color: var(--color-accent); }
-.app-content { flex: 1; min-width: 0; padding: 12px; }
+.app-content { flex: 1; min-width: 0; padding: var(--app-content-spacing, 12px); }
 .platform-state { padding: 24px 12px; color: var(--color-text-body); line-height: 1.8; }
 .platform-state p { margin: 8px 0 16px; }
 .platform-button { min-height: 44px; min-width: 44px; padding: 8px 14px; border: 1px solid var(--color-border-shell); border-radius: 9px; color: var(--color-text-strong); background: var(--color-surface-control); }
