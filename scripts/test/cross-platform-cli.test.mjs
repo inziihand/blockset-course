@@ -52,6 +52,8 @@ test('local lifecycle allocates consecutive ports for multiple checkouts', () =>
   assert.match(viteConfigSource, /target: packageAgentOrigin/);
   assert.match(viteConfigSource, /STRATEXEC_DEPLOYMENT_AGENT_PORT/);
   assert.match(viteConfigSource, /target: deploymentAgentOrigin/);
+  assert.match(viteConfigSource, /fileURLToPath\(new URL\('\.\.\/\.\.'/);
+  assert.match(viteConfigSource, /loadEnv\(mode, environmentRoot/);
 });
 
 test('managed health rejects a response served by another checkout', async () => {

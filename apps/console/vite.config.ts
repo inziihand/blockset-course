@@ -1,10 +1,13 @@
 import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'node:url';
 import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
+const environmentRoot = fileURLToPath(new URL('../..', import.meta.url));
+
 export default defineConfig(({ mode }) => {
   const environment = {
-    ...loadEnv(mode, '../..', ''),
+    ...loadEnv(mode, environmentRoot, ''),
     ...process.env,
   };
   const identityOrigin = environment.STRATEXEC_IDENTITY_BASE_URL ?? 'http://127.0.0.1:8180';
