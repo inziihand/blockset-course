@@ -1,6 +1,8 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
+const identityOrigin = process.env.STRATEXEC_IDENTITY_BASE_URL ?? 'http://127.0.0.1:8180';
+
 export default defineConfig({
   plugins: [react()],
   // Keep one environment contract at the monorepo root. Only VITE_* values
@@ -8,14 +10,14 @@ export default defineConfig({
   envDir: '../..',
   server: {
     proxy: {
-      '/api/identity': { target: 'http://127.0.0.1:8180', changeOrigin: false },
+      '/api/identity': { target: identityOrigin, changeOrigin: false },
       '/api/app-packages': { target: 'http://127.0.0.1:8182', changeOrigin: false },
       '/api/deployments': { target: 'http://127.0.0.1:8183', changeOrigin: false },
     },
   },
   preview: {
     proxy: {
-      '/api/identity': { target: 'http://127.0.0.1:8180', changeOrigin: false },
+      '/api/identity': { target: identityOrigin, changeOrigin: false },
       '/api/app-packages': { target: 'http://127.0.0.1:8182', changeOrigin: false },
       '/api/deployments': { target: 'http://127.0.0.1:8183', changeOrigin: false },
     },

@@ -75,6 +75,10 @@ test('local launcher prepares Python and supervises Identity plus Vite without f
   assert.match(startLocalSource, /node_modules\\vite\\bin\\vite\.js/);
   assert.match(startLocalSource, /WindowStyle Hidden/);
   assert.match(startLocalSource, /processes\.json/);
+  assert.match(startLocalSource, /8180, 8181/);
+  assert.match(startLocalSource, /8184\.\.8189/);
+  assert.match(startLocalSource, /5175\.\.5180/);
+  assert.match(startLocalSource, /STRATEXEC_IDENTITY_BASE_URL/);
   assert.match(stopLocalSource, /Refusing to stop PID/);
   assert.match(stopLocalSource, /CommandLine/);
 });

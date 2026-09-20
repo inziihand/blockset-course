@@ -7,11 +7,13 @@ import {
   convertToInstallationKey,
   selectWebApp,
 } from '../cli/setup.mjs';
+import { runtimeInternals } from '../cli/runtime.mjs';
 
 const packageJson = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 const cliSource = await readFile(new URL('../stratexec.mjs', import.meta.url), 'utf8');
 const setupSource = await readFile(new URL('../cli/setup.mjs', import.meta.url), 'utf8');
 const runtimeSource = await readFile(new URL('../cli/runtime.mjs', import.meta.url), 'utf8');
+const viteConfigSource = await readFile(new URL('../../apps/console/vite.config.ts', import.meta.url), 'utf8');
 
 test('package scripts expose a Node-only local lifecycle', () => {
   assert.equal(packageJson.scripts.setup, 'node --use-system-ca scripts/stratexec.mjs setup');
@@ -34,6 +36,16 @@ test('cross-platform runtime resolves both Windows and POSIX virtual environment
   assert.match(runtimeSource, /process\.kill\(-pid/);
   assert.match(runtimeSource, /--use-feature=truststore/);
   assert.match(runtimeSource, /--no-build-isolation/);
+});
+
+test('local lifecycle allocates consecutive ports for multiple checkouts', () => {
+  assert.deepEqual(runtimeInternals.portRange(5175, 5180), [5175, 5176, 5177, 5178, 5179, 5180]);
+  assert.match(runtimeSource, /IDENTITY_PORTS = \[8180, 8181, \.\.\.portRange\(8184, 8189\)\]/);
+  assert.doesNotMatch(runtimeSource.match(/const IDENTITY_PORTS = .+;/)?.[0] ?? '', /8182|8183/);
+  assert.match(runtimeSource, /FRONTEND_PORTS = portRange\(5175, 5180\)/);
+  assert.match(runtimeSource, /STRATEXEC_IDENTITY_BASE_URL: identityUrl/);
+  assert.match(viteConfigSource, /STRATEXEC_IDENTITY_BASE_URL/);
+  assert.match(viteConfigSource, /target: identityOrigin/);
 });
 
 test('installation keys and ready overlays stay deterministic', () => {

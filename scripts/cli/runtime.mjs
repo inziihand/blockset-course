@@ -13,8 +13,12 @@ import {
   writeJsonAtomic,
 } from './common.mjs';
 
-const IDENTITY_PORT = 8180;
-const FRONTEND_PORTS = [5175, 3001];
+function portRange(start, end) {
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
+const IDENTITY_PORTS = [8180, 8181, ...portRange(8184, 8189)];
+const FRONTEND_PORTS = portRange(5175, 5180);
 
 function runtimePaths(repoRoot) {
   const directory = path.join(repoRoot, '.stratexec', 'local-runtime');
@@ -118,6 +122,13 @@ async function portAvailable(port) {
   });
 }
 
+async function firstAvailablePort(candidates) {
+  for (const candidate of candidates) {
+    if (await portAvailable(candidate)) return candidate;
+  }
+  return null;
+}
+
 function processExists(pid) {
   try {
     process.kill(pid, 0);
@@ -198,17 +209,11 @@ export async function startLocal(repoRoot, options = {}) {
   if (adc.exitCode !== 0) throw new Error('缺少 Application Default Credentials。請重新執行 npm run setup。');
 
   if (await pathExists(paths.processes)) await stopLocal(repoRoot, { quiet: true });
-  if (!await portAvailable(IDENTITY_PORT)) {
-    throw new Error(`連接埠 ${IDENTITY_PORT} 已被其他程式使用。`);
-  }
-  let frontendPort = null;
-  for (const candidate of FRONTEND_PORTS) {
-    if (await portAvailable(candidate)) {
-      frontendPort = candidate;
-      break;
-    }
-  }
-  if (!frontendPort) throw new Error('連接埠 5175 與 3001 都已被其他程式使用。');
+  const identityPort = await firstAvailablePort(IDENTITY_PORTS);
+  if (!identityPort) throw new Error('Identity API 連接埠 8180、8181、8184～8189 都已被其他程式使用。');
+  const frontendPort = await firstAvailablePort(FRONTEND_PORTS);
+  if (!frontendPort) throw new Error('Console 連接埠 5175～5180 都已被其他程式使用。');
+  const identityUrl = `http://127.0.0.1:${identityPort}`;
 
   const pythonPath = await ensureVirtualEnvironment(repoRoot, options.guided ?? false);
   const viteScript = path.join(repoRoot, 'node_modules', 'vite', 'bin', 'vite.js');
@@ -223,7 +228,7 @@ export async function startLocal(repoRoot, options = {}) {
   try {
     identityProcess = spawnDetached(pythonPath, [
       '-m', 'uvicorn', 'stratexec.api.main:app', '--app-dir', 'backend/src',
-      '--host', '127.0.0.1', '--port', String(IDENTITY_PORT),
+      '--host', '127.0.0.1', '--port', String(identityPort),
     ], {
       cwd: repoRoot,
       env: {
@@ -234,9 +239,9 @@ export async function startLocal(repoRoot, options = {}) {
       stdoutFd: identityOut,
       stderrFd: identityErr,
     });
-    const identityHealth = await waitForHttp(`http://127.0.0.1:${IDENTITY_PORT}/healthz`);
+    const identityHealth = await waitForHttp(`${identityUrl}/healthz`);
     if (!identityHealth) throw new Error('Identity API 未通過健康檢查。請查看 .stratexec/local-runtime 日誌。');
-    const apps = await waitForHttp(`http://127.0.0.1:${IDENTITY_PORT}/api/identity/v1/apps`, 10);
+    const apps = await waitForHttp(`${identityUrl}/api/identity/v1/apps`, 10);
     if (!apps) throw new Error('Identity API 已啟動，但 Firestore App 清冊驗證失敗。');
 
     frontendProcess = spawnDetached(process.execPath, [
@@ -244,6 +249,10 @@ export async function startLocal(repoRoot, options = {}) {
       '--port', String(frontendPort), '--strictPort',
     ], {
       cwd: repoRoot,
+      env: {
+        ...process.env,
+        STRATEXEC_IDENTITY_BASE_URL: identityUrl,
+      },
       stdoutFd: frontendOut,
       stderrFd: frontendErr,
     });
@@ -264,17 +273,17 @@ export async function startLocal(repoRoot, options = {}) {
       repoRoot,
       configPath,
       projectId,
-      identity: { pid: identityProcess.pid, url: `http://127.0.0.1:${IDENTITY_PORT}` },
+      identity: { pid: identityProcess.pid, url: identityUrl },
       frontend: { pid: frontendProcess.pid, url: frontendUrl },
       startedAt: new Date().toISOString(),
     });
 
     console.log('\nStratExec 完整本地環境已啟動。');
     console.log(`Console:      ${frontendUrl}`);
-    console.log(`Identity API: http://127.0.0.1:${IDENTITY_PORT}`);
+    console.log(`Identity API: ${identityUrl}`);
     console.log(`本機日誌：   ${paths.directory}`);
     console.log('停止服務：   npm run stop:local');
-    return { frontendUrl, identityUrl: `http://127.0.0.1:${IDENTITY_PORT}` };
+    return { frontendUrl, identityUrl };
   } catch (error) {
     if (frontendProcess?.pid) stopManagedPid(frontendProcess.pid);
     if (identityProcess?.pid) stopManagedPid(identityProcess.pid);
@@ -287,4 +296,4 @@ export async function startLocal(repoRoot, options = {}) {
   }
 }
 
-export const runtimeInternals = { compatiblePython, venvPythonPath };
+export const runtimeInternals = { compatiblePython, venvPythonPath, portRange };

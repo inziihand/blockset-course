@@ -24,7 +24,7 @@ npm run setup
 npm run setup
 ```
 
-安裝完成會顯示實際本機網址（優先使用 <http://127.0.0.1:5175/>，占用時使用 3001）。之後可用 `npm run start:local` 重啟、`npm run stop:local` 停止；兩者只管理此 checkout 建立並記錄的程序。Windows 使用者仍可沿用 `.\scripts\install.ps1`、`.\scripts\start-local.ps1` 與 `.\scripts\stop-local.ps1`。Package Agent 與 Deployment Agent 是進階管理服務，仍分別使用 `npm run dev:app-packages` 與 `npm run dev:deployments` 啟動。
+安裝完成會顯示實際本機網址。Console 依序使用第一個可用的 `5175～5180`；Identity API 使用 `8180、8181、8184～8189`，保留 `8182／8183` 給 Package Agent 與 Deployment Agent，因此多份 checkout 可同時啟動。之後可用 `npm run start:local` 重啟、`npm run stop:local` 停止；兩者只管理此 checkout 建立並記錄的程序。Windows 使用者仍可沿用 `.\scripts\install.ps1`、`.\scripts\start-local.ps1` 與 `.\scripts\stop-local.ps1`。Package Agent 與 Deployment Agent 是進階管理服務，仍分別使用 `npm run dev:app-packages` 與 `npm run dev:deployments` 啟動。
 
 - `npm test`：驗證 App／服務清冊，並執行平台、Agent 與前端測試。
 - `npm run check:config`：確認 Firebase 公開設定與伺服器端管理員名單沒有混用。

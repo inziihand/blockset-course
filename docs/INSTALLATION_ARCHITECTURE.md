@@ -45,7 +45,7 @@ customer-a project             customer-b project
    npm run setup
    ```
 
-   再次執行時可沿用精靈偵測到的單一完整 local overlay；有多份時以編號選擇，仍含公開範例值或 `unassigned` placement 的副本會被略過。衝突覆寫不要求鍵入確認字串。唯讀 preflight 後，Node 安裝器會讀取 Firebase／Google Provider／Web App 狀態，準備 ADC、跨平台 Python `.venv`、Firestore／Rules／App 清冊，然後啟動並驗證本機 Identity API 與 Console。必要的 managed service 初始化均在動作前以 Y/N 確認。第一次安裝到此結束，不詢問 Cloud Run／Hosting 正式部署。進階 Windows 操作者仍可使用 `install.ps1 -ConfigPath ...`；正式維運也可把私人 overlay 放在 repository 外。
+   再次執行時可沿用精靈偵測到的單一完整 local overlay；有多份時以編號選擇，仍含公開範例值或 `unassigned` placement 的副本會被略過。衝突覆寫不要求鍵入確認字串。唯讀 preflight 後，Node 安裝器會讀取 Firebase／Google Provider／Web App 狀態，準備 ADC、跨平台 Python `.venv`、Firestore／Rules／App 清冊，然後從 Console `5175～5180` 與 Identity API `8180、8181、8184～8189` 各選第一個可用埠，啟動並驗證兩個本機服務；`8182／8183` 保留給 Package Agent 與 Deployment Agent。必要的 managed service 初始化均在動作前以 Y/N 確認。第一次安裝到此結束，不詢問 Cloud Run／Hosting 正式部署。進階 Windows 操作者仍可使用 `install.ps1 -ConfigPath ...`；正式維運也可把私人 overlay 放在 repository 外。
 
 3. 完成本地測試後，日後另行執行部署入口。它會沿用私人 overlay，並以 Y/N 分別取得 billing 資源及公開 ingress 的當次授權：
 

@@ -10,8 +10,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $runtimeDirectory = Join-Path $repoRoot '.stratexec\local-runtime'
 $settingsPath = Join-Path $runtimeDirectory 'settings.json'
 $processStatePath = Join-Path $runtimeDirectory 'processes.json'
-$identityPort = 8180
-$frontendCandidates = @(5175, 3001)
+$identityCandidates = @(8180, 8181) + @(8184..8189)
+$frontendCandidates = @(5175..5180)
 
 function Write-JsonFile {
     param(
@@ -211,16 +211,19 @@ $identityStderr = Join-Path $runtimeDirectory 'identity.stderr.log'
 $frontendStdout = Join-Path $runtimeDirectory 'frontend.stdout.log'
 $frontendStderr = Join-Path $runtimeDirectory 'frontend.stderr.log'
 
-if (-not (Stop-OwnedListener -Port $identityPort -Kind identity)) {
-    throw "Port $identityPort is used by a process that does not belong to this StratExec checkout."
+$identityPort = $null
+foreach ($candidate in $identityCandidates) {
+    $available = Stop-OwnedListener -Port $candidate -Kind identity
+    if ($available) { $identityPort = $candidate; break }
 }
+if (-not $identityPort) { throw 'Identity API ports 8180, 8181, and 8184 through 8189 are occupied by other applications.' }
 
 $frontendPort = $null
 foreach ($candidate in $frontendCandidates) {
     $available = Stop-OwnedListener -Port $candidate -Kind frontend
     if ($available) { $frontendPort = $candidate; break }
 }
-if (-not $frontendPort) { throw 'Ports 5175 and 3001 are both occupied by other applications.' }
+if (-not $frontendPort) { throw 'Console ports 5175 through 5180 are occupied by other applications.' }
 
 $previousProject = $env:GOOGLE_CLOUD_PROJECT
 $previousAdmins = $env:STRATEXEC_BOOTSTRAP_ADMIN_EMAILS
@@ -256,10 +259,17 @@ if (-not (Test-Path -LiteralPath $viteScript)) {
     Stop-Process -Id $identityProcess.Id -ErrorAction SilentlyContinue
     throw 'Vite is unavailable. Run scripts/install.ps1 to install npm dependencies.'
 }
-$frontendProcess = Start-Process -FilePath $nodeExecutable -ArgumentList @(
-    $viteScript, 'apps/console', '--host', '127.0.0.1', '--port', [string] $frontendPort, '--strictPort'
-) -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput $frontendStdout `
-    -RedirectStandardError $frontendStderr -PassThru
+$previousIdentityBaseUrl = $env:STRATEXEC_IDENTITY_BASE_URL
+try {
+    $env:STRATEXEC_IDENTITY_BASE_URL = "http://127.0.0.1:$identityPort"
+    $frontendProcess = Start-Process -FilePath $nodeExecutable -ArgumentList @(
+        $viteScript, 'apps/console', '--host', '127.0.0.1', '--port', [string] $frontendPort, '--strictPort'
+    ) -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput $frontendStdout `
+        -RedirectStandardError $frontendStderr -PassThru
+}
+finally {
+    $env:STRATEXEC_IDENTITY_BASE_URL = $previousIdentityBaseUrl
+}
 
 $frontendUrl = "http://127.0.0.1:$frontendPort/"
 $frontendHealth = Wait-HttpReady -Uri $frontendUrl
