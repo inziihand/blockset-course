@@ -8,9 +8,12 @@
     "tools/*"
   ],
   "engines": {
-    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
+    "node": "^22.15.0 || ^24.0.0 || >=26.0.0"
   },
   "scripts": {
+    "setup": "node --use-system-ca scripts/stratexec.mjs setup",
+    "start:local": "node --use-system-ca scripts/stratexec.mjs start",
+    "stop:local": "node --use-system-ca scripts/stratexec.mjs stop",
     "dev": "npm run dev --workspace=@stratexec/console",
     "dev:app-packages": "npm run dev --workspace=@stratexec/app-package-agent",
     "dev:deployments": "npm run dev --workspace=@stratexec/deployment-agent",

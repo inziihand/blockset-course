@@ -1,6 +1,6 @@
 # StratExec Platform
 
-React 控制台與 Python 交易執行核心的 Monorepo。首個市場為 **台指期（TAIFEX）**，首個券商介接為 **永豐金 Shioaji**。
+React 控制台與 Python 交易執行核心的 Monorepo。首個市場為 **台指期（TAIFEX）**，首個券商介接為 **永豐金 Shioaji**。跨平台安裝入口需要 Node.js 22.15 以上的 22 LTS 或相容的更新版本，以使用作業系統 CA 信任。
 
 建立日期：2026-09-16。狀態：**P0 規劃完成，P1 的 React 平台已具備 App 承載、共用前端服務、Firebase Google 登入、登入後 Identity session、平台 Identity API、會員／App 權限與 App 安裝生命週期管理。分階段安裝／部署腳本批次 1～5、App 套件批次 1～3，以及 Deployment Agent 第 4～10 批的可信簽章、部署契約、唯讀影響計畫、安全控制平面、設定／秘密輸入、Cloud Run target driver、網頁驗收與 VM Agent／VM Docker target driver已實作；target driver、Secret Manager 與 VM host runtime 預設停用，尚未對客戶雲端 apply。母版不預載業務後端 App；交易後端與券商尚未接入，不能下單。**
 
@@ -8,13 +8,13 @@ React 控制台與 Python 交易執行核心的 Monorepo。首個市場為 **台
 
 ## 本機啟動
 
-一般使用者在 repository 根目錄執行安裝精靈即可。精靈會準備 npm 與 Python 相依套件、Firebase／Firestore 本地測試設定、Application Default Credentials，並啟動 Identity API 與前端：
+一般使用者在 repository 根目錄執行跨平台安裝精靈即可。精靈只依賴 Node.js 內建模組啟動，會準備 npm 與 Python 相依套件、Firebase／Firestore 本地測試設定、Application Default Credentials，並啟動 Identity API 與前端：
 
-```powershell
-.\scripts\install.ps1
+```bash
+npm run setup
 ```
 
-安裝完成會顯示實際本機網址（優先使用 <http://127.0.0.1:5175/>，占用時使用 3001）。之後可用 `.\scripts\start-local.ps1` 重啟、`.\scripts\stop-local.ps1` 停止；兩者只管理此 checkout 建立並記錄的程序。Package Agent 與 Deployment Agent 是進階管理服務，仍分別使用 `npm run dev:app-packages` 與 `npm run dev:deployments` 啟動。
+安裝完成會顯示實際本機網址（優先使用 <http://127.0.0.1:5175/>，占用時使用 3001）。之後可用 `npm run start:local` 重啟、`npm run stop:local` 停止；兩者只管理此 checkout 建立並記錄的程序。Windows 使用者仍可沿用 `.\scripts\install.ps1`、`.\scripts\start-local.ps1` 與 `.\scripts\stop-local.ps1`。Package Agent 與 Deployment Agent 是進階管理服務，仍分別使用 `npm run dev:app-packages` 與 `npm run dev:deployments` 啟動。
 
 - `npm test`：驗證 App／服務清冊，並執行平台、Agent 與前端測試。
 - `npm run check:config`：確認 Firebase 公開設定與伺服器端管理員名單沒有混用。
@@ -39,11 +39,11 @@ React 控制台與 Python 交易執行核心的 Monorepo。首個市場為 **台
 
 客戶安裝預設使用只需選項操作的互動式精靈。一般模式會確認或開啟 gcloud 登入、列出可存取的 GCP projects，讓使用者以編號選擇 project；顯示名稱取自 project 名稱，安裝代號取自 project ID，region 預設為 `asia-east1`，support email 與本機首位管理員預設為目前 gcloud Google 帳號。精靈會依需要以 Y/N 執行 `npm ci`、設定 Firebase Auth／Firestore、完成 ADC 授權、安裝 Python 3.11 與建立 `.venv`，最後啟動並驗證本機 Identity API 與 Console：
 
-```powershell
-.\scripts\install.ps1
+```bash
+npm run setup
 ```
 
-再次執行時可沿用既有 `.local.json`，並安全重建／重啟本地 runtime。第一次安裝不詢問也不執行 Cloud Run／Hosting 正式部署。完成本地測試後，使用者日後另行執行 `.\scripts\deploy.ps1`；該入口才會檢查 billing，並在動作前分別確認可能計費資源及公開 ingress。完整流程見 [客戶安裝與後端模組化](docs/INSTALLATION_ARCHITECTURE.md)。
+再次執行時可沿用既有 `.local.json`，並安全重建／重啟本地 runtime。第一次安裝不詢問也不執行 Cloud Run／Hosting 正式部署。正式部署目前仍使用 Windows `.\scripts\deploy.ps1`；該入口才會檢查 billing，並在動作前分別確認可能計費資源及公開 ingress。完整流程見 [客戶安裝與後端模組化](docs/INSTALLATION_ARCHITECTURE.md)。
 
 目前保留原 React 專案的 Shell／Drawer／App Registry 模式、桌面與手機導覽、淺色／深色／暖紙／跟隨系統主題，並新增 URL 導覽、lazy App 容器、錯誤隔離、共用 UI／API transport，以及管理員限定的「會員與權限」App。管理員可在平台介面安裝、停用、重新啟用或邏輯移除非核心 App，並分別管理整體 App grant 與 manifest 宣告的 App-local 功能權限；移除會立即關閉導覽與路由，但保留資料與相依 runtime 供審查後處理。母版不綁定單一 Firebase 專案；每個客戶／環境使用自己的本機 installation overlay、GCP/Firebase project 與 `.env.local`。平台 Identity API 驗證 Firebase ID Token，會員與 App 授權由 Firestore 的伺服器端資料管理；瀏覽器規則預設全拒絕。母版只預載共用內容的通用／窄版純前端 Demo；股票行情 Demo 已從母版抽離，後續以外部 ZIP 驗證 backend-aware App 的可移植安裝。沒有搬入源版會員資料、舊憑證、DeriStrat 或交易連線。詳見 [登入與權限規格](docs/AUTHENTICATION_AUTHORIZATION.md)、[安裝與資料分層](docs/INSTALLATION_ARCHITECTURE.md)、[Console 說明](apps/console/README.md)、[Backend-aware App 規格](docs/BACKEND_APP_CONTRACT.md) 及 [App 契約](docs/FRONTEND_APP_GUIDE.md)。
 

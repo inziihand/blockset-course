@@ -4,7 +4,7 @@
 
 ## 預設安裝對象：不依賴 AI 的分階段精靈
 
-母版預設使用者可能不熟悉 Firebase、GCP、Docker、IAM 或命令列，也可能沒有 AI Agent。`install.ps1` 與 `deploy.ps1` 必須自行完成可安全自動化的工作，不得要求使用者拼湊指令；AI Agent 只作可選的診斷與協作工具。
+母版預設使用者可能不熟悉 Firebase、GCP、Docker、IAM 或命令列，也可能沒有 AI Agent。跨平台 `npm run setup`、Windows 相容 `install.ps1` 與正式 `deploy.ps1` 必須自行完成可安全自動化的工作，不得要求使用者拼湊指令；AI Agent 只作可選的診斷與協作工具。
 
 分階段安裝／部署的契約如下：
 
@@ -90,8 +90,8 @@ App 與 target 的解析分成三層：`infrastructure/apps/*.json` 決定啟用
 批次 1～5 操作介面：
 
 ```powershell
-# 第一次只完成本地安裝與測試，不部署 Cloud Run／Hosting
-.\scripts\install.ps1
+# 第一次只完成跨平台本地安裝與測試，不部署 Cloud Run／Hosting
+npm run setup
 
 # 沿用本地安裝設定；以 Y/N 分別確認帳務資源與公開 ingress
 .\scripts\deploy.ps1

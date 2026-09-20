@@ -1,6 +1,6 @@
 # 安裝前置作業
 
-本文件供第一次從 GitHub 取得 StratExec Platform 的 Windows 使用者使用。預設安裝精靈只要求選擇編號或 Y/N；下列內容用來確認電腦與 Google Cloud 帳號是否已具備可被精靈偵測的條件。
+本文件供第一次從 GitHub 取得 StratExec Platform 的 Windows、macOS 與 Linux 使用者使用。預設 Node.js 安裝精靈只要求選擇編號或 Y/N；下列內容用來確認電腦與 Google Cloud 帳號是否已具備可被精靈偵測的條件。
 
 ## 先選擇使用目的
 
@@ -14,13 +14,9 @@
 
 ## 基本需求
 
-### 1. PowerShell
+### 1. 終端機
 
-本流程以 PowerShell 7 驗證。確認方式：
-
-```powershell
-$PSVersionTable.PSVersion
-```
+跨平台入口不要求 PowerShell；可使用 PowerShell、Windows Terminal、macOS Terminal 或 Linux shell。PowerShell 7 只供 Windows 舊版 `.ps1` 相容入口使用。
 
 ### 2. Git
 
@@ -32,7 +28,7 @@ git --version
 
 ### 3. Node.js 與 npm
 
-需要 Node.js `22.12.0` 以上的 22 LTS，安裝 Node.js 時會一併提供 npm。下載位置：[Node.js](https://nodejs.org/en/download)。
+需要 Node.js `22.15.0` 以上的 22 LTS，安裝 Node.js 時會一併提供 npm。跨平台 CLI 以 Node 的系統 CA 模式連線，不會停用 TLS 驗證。下載位置：[Node.js](https://nodejs.org/en/download)。
 
 ```powershell
 node --version
@@ -61,7 +57,7 @@ gcloud --version
 
 ### 6. Python
 
-完整本地模式需要 Python 3.11 以上來執行 Identity API。可先自行安裝；若 Windows 找不到相容版本且 `winget` 可用，安裝精靈會用 Y/N 詢問是否安裝 Python 3.11。
+完整本地模式需要 Python 3.11 以上來執行 Identity API。Windows 找不到相容版本且 `winget` 可用時，精靈會用 Y/N 詢問是否安裝；macOS 有 Homebrew 時也可由精靈安裝 `python@3.11`。其他 Linux 環境請先用發行版套件管理器安裝 Python 3.11 以上。
 
 ```powershell
 python --version
@@ -76,10 +72,10 @@ python --version
 
 ## 最短安裝流程
 
-```powershell
+```bash
 git clone https://github.com/inziihand/stratexec-platform.git
-Set-Location .\stratexec-platform
-.\scripts\install.ps1
+cd stratexec-platform
+npm run setup
 ```
 
 精靈會依序檢查或處理：
@@ -96,7 +92,7 @@ Set-Location .\stratexec-platform
 10. 視需要以 Y/N 初始化 Firestore、Rules 與 App 清冊。
 11. 啟動並驗證 Identity API 與 Console，顯示本地網址後結束。
 
-第一次安裝不詢問正式部署。完成本地測試後，日後另行執行：
+第一次安裝不詢問正式部署。正式部署入口這一階段仍是 Windows PowerShell，完成本地測試後才另行執行：
 
 ```powershell
 .\scripts\deploy.ps1
@@ -108,7 +104,7 @@ Set-Location .\stratexec-platform
 
 不需要 Google Cloud 帳號：
 
-```powershell
+```bash
 npm ci
 npm run dev
 ```
@@ -117,8 +113,8 @@ npm run dev
 
 若 5175 已被其他程式占用，可直接選擇其他本機埠：
 
-```powershell
-.\node_modules\.bin\vite.cmd .\apps\console --host 127.0.0.1 --port 3001 --strictPort
+```bash
+npm run dev -- --host 127.0.0.1 --port 3001 --strictPort
 ```
 
 ## 本機與秘密資料
