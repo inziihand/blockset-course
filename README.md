@@ -1,10 +1,20 @@
 # StratExec Platform
 
-React 控制台與 Python 交易執行核心的 Monorepo。首個市場為 **台指期（TAIFEX）**，首個券商介接為 **永豐金 Shioaji**。跨平台安裝入口需要 Node.js 22.15 以上的 22 LTS 或相容的更新版本，以使用作業系統 CA 信任。
+React 控制台與 Python 交易執行核心的 Monorepo。首個市場為 **台指期（TAIFEX）**，首個券商介接為 **永豐金 Shioaji**。
+
+## 快速開始
+
+先安裝 Git、Node.js 22.15 以上的 22 LTS（或相容的更新版本）與 Google Cloud CLI，接著在終端機執行：
+
+```bash
+git clone https://github.com/inziihand/stratexec-platform.git
+cd stratexec-platform
+npm run setup
+```
+
+安裝精靈會檢查其餘相依項目，並以編號及 Y/N 引導本機設定；不必另外執行 `npm ci` 或輸入腳本路徑。完整帳號、project 與費用界線請先閱讀[安裝前置作業](docs/INSTALLATION_PREREQUISITES.md)。
 
 建立日期：2026-09-16。狀態：**P0 規劃完成，P1 的 React 平台已具備 App 承載、共用前端服務、Firebase Google 登入、登入後 Identity session、平台 Identity API、會員／App 權限與 App 安裝生命週期管理。分階段安裝／部署腳本批次 1～5、App 套件批次 1～3，以及 Deployment Agent 第 4～10 批的可信簽章、部署契約、唯讀影響計畫、安全控制平面、設定／秘密輸入、Cloud Run target driver、網頁驗收與 VM Agent／VM Docker target driver已實作；target driver、Secret Manager 與 VM host runtime 預設停用，尚未對客戶雲端 apply。母版不預載業務後端 App；交易後端與券商尚未接入，不能下單。**
-
-第一次從 GitHub 安裝前，先閱讀[安裝前置作業](docs/INSTALLATION_PREREQUISITES.md)。文件區分離線 Demo、唯讀 dry-run 與可能產生費用的正式雲端安裝，並列出必要及不必安裝的工具。
 
 ## 本機啟動
 
