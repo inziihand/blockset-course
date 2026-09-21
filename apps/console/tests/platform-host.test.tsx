@@ -163,7 +163,7 @@ describe('URL-owned App navigation', () => {
     expect(windowElement.querySelector('.topbar')).toBeTruthy();
     expect(within(windowElement).getByRole('heading', { name: '測試甲', level: 1 }).closest('.topbar')).toBeTruthy();
     expect(windowElement.querySelector('.app-content-heading')).toBeNull();
-    expect(windowElement.querySelector('.shell-footer')).toBeTruthy();
+    expect(windowElement.querySelector('.shell-footer')).toBeNull();
     expect(windowElement.contains(screen.getByRole('navigation', { name: '平台快速導覽' }))).toBe(false);
 
     await userEvent.click(rail().getByRole('button', { name: '測試乙' }));

@@ -1,7 +1,14 @@
 from fastapi.testclient import TestClient
 
 from stratexec.api.identity_app import create_app
-from stratexec.identity.models import AppAccessMode, EffectiveAppAccess, InstalledAppCatalogEntry, Member
+from stratexec.identity.models import (
+    AppAccessMode,
+    AppCategory,
+    AppInstallation,
+    EffectiveAppAccess,
+    InstalledAppCatalogEntry,
+    Member,
+)
 
 
 class StubIdentityService:
@@ -45,6 +52,13 @@ class StubDeploymentIdentityService(StubIdentityService):
             app_state="new",
             permissions=["deployment:manage"],
         )
+
+    def set_app_order(self, actor: Member, patch):
+        return [AppInstallation(
+            app_key=app_key,
+            display_name=app_key,
+            category=AppCategory.CORE if app_key == "access-control" else AppCategory.APPLICATION,
+        ) for app_key in patch.app_keys]
 
 
 def test_me_requires_a_bearer_token() -> None:
@@ -124,3 +138,18 @@ def test_deployment_access_supports_a_new_app_without_treating_it_as_member_acce
         "appState": "new",
         "permissions": ["deployment:manage"],
     }
+
+
+def test_admin_can_persist_the_complete_app_order() -> None:
+    client = TestClient(create_app(StubDeploymentIdentityService()))
+
+    response = client.put(
+        "/api/identity/v1/admin/app-order",
+        headers={"Authorization": "Bearer valid-token"},
+        json={"appKeys": ["course-app", "access-control"]},
+    )
+
+    assert response.status_code == 200
+    assert [item["appKey"] for item in response.json()["installations"]] == [
+        "course-app", "access-control",
+    ]

@@ -9,6 +9,7 @@ from .models import (
     AppInstallation,
     AppInstallationPatch,
     AppInstallationStatus,
+    AppOrderPatch,
     InstalledAppCatalogEntry,
     AppLifecycleAction,
     AppGrant,
@@ -18,6 +19,7 @@ from .models import (
     DeploymentAccess,
     EffectiveAppAccess,
     Member,
+    MemberList,
     MemberPatch,
     MemberRole,
     MemberStatus,
@@ -84,9 +86,15 @@ class IdentityService:
         self._claims.set_admin(member.uid, enabled=member.role is MemberRole.ADMIN)
         return self._with_effective_access(member)
 
-    def list_members(self, actor: Member) -> list[Member]:
+    def list_members(self, actor: Member, *, limit: int = 20, cursor: str | None = None) -> MemberList:
         self._require_admin(actor)
-        return [self._with_effective_access(member) for member in self._repository.list()]
+        if limit < 1 or limit > 50:
+            raise ValueError("Member page size must be between 1 and 50.")
+        members, next_cursor = self._repository.list_page(limit=limit, cursor=cursor)
+        return MemberList(
+            members=[self._with_effective_access(member) for member in members],
+            next_cursor=next_cursor,
+        )
 
     def update_member(self, actor: Member, uid: str, patch: MemberPatch) -> Member:
         self._require_admin(actor)
@@ -160,16 +168,40 @@ class IdentityService:
                     else AppAccessMode.DISABLED
                 ),
             )
-            for installation in sorted(
-                self._repository.list_app_installations(),
-                key=lambda item: item.app_key,
-            )
+            for installation in self._ordered_installations()
             if self._installation_is_available(installation)
         ]
 
     def list_app_installations(self, actor: Member) -> list[AppInstallation]:
         self._require_admin(actor)
-        return self._repository.list_app_installations()
+        return self._ordered_installations()
+
+    def set_app_order(self, actor: Member, patch: AppOrderPatch) -> list[AppInstallation]:
+        self._require_admin(actor)
+        installations = self._repository.list_app_installations()
+        current_keys = {installation.app_key for installation in installations}
+        requested_keys = patch.app_keys
+        if len(requested_keys) != len(set(requested_keys)):
+            raise ValueError("App order must not contain duplicate keys.")
+        if set(requested_keys) != current_keys:
+            raise ValueError("App order must contain every registered App exactly once.")
+        self._repository.set_app_order(requested_keys, actor_uid=actor.uid)
+        by_key = {installation.app_key: installation for installation in installations}
+        return [by_key[app_key] for app_key in requested_keys]
+
+    def _ordered_installations(self) -> list[AppInstallation]:
+        installations = self._repository.list_app_installations()
+        by_key = {installation.app_key: installation for installation in installations}
+        ordered_keys: list[str] = []
+        for app_key in self._repository.get_app_order():
+            if app_key in by_key and app_key not in ordered_keys:
+                ordered_keys.append(app_key)
+        ordered_keys.extend(
+            installation.app_key
+            for installation in sorted(installations, key=lambda item: item.app_key)
+            if installation.app_key not in ordered_keys
+        )
+        return [by_key[app_key] for app_key in ordered_keys]
 
     def authorize_deployment(self, actor: Member, app_key: str) -> DeploymentAccess:
         self._require_admin(actor)

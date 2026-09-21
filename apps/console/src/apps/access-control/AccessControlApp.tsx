@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import { FileCheck2, PackageCheck, Power, RefreshCw, RotateCcw, Settings2, ShieldCheck, Trash2, Upload, UserRoundCog } from 'lucide-react';
+import { FileCheck2, GripVertical, PackageCheck, Power, RotateCcw, Settings2, ShieldCheck, Trash2, Upload, UserRoundCog } from 'lucide-react';
 import type { ShellAppProps } from '../../shell/types';
 import { useAuth } from '../../shared/auth';
 import type { IdentityMember } from '../../shared/auth/identityClient';
 import { Button, ConfirmDialog, EmptyState, ErrorState, Field, LoadingState } from '../../shared/ui/controls';
 import { FolderTabs, StatusBanner } from '../../shared/ui/patterns';
-import { notifyAppLifecycleChanged, notifyAppPolicyChanged } from '../../shared/api/appLifecycle';
+import { notifyAppLifecycleChanged, notifyAppOrderChanged, notifyAppPolicyChanged } from '../../shared/api/appLifecycle';
 import {
   createAccessControlApi,
   type AccessControlApi,
@@ -37,6 +37,7 @@ const accessModeLabels: Record<AppAccessMode, string> = {
 };
 
 const adminManagedAccessModes: AppAccessMode[] = ['public', 'all_members', 'grant_required'];
+const MEMBER_PAGE_SIZE = 10;
 
 export default function AccessControlApp({ signal }: ShellAppProps) {
   const { member, getIdToken } = useAuth();
@@ -66,6 +67,11 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
   const [policies, setPolicies] = useState<AppPolicy[]>([]);
   const [installations, setInstallations] = useState<AppInstallation[]>([]);
   const [selectedUid, setSelectedUid] = useState('');
+  const [memberCursor, setMemberCursor] = useState<string | null>(null);
+  const [memberCursorHistory, setMemberCursorHistory] = useState<Array<string | null>>([]);
+  const [nextMemberCursor, setNextMemberCursor] = useState<string | null>(null);
+  const [memberPagePending, setMemberPagePending] = useState(false);
+  const [memberPageError, setMemberPageError] = useState('');
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState('');
   const [error, setError] = useState('');
@@ -74,19 +80,63 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
     setLoading(true);
     setError('');
     try {
-      const [nextMembers, nextPolicies, nextInstallations] = await Promise.all([
-        api.listMembers(signal), api.listPolicies(signal), api.listInstallations(signal),
+      const [memberPage, nextPolicies, nextInstallations] = await Promise.all([
+        api.listMembers({ limit: MEMBER_PAGE_SIZE }, signal), api.listPolicies(signal), api.listInstallations(signal),
       ]);
-      setMembers(nextMembers);
+      setMembers(memberPage.members);
+      setMemberCursor(null);
+      setMemberCursorHistory([]);
+      setNextMemberCursor(memberPage.nextCursor);
+      setMemberPageError('');
       setPolicies(nextPolicies);
       setInstallations(nextInstallations);
-      setSelectedUid((current) => current || nextMembers[0]?.uid || '');
+      setSelectedUid((current) => memberPage.members.some((item) => item.uid === current)
+        ? current : memberPage.members[0]?.uid || '');
     } catch (caught) {
       if (!signal?.aborted) setError(caught instanceof Error ? caught.message : '無法載入會員權限。');
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
   }, [api, signal]);
+
+  const showMemberPage = useCallback(async (cursor: string | null) => {
+    setMemberPagePending(true);
+    setMemberPageError('');
+    try {
+      const memberPage = await api.listMembers({ limit: MEMBER_PAGE_SIZE, cursor }, signal);
+      if (signal?.aborted) return false;
+      setMembers(memberPage.members);
+      setNextMemberCursor(memberPage.nextCursor);
+      setSelectedUid((current) => memberPage.members.some((item) => item.uid === current)
+        ? current : memberPage.members[0]?.uid || '');
+      return true;
+    } catch (caught) {
+      if (!signal?.aborted) {
+        setMemberPageError(caught instanceof Error ? caught.message : '無法載入這一頁會員。');
+      }
+      return false;
+    } finally {
+      if (!signal?.aborted) setMemberPagePending(false);
+    }
+  }, [api, signal]);
+
+  const showNextMemberPage = async () => {
+    if (!nextMemberCursor || memberPagePending) return;
+    const cursor = nextMemberCursor;
+    if (await showMemberPage(cursor)) {
+      setMemberCursorHistory((current) => [...current, memberCursor]);
+      setMemberCursor(cursor);
+    }
+  };
+
+  const showPreviousMemberPage = async () => {
+    if (memberCursorHistory.length === 0 || memberPagePending) return;
+    const cursor = memberCursorHistory.at(-1) ?? null;
+    if (await showMemberPage(cursor)) {
+      setMemberCursorHistory((current) => current.slice(0, -1));
+      setMemberCursor(cursor);
+    }
+  };
 
   useEffect(() => { void load(); }, [load]);
   const selected = members.find((member) => member.uid === selectedUid) ?? null;
@@ -110,8 +160,7 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
   };
 
   return <div className="access-control-app">
-    <StatusBanner title="伺服器端權限" icon={<ShieldCheck size={17} />} tone="info"
-      action={<Button disabled={loading || Boolean(pending)} onClick={() => void load()}><RefreshCw size={15} />重新整理</Button>}>
+    <StatusBanner title="伺服器端權限" icon={<ShieldCheck size={17} />} tone="info">
       登入只建立會員身分；付費或指定 App 仍需有效授權。所有異動由 Identity API 寫入稽核紀錄。
     </StatusBanner>
     <div className="platform-folder-stack">
@@ -120,9 +169,12 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
       <section id="access-control-panel" className="platform-folder-panel" role="tabpanel"
         aria-labelledby={`access-control-tab-${tab}`}>
         {loading ? <LoadingState message="正在載入會員與 App 權限…" /> : error && members.length === 0
-          ? <ErrorState><p>{error}</p></ErrorState>
+          ? <ErrorState><p>{error}</p><Button onClick={() => void load()}>重試 Identity API</Button></ErrorState>
           : tab === 'members'
             ? <MembersPanel members={members} policies={installedPolicies} selected={selected} pending={pending}
+                page={memberCursorHistory.length + 1} pagePending={memberPagePending} pageError={memberPageError}
+                hasPrevious={memberCursorHistory.length > 0} hasNext={Boolean(nextMemberCursor)}
+                onPrevious={() => void showPreviousMemberPage()} onNext={() => void showNextMemberPage()}
                 onSelect={setSelectedUid} onUpdate={(uid, patch) => run(`member:${uid}`, async () => {
                   replaceMember(await api.updateMember(uid, patch, signal));
                 })}
@@ -139,6 +191,22 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
               : <AppManagementPanel installations={installations} pending={pending} packageApi={packageApi}
                   settingsApi={settingsApi} deploymentApi={deploymentApi} installationKey={installationKey} signal={signal}
                   onReload={load}
+                  onReorder={(nextInstallations) => {
+                    const previousInstallations = installations;
+                    setInstallations(nextInstallations);
+                    void run('app-order', async () => {
+                      try {
+                        const saved = await api.reorderInstallations(
+                          nextInstallations.map((installation) => installation.appKey), signal,
+                        );
+                        setInstallations(saved);
+                        notifyAppOrderChanged(saved.map((installation) => installation.appKey));
+                      } catch (caught) {
+                        setInstallations(previousInstallations);
+                        throw caught;
+                      }
+                    });
+                  }}
                   onAction={(installation, action) => run(`lifecycle:${installation.appKey}`, async () => {
                     const updated = await api.updateInstallation(installation.appKey, action, signal);
                     setInstallations((current) => current.map((item) => item.appKey === updated.appKey ? updated : item));
@@ -155,7 +223,7 @@ const installationStatusLabels = {
   installed: '已安裝', disabled: '已停用', uninstalled: '未安裝',
 } as const;
 
-function AppManagementPanel({ installations, pending, packageApi, settingsApi, deploymentApi, installationKey, signal, onReload, onAction }: {
+function AppManagementPanel({ installations, pending, packageApi, settingsApi, deploymentApi, installationKey, signal, onReload, onReorder, onAction }: {
   installations: AppInstallation[];
   pending: string;
   packageApi?: AppPackageApi;
@@ -164,13 +232,26 @@ function AppManagementPanel({ installations, pending, packageApi, settingsApi, d
   installationKey: string;
   signal?: AbortSignal;
   onReload(): Promise<void>;
+  onReorder(installations: AppInstallation[]): void;
   onAction(installation: AppInstallation, action: AppLifecycleAction): void;
 }) {
   const [removeTarget, setRemoveTarget] = useState<AppInstallation | null>(null);
   const [settingsTarget, setSettingsTarget] = useState<{ appKey: string; displayName: string } | null>(null);
   const [packageJobs, setPackageJobs] = useState<AppPackageJob[]>([]);
   const [confirmation, setConfirmation] = useState('');
+  const [draggedAppKey, setDraggedAppKey] = useState('');
+  const [dragOverAppKey, setDragOverAppKey] = useState('');
   const closeConfirmation = () => { setRemoveTarget(null); setConfirmation(''); };
+  const reorder = (sourceAppKey: string, targetAppKey: string) => {
+    const sourceIndex = installations.findIndex((item) => item.appKey === sourceAppKey);
+    const targetIndex = installations.findIndex((item) => item.appKey === targetAppKey);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex || pending) return;
+    const nextInstallations = [...installations];
+    const [moved] = nextInstallations.splice(sourceIndex, 1);
+    nextInstallations.splice(targetIndex, 0, moved);
+    onReorder(nextInstallations);
+  };
+  const clearDragState = () => { setDraggedAppKey(''); setDragOverAppKey(''); };
   return <>
     {packageApi && <AppPackageInstaller api={packageApi} signal={signal} onJobsChange={setPackageJobs}
       onRegistered={onReload} />}
@@ -180,9 +261,36 @@ function AppManagementPanel({ installations, pending, packageApi, settingsApi, d
       onActivated={onReload} />}
     {installations.length === 0 && <EmptyState title="目前沒有已登錄 App；可先上傳套件並完成部署驗證" />}
     <div className="access-app-management" role="list" aria-label="App 安裝狀態">
-      {installations.map((installation) => {
+      {installations.map((installation, index) => {
         const busy = pending === `lifecycle:${installation.appKey}`;
-        return <article key={installation.appKey} role="listitem">
+        return <article key={installation.appKey} role="listitem"
+          className={`${draggedAppKey === installation.appKey ? 'is-dragging' : ''} ${dragOverAppKey === installation.appKey ? 'is-drag-over' : ''}`.trim()}
+          onDragEnter={() => { if (draggedAppKey && draggedAppKey !== installation.appKey) setDragOverAppKey(installation.appKey); }}
+          onDragOver={(event) => { if (draggedAppKey && draggedAppKey !== installation.appKey) event.preventDefault(); }}
+          onDrop={(event) => {
+            event.preventDefault();
+            reorder(event.dataTransfer.getData('text/plain') || draggedAppKey, installation.appKey);
+            clearDragState();
+          }}>
+          <button type="button" className="access-app-drag-handle" draggable={!pending}
+            disabled={Boolean(pending)} aria-label={`調整 ${installation.displayName} 排序`}
+            title="拖曳調整順序；也可用鍵盤上下方向鍵"
+            onDragStart={(event) => {
+              setDraggedAppKey(installation.appKey);
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', installation.appKey);
+            }}
+            onDragEnd={clearDragState}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowUp' && index > 0) {
+                event.preventDefault();
+                reorder(installation.appKey, installations[index - 1].appKey);
+              }
+              if (event.key === 'ArrowDown' && index < installations.length - 1) {
+                event.preventDefault();
+                reorder(installation.appKey, installations[index + 1].appKey);
+              }
+            }}><GripVertical size={18} aria-hidden="true" /></button>
           <div className="access-app-identity">
             <PackageCheck size={18} aria-hidden="true" />
             <span><strong>{installation.displayName}</strong><small>{installation.appKey} · {installation.category === 'sample' ? '範例 App' : installation.category === 'core' ? '平台核心' : '一般 App'}</small></span>
@@ -321,7 +429,6 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
     <header>
       <div><h3 id="app-package-installer-title"><Upload size={17} />安裝 App ZIP</h3>
         <p>Package Agent 在本機隔離檢查套件；瀏覽器不直接修改平台原始碼。</p></div>
-      <Button disabled={Boolean(busy)} onClick={() => void loadJobs()}><RefreshCw size={14} />重新連線</Button>
     </header>
     <div className="access-package-controls">
       <div className="access-package-file">
@@ -338,17 +445,19 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
           <span className="access-package-picker-action">{file ? '更換檔案' : '瀏覽檔案'}</span>
         </label>
       </div>
-      <fieldset className="access-package-options">
-        <legend>進階選項</legend>
-        <label><input type="checkbox" checked={adoptExisting} disabled={!available || Boolean(busy)}
-          onChange={(event) => setAdoptExisting(event.currentTarget.checked)} />
-          <span><strong>接管既有未管理 App</strong><small>將既有來源納入平台套件管理</small></span>
-        </label>
-        <label><input type="checkbox" checked={allowDowngrade} disabled={!available || Boolean(busy)}
-          onChange={(event) => setAllowDowngrade(event.currentTarget.checked)} />
-          <span><strong>允許降版預檢</strong><small>只放寬版本檢查，不會直接套用</small></span>
-        </label>
-      </fieldset>
+      <div className="access-package-options" role="group" aria-labelledby="access-package-options-label">
+        <span id="access-package-options-label" className="access-package-control-label">進階選項</span>
+        <div className="access-package-option-grid">
+          <label><input type="checkbox" checked={adoptExisting} disabled={!available || Boolean(busy)}
+            onChange={(event) => setAdoptExisting(event.currentTarget.checked)} />
+            <span><strong>接管既有未管理 App</strong><small>將既有來源納入平台套件管理</small></span>
+          </label>
+          <label><input type="checkbox" checked={allowDowngrade} disabled={!available || Boolean(busy)}
+            onChange={(event) => setAllowDowngrade(event.currentTarget.checked)} />
+            <span><strong>允許降版預檢</strong><small>只放寬版本檢查，不會直接套用</small></span>
+          </label>
+        </div>
+      </div>
     </div>
     <div className="access-package-toolbar">
       <span className={available ? 'is-connected' : ''}>
@@ -358,7 +467,10 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
         <FileCheck2 size={15} />{busy === 'inspect' ? '預檢中…' : '預檢 ZIP'}
       </Button>
     </div>
-    {error && <p className="access-package-error" role="alert">{error}</p>}
+    {error && <div className="access-retry-error">
+      <p className="access-package-error" role="alert">{error}</p>
+      {!available && <Button disabled={Boolean(busy)} onClick={() => void loadJobs()}>重試 Package Agent</Button>}
+    </div>}
     {selectedJob && <div className="access-package-report">
       <div className="access-package-summary">
         <span><strong>{selectedJob.appKey}@{selectedJob.version}</strong><small>{selectedJob.fileName}</small></span>
@@ -396,24 +508,43 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
   </section>;
 }
 
-function MembersPanel({ members, policies, selected, pending, onSelect, onUpdate, onGrant }: {
+function MembersPanel({
+  members, policies, selected, pending, page, pagePending, pageError, hasPrevious, hasNext,
+  onPrevious, onNext, onSelect, onUpdate, onGrant,
+}: {
   members: IdentityMember[];
   policies: AppPolicy[];
   selected: IdentityMember | null;
   pending: string;
+  page: number;
+  pagePending: boolean;
+  pageError: string;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  onPrevious(): void;
+  onNext(): void;
   onSelect(uid: string): void;
   onUpdate(uid: string, patch: { role?: 'member' | 'admin'; status?: 'active' | 'disabled' }): void;
   onGrant(uid: string, appKey: string, patch: AppGrantPatch): void;
 }) {
-  if (members.length === 0) return <EmptyState title="目前沒有會員" />;
   return <div className="access-members-layout">
-    <div className="access-members-list" aria-label="會員清單">
-      {members.map((member) => <button type="button" key={member.uid}
-        className={member.uid === selected?.uid ? 'is-selected' : ''} onClick={() => onSelect(member.uid)}>
-        <UserRoundCog size={17} aria-hidden="true" />
-        <span><strong>{member.displayName || member.email}</strong><small>{member.email}</small></span>
-        <em>{member.status === 'active' ? (member.role === 'admin' ? '管理員' : '會員') : '已停用'}</em>
-      </button>)}
+    <div className="access-members-sidebar">
+      <div className={`access-members-list${pagePending ? ' is-loading' : ''}`} aria-label="會員清單" aria-busy={pagePending}>
+        {members.length === 0
+          ? <span className="access-members-empty">本頁沒有會員</span>
+          : members.map((member) => <button type="button" key={member.uid}
+            className={member.uid === selected?.uid ? 'is-selected' : ''} onClick={() => onSelect(member.uid)}>
+            <UserRoundCog size={17} aria-hidden="true" />
+            <span><strong>{member.displayName || member.email}</strong><small>{member.email}</small></span>
+            <em>{member.status === 'active' ? (member.role === 'admin' ? '管理員' : '會員') : '已停用'}</em>
+          </button>)}
+      </div>
+      <nav className="access-member-pagination" aria-label="會員分頁">
+        <Button className="access-member-page-button" disabled={!hasPrevious || pagePending} onClick={onPrevious}>上一頁</Button>
+        <span aria-live="polite">第 {page} 頁</span>
+        <Button className="access-member-page-button" disabled={!hasNext || pagePending} onClick={onNext}>下一頁</Button>
+        {pageError && <small role="alert">{pageError}</small>}
+      </nav>
     </div>
     {selected && <div className="access-member-detail">
       <header><div><h3>{selected.displayName || selected.email}</h3><p>{selected.email}</p></div></header>
@@ -429,6 +560,9 @@ function MembersPanel({ members, policies, selected, pending, onSelect, onUpdate
       </div>
       <h4>個別 App 授權</h4>
       <div className="access-grant-list">
+        <div className="access-grant-head" aria-hidden="true">
+          <span>App</span><span>整體存取</span><span>功能權限</span>
+        </div>
         {policies.map((policy) => {
           const grant = selected.appGrants.find((item) => item.appKey === policy.appKey);
           const requiresGrant = policy.accessMode === 'grant_required';
@@ -437,6 +571,8 @@ function MembersPanel({ members, policies, selected, pending, onSelect, onUpdate
           return <div key={policy.appKey} className="access-grant-entry">
             <div className="access-grant-app">
               <span><strong>{policy.displayName}</strong><small>{requiresGrant ? '需要個別授權' : accessModeLabels[policy.accessMode]}</small></span>
+            </div>
+            <div className="access-grant-control">
               {requiresGrant ? <Button disabled={policy.protected || busy}
                 onClick={() => onGrant(selected.uid, policy.appKey, {
                   enabled: !grant?.enabled,
@@ -445,8 +581,11 @@ function MembersPanel({ members, policies, selected, pending, onSelect, onUpdate
                 {grant?.enabled ? '撤銷' : '授權'}
               </Button> : <em>依全域政策開放</em>}
             </div>
-            {policy.entitlements.length > 0 && <fieldset className="access-entitlement-list" disabled={policy.protected || busy || inheritedByAdmin}>
-              <legend>{inheritedByAdmin ? '功能權限（管理員依政策全部開放）' : '功能權限'}</legend>
+            <div className={`access-grant-features${policy.entitlements.length === 0 ? ' is-empty' : ''}`}>
+            {policy.entitlements.length > 0 ? <fieldset className="access-entitlement-list"
+              aria-label={inheritedByAdmin ? '功能權限，管理員依政策全部開放' : '功能權限'}
+              disabled={policy.protected || busy || inheritedByAdmin}>
+              {inheritedByAdmin && <small className="access-entitlement-note">管理員依政策開放</small>}
               {policy.entitlements.map((entitlement) => {
                 const currentEntitlements = grant?.entitlements ?? [];
                 const checked = inheritedByAdmin || (grant?.enabled === true && currentEntitlements.includes(entitlement.key));
@@ -463,7 +602,8 @@ function MembersPanel({ members, policies, selected, pending, onSelect, onUpdate
                   <span><strong>{entitlement.displayName}</strong>{entitlement.description && <small>{entitlement.description}</small>}</span>
                 </label>;
               })}
-            </fieldset>}
+            </fieldset> : <span className="access-grant-empty">無額外功能</span>}
+            </div>
           </div>;
         })}
       </div>

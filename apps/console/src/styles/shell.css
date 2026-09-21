@@ -77,7 +77,6 @@ svg { flex-shrink: 0; }
 .launcher-description { margin-top: 18px; color: var(--color-text-body); font-size: 15px; line-height: 1.8; }
 .launcher-hint { margin-top: 4px; color: var(--color-text-secondary); font-size: 13px; line-height: 1.8; }
 .empty-label { margin-top: 28px; background: var(--color-surface-muted); }
-.shell-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 2px 5px; color: var(--color-text-secondary); font-size: 11px; }
 .test-host-banner { position: fixed; top: 0; left: var(--app-rail-width); right: 0; z-index: 10; padding: 3px 8px; text-align: center; font-size: 11px; background: var(--color-surface-active); color: var(--color-accent); }
 .app-content { flex: 1; min-width: 0; padding: var(--app-content-spacing, 12px); }
 .platform-state { padding: 24px 12px; color: var(--color-text-body); line-height: 1.8; }
@@ -195,7 +194,6 @@ svg { flex-shrink: 0; }
   .platform-badge { display: none; }
   .launcher-panel { min-height: 380px; padding: 32px 14px; }
   .launcher-hint { max-width: 220px; }
-  .shell-footer { font-size: 10px; }
   .skip-link { left: 24px; }
 }
 @media (prefers-reduced-motion: reduce) { .app-drawer[open] { animation: none; } }

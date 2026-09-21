@@ -66,6 +66,23 @@ class FirestoreMemberRepository:
         query = self._database.collection("members").where(filter=FieldFilter("status", "in", ["active", "disabled"]))
         return [self._from_snapshot(snapshot) for snapshot in query.limit(limit).stream()]
 
+    def list_page(self, *, limit: int = 20, cursor: str | None = None) -> tuple[list[Member], str | None]:
+        collection = self._database.collection("members")
+        query = (
+            collection
+            .where(filter=FieldFilter("status", "in", ["active", "disabled"]))
+            .order_by("__name__")
+        )
+        if cursor:
+            cursor_snapshot = collection.document(cursor).get()
+            if not cursor_snapshot.exists:
+                raise ValueError("Invalid member page cursor.")
+            query = query.start_after(cursor_snapshot)
+        snapshots = list(query.limit(limit + 1).stream())
+        page_snapshots = snapshots[:limit]
+        next_cursor = page_snapshots[-1].id if len(snapshots) > limit and page_snapshots else None
+        return [self._from_snapshot(snapshot) for snapshot in page_snapshots], next_cursor
+
     def update(self, uid: str, patch: MemberPatch, *, actor_uid: str) -> Member:
         reference = self._database.collection("members").document(uid)
         changes = patch.model_dump(exclude_none=True, mode="json", by_alias=True)
@@ -213,6 +230,32 @@ class FirestoreMemberRepository:
         })
         batch.commit()
         return AppInstallation.model_validate(payload)
+
+    def get_app_order(self) -> list[str]:
+        snapshot = self._database.collection("platformMeta").document("schema").get()
+        payload = snapshot.to_dict() or {}
+        app_order: list[str] = []
+        for app_key in payload.get("appOrder", []):
+            normalized = str(app_key).strip()
+            if normalized and normalized not in app_order:
+                app_order.append(normalized)
+        return app_order
+
+    def set_app_order(self, app_keys: list[str], *, actor_uid: str) -> list[str]:
+        schema_reference = self._database.collection("platformMeta").document("schema")
+        audit_reference = self._database.collection("adminAuditLogs").document(str(uuid4()))
+        app_order = list(app_keys)
+        batch = self._database.batch()
+        batch.set(schema_reference, {"appOrder": app_order, "updatedAt": _now()}, merge=True)
+        batch.set(audit_reference, {
+            "actorUid": actor_uid,
+            "action": "app.order.updated",
+            "targetAppKey": "*",
+            "changes": {"appOrder": app_order},
+            "createdAt": _now(),
+        })
+        batch.commit()
+        return app_order
 
     def _load(self, reference) -> Member:
         member = self._from_snapshot(reference.get())

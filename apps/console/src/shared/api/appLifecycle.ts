@@ -1,4 +1,5 @@
 export const APP_LIFECYCLE_CHANGED_EVENT = 'stratexec:app-lifecycle-changed';
+export const APP_ORDER_CHANGED_EVENT = 'stratexec:app-order-changed';
 
 type Request = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -20,21 +21,21 @@ export async function fetchInstalledAppCatalog(request: Request = fetch): Promis
     throw new Error('App catalog returned an invalid payload.');
   }
   if (!Array.isArray(payload.apps)) throw new Error('App catalog returned an invalid payload.');
-  const catalog: InstalledAppCatalog = new Map();
+  const entries: InstalledAppCatalog = new Map();
   for (const entry of payload.apps) {
     if (!entry || typeof entry !== 'object') throw new Error('App catalog returned an invalid payload.');
     const { appKey, accessMode } = entry as { appKey?: unknown; accessMode?: unknown };
     if (typeof appKey !== 'string' || typeof accessMode !== 'string'
-      || !accessModes.has(accessMode as AppAccessMode) || catalog.has(appKey)) {
+      || !accessModes.has(accessMode as AppAccessMode) || entries.has(appKey)) {
       throw new Error('App catalog returned an invalid payload.');
     }
-    catalog.set(appKey, accessMode as AppAccessMode);
+    entries.set(appKey, accessMode as AppAccessMode);
   }
-  if (catalog.size !== payload.appKeys.length
-    || payload.appKeys.some((key) => !catalog.has(key as string))) {
+  if (entries.size !== payload.appKeys.length
+    || payload.appKeys.some((key) => !entries.has(key as string))) {
     throw new Error('App catalog returned an invalid payload.');
   }
-  return catalog;
+  return new Map(payload.appKeys.map((appKey) => [appKey, entries.get(appKey)!]));
 }
 
 export async function fetchInstalledAppKeys(request: Request = fetch): Promise<Set<string>> {
@@ -47,4 +48,8 @@ export function notifyAppLifecycleChanged() {
 
 export function notifyAppPolicyChanged() {
   window.dispatchEvent(new Event(APP_LIFECYCLE_CHANGED_EVENT));
+}
+
+export function notifyAppOrderChanged(appKeys: string[]) {
+  window.dispatchEvent(new CustomEvent(APP_ORDER_CHANGED_EVENT, { detail: { appKeys } }));
 }

@@ -62,9 +62,10 @@ describe('會員與權限 App', () => {
       appAccess: [{ appKey: 'premium-course', allowed: true, reason: 'active_grant', entitlements: [] }],
     }));
     const api: AccessControlApi = {
-      listMembers: vi.fn(async () => [member]),
+      listMembers: vi.fn(async () => ({ members: [member], nextCursor: null })),
       listPolicies: vi.fn(async () => policies),
       listInstallations: vi.fn(async () => installations),
+      reorderInstallations: vi.fn(async () => installations),
       updateMember: vi.fn(async () => member),
       setGrant,
       setPolicy: vi.fn(async (_appKey, patch) => ({ ...policies[0], ...patch })),
@@ -116,6 +117,58 @@ describe('會員與權限 App', () => {
     ));
   });
 
+  test('pages members through the Identity API without reloading the whole workspace', async () => {
+    const user = userEvent.setup();
+    const nextMember: IdentityMember = {
+      ...member, uid: 'member-2', email: 'next@example.com', displayName: 'Next Member',
+    };
+    const listMembers = vi.fn(async (options?: { cursor?: string | null }) => options?.cursor
+      ? { members: [nextMember], nextCursor: null }
+      : { members: [member], nextCursor: 'member-1' });
+    const listPolicies = vi.fn(async () => policies);
+    const listInstallations = vi.fn(async () => installations);
+    const api: AccessControlApi = {
+      listMembers,
+      listPolicies,
+      listInstallations,
+      reorderInstallations: vi.fn(async () => installations),
+      updateMember: vi.fn(async () => member),
+      setGrant: vi.fn(async () => member),
+      setPolicy: vi.fn(async (_appKey, patch) => ({ ...policies[0], ...patch })),
+      updateInstallation: vi.fn(async () => installations[0]),
+    };
+
+    render(<AccessControlWorkspace actor={admin} api={api} />);
+    expect(await screen.findByText('第 1 頁')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '下一頁' }));
+
+    await waitFor(() => expect(screen.getAllByText('Next Member')).toHaveLength(2));
+    expect(screen.getByText('第 2 頁')).toBeTruthy();
+    expect(listMembers).toHaveBeenNthCalledWith(1, { limit: 10 }, undefined);
+    expect(listMembers).toHaveBeenNthCalledWith(2, { limit: 10, cursor: 'member-1' }, undefined);
+    expect(listPolicies).toHaveBeenCalledTimes(1);
+    expect(listInstallations).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: '上一頁' }));
+    await waitFor(() => expect(screen.getAllByText('Member')).toHaveLength(2));
+    expect(screen.getByText('第 1 頁')).toBeTruthy();
+  });
+
+  test('encodes member pagination options in the Identity API request', async () => {
+    const request = vi.fn(async () => new Response(JSON.stringify({ members: [member], nextCursor: 'member-2' }), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    }));
+    const api = createAccessControlApi(vi.fn(async () => 'firebase-id-token'), request);
+
+    const page = await api.listMembers({ limit: 10, cursor: 'member-1' });
+
+    expect(page.nextCursor).toBe('member-2');
+    expect(request).toHaveBeenCalledWith(
+      '/api/identity/v1/admin/members?limit=10&cursor=member-1',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
+  });
+
   test('grants an App-defined feature without creating another platform role', async () => {
     const user = userEvent.setup();
     const setGrant = vi.fn(async () => ({
@@ -129,9 +182,10 @@ describe('會員與權限 App', () => {
       }],
     }));
     const api: AccessControlApi = {
-      listMembers: vi.fn(async () => [member]),
+      listMembers: vi.fn(async () => ({ members: [member], nextCursor: null })),
       listPolicies: vi.fn(async () => policies),
       listInstallations: vi.fn(async () => installations),
+      reorderInstallations: vi.fn(async () => installations),
       updateMember: vi.fn(async () => member),
       setGrant,
       setPolicy: vi.fn(async (_appKey, patch) => ({ ...policies[0], ...patch })),
@@ -161,6 +215,33 @@ describe('會員與權限 App', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer firebase-id-token' }),
       }),
     );
+  });
+
+  test('persists keyboard reordering from the App management drag handle', async () => {
+    const user = userEvent.setup();
+    const reorderInstallations = vi.fn(async (appKeys: string[]) => appKeys.map(
+      (appKey) => installations.find((installation) => installation.appKey === appKey)!,
+    ));
+    const api: AccessControlApi = {
+      listMembers: vi.fn(async () => ({ members: [member], nextCursor: null })),
+      listPolicies: vi.fn(async () => policies),
+      listInstallations: vi.fn(async () => installations),
+      reorderInstallations,
+      updateMember: vi.fn(async () => member),
+      setGrant: vi.fn(async () => member),
+      setPolicy: vi.fn(async (_appKey, patch) => ({ ...policies[0], ...patch })),
+      updateInstallation: vi.fn(async () => installations[0]),
+    };
+
+    render(<AccessControlWorkspace actor={admin} api={api} />);
+    await user.click(await screen.findByRole('tab', { name: 'App 管理' }));
+    const handle = screen.getByRole('button', { name: '調整 付費課程 排序' });
+    handle.focus();
+    await user.keyboard('{ArrowDown}');
+
+    await waitFor(() => expect(reorderInstallations).toHaveBeenCalledWith(
+      ['access-control', 'premium-course'], undefined,
+    ));
   });
 
   test('uploads a ZIP for inspection and requires the exact package confirmation before apply', async () => {
@@ -204,9 +285,10 @@ describe('會員與權限 App', () => {
       activateSource,
     };
     const api: AccessControlApi = {
-      listMembers: vi.fn(async () => [member]),
+      listMembers: vi.fn(async () => ({ members: [member], nextCursor: null })),
       listPolicies: vi.fn(async () => policies),
       listInstallations: vi.fn(async () => installations),
+      reorderInstallations: vi.fn(async () => installations),
       updateMember: vi.fn(async () => member),
       setGrant: vi.fn(async () => member),
       setPolicy: vi.fn(async (_appKey, patch) => ({ ...policies[0], ...patch })),
@@ -295,8 +377,9 @@ describe('會員與權限 App', () => {
       rollbackSecret: vi.fn(), deleteSecret: vi.fn(),
     };
     const api: AccessControlApi = {
-      listMembers: vi.fn(async () => [member]), listPolicies: vi.fn(async () => policies),
+      listMembers: vi.fn(async () => ({ members: [member], nextCursor: null })), listPolicies: vi.fn(async () => policies),
       listInstallations: vi.fn(async () => installations), updateMember: vi.fn(async () => member),
+      reorderInstallations: vi.fn(async () => installations),
       setGrant: vi.fn(async () => member), setPolicy: vi.fn(async (_key, patch) => ({ ...policies[0], ...patch })),
       updateInstallation: vi.fn(async () => installations[0]),
     };

@@ -29,6 +29,20 @@ describe('App lifecycle catalog', () => {
     expect([...(await fetchInstalledAppKeys(request))]).toEqual(['public-demo']);
   });
 
+  test('uses appKeys as the canonical display order', async () => {
+    const request = vi.fn(async () => new Response(JSON.stringify({
+      appKeys: ['premium-course', 'access-control'],
+      apps: [
+        { appKey: 'access-control', accessMode: 'admins_only' },
+        { appKey: 'premium-course', accessMode: 'grant_required' },
+      ],
+    }), { status: 200 }));
+
+    expect([...(await fetchInstalledAppCatalog(request)).keys()]).toEqual([
+      'premium-course', 'access-control',
+    ]);
+  });
+
   test('rejects an invalid catalog instead of guessing installation state', async () => {
     const request = vi.fn(async () => new Response(JSON.stringify({
       appKeys: ['premium-course'],

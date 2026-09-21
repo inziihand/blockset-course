@@ -42,6 +42,7 @@ STRATEXEC_BOOTSTRAP_ADMIN_EMAILS=
 - `members/{uid}/appGrants/{appKey}`：個別 App 的 `enabled`、App-local `roles[]` 與功能 `entitlements[]`；不另建第二份功能授權 collection。
 - `appPolicies/{appKey}`：已安裝 App 的全域開放模式及 manifest 宣告的功能權限目錄；一般 App 的 `public`／`all_members`／`grant_required` 由平台管理員決定，升級會同步功能目錄但不覆蓋既有 `accessMode`／`adminAllowed`。
 - `appInstallations/{appKey}`：App 的 `installed`／`disabled`／`uninstalled` 狀態、分類、可移除性與相依服務；管理員只透過 Identity API 異動。
+- `platformMeta/schema.appOrder`：管理員在 App 管理頁調整的完整 App 順序；公開 App catalog、平台首頁與左側導覽共用同一順序，瀏覽器不可直接寫入。
 - `apps/{appKey}/...`：App 自有資料；每個 App 必須另外提出 schema 與 Rules，母版不提供泛用開口。
 - `adminAuditLogs/{id}`：管理異動稽核。
 - 交易控制、命令、runtime、snapshot 與 lease collection 保持伺服器／Worker 專用。

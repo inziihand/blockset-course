@@ -23,7 +23,9 @@ vi.mock('../src/shared/auth', () => ({
 
 vi.mock('../src/shared/api/appLifecycle', () => ({
   APP_LIFECYCLE_CHANGED_EVENT: 'stratexec:app-lifecycle-changed',
+  APP_ORDER_CHANGED_EVENT: 'stratexec:app-order-changed',
   fetchInstalledAppCatalog: vi.fn(async () => new Map([
+    ['demo-compact', 'public'],
     ['demo', runtime.accessMode],
     ['access-control', 'admins_only'],
   ])),
@@ -50,6 +52,22 @@ describe('runtime App access policy', () => {
 
     await waitFor(() => expect(within(screen.getByRole('navigation', { name: '平台快速導覽' }))
       .getByRole('button', { name: 'Demo App · 通用' })).toBeTruthy());
+    expect(runtime.retryIdentitySync).toHaveBeenCalledOnce();
+
+    const appButtons = within(screen.getByRole('navigation', { name: '平台快速導覽' }))
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+      .filter((label) => label?.startsWith('Demo App'));
+    expect(appButtons).toEqual(['Demo App · 窄版', 'Demo App · 通用']);
+
+    act(() => window.dispatchEvent(new CustomEvent('stratexec:app-order-changed', {
+      detail: { appKeys: ['demo', 'demo-compact', 'access-control'] },
+    })));
+    const reorderedButtons = within(screen.getByRole('navigation', { name: '平台快速導覽' }))
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+      .filter((label) => label?.startsWith('Demo App'));
+    expect(reorderedButtons).toEqual(['Demo App · 通用', 'Demo App · 窄版']);
     expect(runtime.retryIdentitySync).toHaveBeenCalledOnce();
   });
 });

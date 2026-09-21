@@ -1,7 +1,7 @@
 import os
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from stratexec.adapters.firebase.auth import FirebaseClaimsWriter, FirebaseTokenVerifier, initialize_firebase
@@ -11,6 +11,7 @@ from stratexec.identity.models import (
     AppInstallation,
     AppInstallationList,
     AppInstallationPatch,
+    AppOrderPatch,
     AppPolicy,
     AppPolicyList,
     AppPolicyPatch,
@@ -90,11 +91,18 @@ def create_app(service: IdentityService | None = None) -> FastAPI:
         return access
 
     @app.get("/api/identity/v1/admin/members", response_model=MemberList, response_model_by_alias=True)
-    def list_members(request: Request, actor: Annotated[Member, Depends(authenticated_member)]) -> MemberList:
+    def list_members(
+        request: Request,
+        actor: Annotated[Member, Depends(authenticated_member)],
+        limit: Annotated[int, Query(ge=1, le=50)] = 20,
+        cursor: Annotated[str | None, Query(max_length=256)] = None,
+    ) -> MemberList:
         try:
-            return MemberList(members=request.app.state.identity_service.list_members(actor))
+            return request.app.state.identity_service.list_members(actor, limit=limit, cursor=cursor)
         except AccessDenied as exc:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     @app.get(
         "/api/identity/v1/admin/deployment-access/{app_key}",
@@ -195,6 +203,25 @@ def create_app(service: IdentityService | None = None) -> FastAPI:
             )
         except AccessDenied as exc:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+    @app.put(
+        "/api/identity/v1/admin/app-order",
+        response_model=AppInstallationList,
+        response_model_by_alias=True,
+    )
+    def set_app_order(
+        patch: AppOrderPatch,
+        request: Request,
+        actor: Annotated[Member, Depends(authenticated_member)],
+    ) -> AppInstallationList:
+        try:
+            return AppInstallationList(
+                installations=request.app.state.identity_service.set_app_order(actor, patch)
+            )
+        except AccessDenied as exc:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     @app.put(
         "/api/identity/v1/admin/app-installations/{app_key}",

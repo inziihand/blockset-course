@@ -9,11 +9,11 @@ import type { ShellAppDefinition, ShellAppKey } from './types';
 import { navigate, usePathname } from './navigation';
 import AppHost from './AppHost';
 import { NotificationProvider } from '../shared/ui/Notifications';
-import { buildInfo } from '../shared/buildInfo';
 import { useAuth } from '../shared/auth';
 import { firebaseAuthConfiguration } from '../shared/auth/config';
 import {
   APP_LIFECYCLE_CHANGED_EVENT,
+  APP_ORDER_CHANGED_EVENT,
   fetchInstalledAppCatalog,
   type AppAccessMode,
   type InstalledAppCatalog,
@@ -49,7 +49,12 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
   const installedApps = useMemo(
     () => usesServerCatalog
       ? (appCatalogReady && installedAppCatalog
-          ? apps.filter((app) => installedAppCatalog.has(app.key))
+          ? [...apps]
+              .filter((app) => installedAppCatalog.has(app.key))
+              .sort((left, right) => {
+                const orderedKeys = [...installedAppCatalog.keys()];
+                return orderedKeys.indexOf(left.key) - orderedKeys.indexOf(right.key);
+              })
           : [])
       : apps,
     [appCatalogReady, apps, installedAppCatalog, usesServerCatalog],
@@ -116,6 +121,27 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
     window.addEventListener(APP_LIFECYCLE_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(APP_LIFECYCLE_CHANGED_EVENT, refresh);
   }, [retryIdentitySync, usesServerCatalog]);
+  useEffect(() => {
+    if (!usesServerCatalog) return;
+    const reorder = (event: Event) => {
+      const appKeys = (event as CustomEvent<{ appKeys?: unknown }>).detail?.appKeys;
+      if (!Array.isArray(appKeys) || appKeys.some((appKey) => typeof appKey !== 'string')) return;
+      setInstalledAppCatalog((current) => {
+        if (!current) return current;
+        const ordered: InstalledAppCatalog = new Map();
+        for (const appKey of appKeys) {
+          const accessMode = current.get(appKey);
+          if (accessMode) ordered.set(appKey, accessMode);
+        }
+        for (const [appKey, accessMode] of current) {
+          if (!ordered.has(appKey)) ordered.set(appKey, accessMode);
+        }
+        return ordered;
+      });
+    };
+    window.addEventListener(APP_ORDER_CHANGED_EVENT, reorder);
+    return () => window.removeEventListener(APP_ORDER_CHANGED_EVENT, reorder);
+  }, [usesServerCatalog]);
 
   const hideThemeMenu = () => themeMenuRef.current?.hidePopover();
   const openDrawer = () => { hideThemeMenu(); setDrawerOpen(true); };
@@ -188,7 +214,6 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
               )}
             </section>
           )}
-          <footer className="shell-footer"><span>StratExec Platform</span><span title="前端版本，不代表後端執行狀態">v{buildInfo.version} · {buildInfo.revision}</span></footer>
         </main>
     </>
   );

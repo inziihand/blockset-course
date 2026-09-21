@@ -37,10 +37,21 @@ export type AppInstallation = {
   updatedBy?: string | null;
 };
 
+export type MemberPage = {
+  members: IdentityMember[];
+  nextCursor: string | null;
+};
+
+export type MemberPageOptions = {
+  limit?: number;
+  cursor?: string | null;
+};
+
 export type AccessControlApi = {
-  listMembers(signal?: AbortSignal): Promise<IdentityMember[]>;
+  listMembers(options?: MemberPageOptions, signal?: AbortSignal): Promise<MemberPage>;
   listPolicies(signal?: AbortSignal): Promise<AppPolicy[]>;
   listInstallations(signal?: AbortSignal): Promise<AppInstallation[]>;
+  reorderInstallations(appKeys: string[], signal?: AbortSignal): Promise<AppInstallation[]>;
   updateMember(uid: string, patch: MemberPatch, signal?: AbortSignal): Promise<IdentityMember>;
   setGrant(uid: string, appKey: string, patch: AppGrantPatch, signal?: AbortSignal): Promise<IdentityMember>;
   setPolicy(appKey: string, patch: AppPolicyPatch, signal?: AbortSignal): Promise<AppPolicy>;
@@ -73,10 +84,18 @@ export function createAccessControlApi(getToken: GetToken, request: Request = fe
   };
 
   return {
-    async listMembers(signal) {
-      const result = await send<{ members: IdentityMember[] }>('members', {}, signal);
+    async listMembers(options = {}, signal) {
+      const parameters = new URLSearchParams();
+      parameters.set('limit', String(options.limit ?? 20));
+      if (options.cursor) parameters.set('cursor', options.cursor);
+      const result = await send<{ members: IdentityMember[]; nextCursor?: unknown }>(
+        `members?${parameters.toString()}`, {}, signal,
+      );
       if (!Array.isArray(result.members)) throw new Error('會員清單格式不正確。');
-      return result.members;
+      if (result.nextCursor != null && typeof result.nextCursor !== 'string') {
+        throw new Error('會員分頁格式不正確。');
+      }
+      return { members: result.members, nextCursor: result.nextCursor ?? null };
     },
     async listPolicies(signal) {
       const result = await send<{ policies: AppPolicy[] }>('app-policies', {}, signal);
@@ -86,6 +105,13 @@ export function createAccessControlApi(getToken: GetToken, request: Request = fe
     async listInstallations(signal) {
       const result = await send<{ installations: AppInstallation[] }>('app-installations', {}, signal);
       if (!Array.isArray(result.installations)) throw new Error('App 安裝清單格式不正確。');
+      return result.installations;
+    },
+    async reorderInstallations(appKeys, signal) {
+      const result = await send<{ installations: AppInstallation[] }>('app-order', {
+        method: 'PUT', body: JSON.stringify({ appKeys }),
+      }, signal);
+      if (!Array.isArray(result.installations)) throw new Error('App 排序回應格式不正確。');
       return result.installations;
     },
     updateMember(uid, patch, signal) {

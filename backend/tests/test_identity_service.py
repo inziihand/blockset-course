@@ -15,6 +15,7 @@ from stratexec.identity.models import (
     AppInstallationPatch,
     AppInstallationStatus,
     AppLifecycleAction,
+    AppOrderPatch,
     AppPolicy,
     AppPolicyPatch,
     IdentityPrincipal,
@@ -92,6 +93,7 @@ class FakeRepository:
                 required_services=["identity-api"],
             ),
         }
+        self.app_order: list[str] = []
 
     def synchronize(self, principal: IdentityPrincipal, *, bootstrap_admin: bool) -> Member:
         member = self.members.get(principal.uid)
@@ -111,6 +113,16 @@ class FakeRepository:
 
     def list(self, *, limit: int = 100) -> list[Member]:
         return deepcopy(list(self.members.values())[:limit])
+
+    def list_page(self, *, limit: int = 20, cursor: str | None = None) -> tuple[list[Member], str | None]:
+        member_ids = sorted(self.members)
+        if cursor is not None:
+            if cursor not in self.members:
+                raise ValueError("Invalid member page cursor.")
+            member_ids = member_ids[member_ids.index(cursor) + 1:]
+        page_ids = member_ids[:limit]
+        next_cursor = page_ids[-1] if len(member_ids) > limit and page_ids else None
+        return deepcopy([self.members[uid] for uid in page_ids]), next_cursor
 
     def update(self, uid: str, patch: MemberPatch, *, actor_uid: str) -> Member:
         if uid not in self.members:
@@ -147,6 +159,13 @@ class FakeRepository:
     def set_app_installation(self, installation: AppInstallation, *, actor_uid: str) -> AppInstallation:
         self.installations[installation.app_key] = deepcopy(installation)
         return deepcopy(installation)
+
+    def get_app_order(self) -> list[str]:
+        return list(self.app_order)
+
+    def set_app_order(self, app_keys: list[str], *, actor_uid: str) -> list[str]:
+        self.app_order = list(app_keys)
+        return list(self.app_order)
 
 
 def principal(uid: str = "user-1", email: str = "member@example.com") -> IdentityPrincipal:
@@ -210,6 +229,24 @@ def test_member_cannot_change_another_members_access() -> None:
 
     with pytest.raises(AccessDenied):
         service.update_member(actor, "member-2", MemberPatch(status=MemberStatus.DISABLED))
+
+
+def test_admin_lists_members_with_a_forward_cursor() -> None:
+    repository = FakeRepository()
+    repository.members = {
+        uid: Member(uid=uid, email=f"{uid}@example.com")
+        for uid in ("member-1", "member-2", "member-3")
+    }
+    service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
+    actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
+
+    first_page = service.list_members(actor, limit=2)
+    second_page = service.list_members(actor, limit=2, cursor=first_page.next_cursor)
+
+    assert [member.uid for member in first_page.members] == ["member-1", "member-2"]
+    assert first_page.next_cursor == "member-2"
+    assert [member.uid for member in second_page.members] == ["member-3"]
+    assert second_page.next_cursor is None
 
 
 def test_admin_can_assign_an_app_specific_grant() -> None:
@@ -528,6 +565,38 @@ def test_public_catalog_exposes_current_policy_and_fails_closed_without_one() ->
     assert catalog["premium-course"] is AppAccessMode.GRANT_REQUIRED
     assert catalog["access-control"] is AppAccessMode.ADMINS_ONLY
     assert catalog["orphan-app"] is AppAccessMode.DISABLED
+
+
+def test_admin_app_order_is_shared_with_the_public_catalog() -> None:
+    repository = FakeRepository()
+    service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
+    actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
+
+    installations = service.set_app_order(actor, AppOrderPatch(
+        app_keys=["premium-course", "access-control"],
+    ))
+
+    assert [item.app_key for item in installations] == ["premium-course", "access-control"]
+    assert [item.app_key for item in service.list_app_installations(actor)] == [
+        "premium-course", "access-control",
+    ]
+    assert [item.app_key for item in service.list_installed_app_catalog()] == [
+        "premium-course", "access-control",
+    ]
+
+
+def test_admin_app_order_requires_every_registered_app_once() -> None:
+    repository = FakeRepository()
+    service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
+    actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
+
+    with pytest.raises(ValueError, match="every registered App exactly once"):
+        service.set_app_order(actor, AppOrderPatch(app_keys=["access-control"]))
+
+    with pytest.raises(ValueError, match="duplicate"):
+        service.set_app_order(actor, AppOrderPatch(
+            app_keys=["access-control", "access-control"],
+        ))
 
 
 def test_installed_backend_app_without_runtime_evidence_is_not_available() -> None:

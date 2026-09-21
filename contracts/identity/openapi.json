@@ -363,6 +363,23 @@
         "title": "AppLifecycleAction",
         "type": "string"
       },
+      "AppOrderPatch": {
+        "properties": {
+          "appKeys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Appkeys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "appKeys"
+        ],
+        "title": "AppOrderPatch",
+        "type": "object"
+      },
       "AppPolicy": {
         "properties": {
           "accessMode": {
@@ -677,6 +694,17 @@
             },
             "title": "Members",
             "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
           }
         },
         "required": [
@@ -1157,6 +1185,49 @@
         "summary": "Activate Verified App"
       }
     },
+    "/api/identity/v1/admin/app-order": {
+      "put": {
+        "operationId": "set_app_order_api_identity_v1_admin_app_order_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppOrderPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppInstallationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set App Order"
+      }
+    },
     "/api/identity/v1/admin/app-policies": {
       "get": {
         "operationId": "list_app_policies_api_identity_v1_admin_app_policies_get",
@@ -1281,6 +1352,37 @@
     "/api/identity/v1/admin/members": {
       "get": {
         "operationId": "list_members_api_identity_v1_admin_members_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1291,6 +1393,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [

@@ -171,6 +171,10 @@ class AppInstallationPatch(ApiModel):
     action: AppLifecycleAction
 
 
+class AppOrderPatch(ApiModel):
+    app_keys: list[str] = Field(max_length=64)
+
+
 class SourceAppActivation(ApiModel):
     display_name: str = Field(min_length=1, max_length=128)
     category: AppCategory = AppCategory.APPLICATION
@@ -200,6 +204,7 @@ class VerifiedAppActivation(ApiModel):
 
 class MemberList(ApiModel):
     members: list[Member]
+    next_cursor: str | None = None
 
 
 class AppPolicyList(ApiModel):

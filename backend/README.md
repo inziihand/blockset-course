@@ -9,6 +9,7 @@
 - 以 Firestore `members/{uid}` 保存平台會員狀態。
 - 以 `appPolicies/{appKey}` 保存 App 全域開放模式。
 - 以 `appInstallations/{appKey}` 保存可逆的 App 安裝、停用與邏輯移除狀態。
+- 以 `platformMeta/schema.appOrder` 保存管理員調整的全平台 App 顯示順序，供管理頁、首頁與左側導覽共用。
 - 以 `members/{uid}/appGrants/{appKey}` 保存整體 App grant、App-local roles 與功能 `entitlements[]`，不另建平行權限服務。
 - 解析會員的有效 `appAccess`，並提供 App 後端可查驗 `allowed` 與 `entitlements[]` 的 `/api/identity/v1/access/{appKey}`。
 - 管理異動寫入 `adminAuditLogs`。

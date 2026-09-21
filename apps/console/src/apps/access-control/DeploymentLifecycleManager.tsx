@@ -157,8 +157,7 @@ export function DeploymentLifecycleManager({
 
   return <section className="access-deployment-lifecycle" aria-labelledby="deployment-lifecycle-title">
     <header><div><h3 id="deployment-lifecycle-title"><ShieldCheck size={17} />App 完整生命週期</h3>
-      <p>來源安裝、後端部署、運行驗證與平台啟用分開記錄；重新整理或關閉瀏覽器不會中止伺服器工作。</p></div>
-      <Button disabled={Boolean(busy)} onClick={() => void load()}><RefreshCw size={14} />同步狀態</Button></header>
+      <p>來源安裝、後端部署、運行驗證與平台啟用分開記錄；部署期間會自動同步，關閉瀏覽器不會中止伺服器工作。</p></div></header>
 
     <div className="access-lifecycle-matrix" role="table" aria-label="App 四段狀態">
       <div className="access-lifecycle-head" role="row"><span>App</span><span>來源</span><span>後端</span><span>驗證</span><span>啟用</span></div>
@@ -257,6 +256,9 @@ export function DeploymentLifecycleManager({
         </details>}
       </>}
     </div>}
-    {error && <p className="access-package-error" role="alert">{error}</p>}
+    {error && <div className="access-retry-error">
+      <p className="access-package-error" role="alert">{error}</p>
+      {jobs.length === 0 && <Button disabled={Boolean(busy)} onClick={() => void load()}>重試 Deployment Agent</Button>}
+    </div>}
   </section>;
 }

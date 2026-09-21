@@ -6,6 +6,7 @@ import { BrandMark, Wordmark } from './Brand';
 import ThemePicker from './ThemePicker';
 import type { ShellAppDefinition, ShellAppKey } from './types';
 import DrawerAuthPanel from './DrawerAuthPanel';
+import { buildInfo } from '../shared/buildInfo';
 
 type Props = {
   apps: readonly ShellAppDefinition[];
@@ -18,6 +19,7 @@ type Props = {
 
 export default function OffCanvasDrawer({ apps, open, activeApp, onClose, onOpenHome, onSelectApp }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const versionLabel = buildInfo.version.startsWith('v') ? buildInfo.version : `v${buildInfo.version}`;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -36,7 +38,7 @@ export default function OffCanvasDrawer({ apps, open, activeApp, onClose, onOpen
         <header className="drawer-header">
           <button type="button" className="drawer-home-button" aria-label="返回 StratExec 首頁" onClick={() => { onOpenHome(); onClose(); }}>
             <BrandMark />
-            <span><b><Wordmark /></b><small>策略執行平台</small></span>
+            <span><b><Wordmark /></b><small>策略執行平台 · {versionLabel}</small></span>
           </button>
           <button type="button" className="icon-button" aria-label="關閉側邊選單" onClick={onClose}><X size={18} aria-hidden="true" /></button>
         </header>

@@ -32,6 +32,7 @@ describe('App-free platform', () => {
     const { user, drawer } = await openDrawer();
     expect((drawer as HTMLDialogElement).open).toBe(true);
     expect(within(drawer).getByText('尚未加入應用程式')).toBeTruthy();
+    expect(within(drawer).getByText('策略執行平台 · v0.1.0')).toBeTruthy();
     expect(within(drawer).getByText('Firebase Auth 尚未設定')).toBeTruthy();
     await user.click(within(drawer).getByRole('button', { name: '返回 StratExec 首頁' }));
     expect((drawer as HTMLDialogElement).open).toBe(false);
