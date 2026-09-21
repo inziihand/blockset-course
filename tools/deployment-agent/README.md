@@ -19,4 +19,4 @@
 npm run dev:deployments
 ```
 
-本機控制面固定只綁定 `127.0.0.1:8183`，並拒絕 generic `PORT`。真實客戶 target 還必須具備外部 durable store、受管身分、入口保護與當次部署授權；測試 fixture 不代表雲端已建立。
+本機控制面只允許綁定 `127.0.0.1`，單獨開發啟動預設使用 `8183`，並拒絕 generic `PORT`；`npm run setup`／`npm run start:local` 會管理其生命週期，並在多份 checkout 衝突時選擇備援埠。真實客戶 target 還必須具備外部 durable store、受管身分、入口保護與當次部署授權；測試 fixture 不代表雲端已建立。

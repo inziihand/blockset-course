@@ -329,7 +329,8 @@ try {
         "VITE_FIREBASE_APP_ID=$($sdk.appId)",
         "VITE_FIREBASE_MEASUREMENT_ID=$($sdk.measurementId)",
         "STRATEXEC_BOOTSTRAP_ADMIN_EMAILS=$($requestedAdmins -join ',')",
-        'STRATEXEC_IDENTITY_BASE_URL=http://127.0.0.1:8180'
+        'STRATEXEC_IDENTITY_BASE_URL=http://127.0.0.1:8180',
+        'STRATEXEC_ALLOW_UNSIGNED_APP_PACKAGES=true'
     )
     # Windows PowerShell 5.1 writes a UTF-8 BOM with Set-Content -Encoding utf8.
     # Vite/dotenv then treats the BOM-prefixed first key as a different name,

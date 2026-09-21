@@ -63,7 +63,7 @@ test('guided installer uses choices for dependencies and a complete local runtim
   assert.match(source, /-PrepareOnly does not run discovery/);
 });
 
-test('local launcher prepares Python and supervises Identity plus Vite without free-form input', () => {
+test('local launcher supervises Identity, App management agents and Vite without free-form input', () => {
   assert.doesNotMatch(startLocalSource, /Read-Host/);
   assert.match(startLocalSource, /Scripts\\python\.exe/);
   assert.match(startLocalSource, /pip install/);
@@ -72,13 +72,23 @@ test('local launcher prepares Python and supervises Identity plus Vite without f
   assert.match(startLocalSource, /--no-build-isolation/);
   assert.match(startLocalSource, /stratexec\.api\.main:app/);
   assert.match(startLocalSource, /api\/identity\/v1\/apps/);
+  assert.match(startLocalSource, /tools\\app-package-agent\\src\\server\.mjs/);
+  assert.match(startLocalSource, /tools\\deployment-agent\\src\\server\.mjs/);
+  assert.match(startLocalSource, /app-package-agent\.stdout\.log/);
+  assert.match(startLocalSource, /deployment-agent\.stdout\.log/);
   assert.match(startLocalSource, /node_modules\\vite\\bin\\vite\.js/);
   assert.match(startLocalSource, /WindowStyle Hidden/);
   assert.match(startLocalSource, /processes\.json/);
   assert.match(startLocalSource, /8180, 8181/);
   assert.match(startLocalSource, /8184\.\.8189/);
+  assert.match(startLocalSource, /8190\.\.8195/);
+  assert.match(startLocalSource, /8196\.\.8201/);
   assert.match(startLocalSource, /5175\.\.5180/);
   assert.match(startLocalSource, /STRATEXEC_IDENTITY_BASE_URL/);
+  assert.match(startLocalSource, /STRATEXEC_APP_PACKAGE_AGENT_BASE_URL/);
+  assert.match(startLocalSource, /STRATEXEC_DEPLOYMENT_AGENT_BASE_URL/);
+  assert.match(stopLocalSource, /\$state\.deploymentAgent/);
+  assert.match(stopLocalSource, /\$state\.packageAgent/);
   assert.match(stopLocalSource, /Refusing to stop PID/);
   assert.match(stopLocalSource, /CommandLine/);
 });
@@ -106,6 +116,8 @@ test('guided dry run prepares local Google sign-in without free-form input', () 
   assert.match(localAuthSource, /apps:sdkconfig/);
   assert.match(localAuthSource, /--use-system-ca/);
   assert.match(localAuthSource, /WriteAllLines/);
+  assert.match(localAuthSource, /STRATEXEC_ALLOW_UNSIGNED_APP_PACKAGES = 'true'/);
+  assert.match(bootstrapSource, /STRATEXEC_ALLOW_UNSIGNED_APP_PACKAGES=true/);
   assert.doesNotMatch(localAuthSource, /STRATEXEC_BOOTSTRAP_ADMIN_EMAILS=/);
   assert.doesNotMatch(localAuthSource, /disable.*certificate|ssl.*verify.*false/i);
 });

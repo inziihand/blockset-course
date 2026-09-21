@@ -4,8 +4,9 @@ import { Box } from 'lucide-react';
 import { StrictMode, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AppShell from '../src/shell/AppShell';
-import { appRegistry, validateAppRegistry } from '../src/shell/appRegistry';
+import { appRegistry, canAccessDefinition, validateAppRegistry } from '../src/shell/appRegistry';
 import type { ShellAppDefinition, ShellAppProps } from '../src/shell/types';
+import type { IdentityMember } from '../src/shared/auth/identityClient';
 import { ThemeProvider } from '../src/shared/theme/ThemeProvider';
 import { AppHeaderActions } from '../src/shared/ui/AppHeaderActions';
 
@@ -87,6 +88,22 @@ describe('App Registry contract', () => {
 
   it.each(['', 'UpperCase', 'has space', 'with/slash', '123'])('rejects an invalid App key: %s', (key) => {
     expect(() => validateAppRegistry([makeApp(key, '測試甲', { path: '/apps/valid' })])).toThrow();
+  });
+
+  it('uses the live platform policy instead of the manifest default for whole-App access', () => {
+    const app = makeApp('alpha', '測試甲', { access: 'public' });
+    const member: IdentityMember = {
+      uid: 'member-1', email: 'member@example.test', provider: 'google.com', emailVerified: true,
+      role: 'member', status: 'active', plan: 'free', appGrants: [],
+      appAccess: [{ appKey: 'alpha', allowed: true, reason: 'active_grant', entitlements: [] }],
+    };
+
+    expect(canAccessDefinition(app, null, 'public')).toBe(true);
+    expect(canAccessDefinition(app, null, 'all_members')).toBe(false);
+    expect(canAccessDefinition(app, member, 'all_members')).toBe(true);
+    expect(canAccessDefinition(app, null, 'grant_required')).toBe(false);
+    expect(canAccessDefinition(app, member, 'grant_required')).toBe(true);
+    expect(canAccessDefinition(app, member, 'disabled')).toBe(false);
   });
 });
 

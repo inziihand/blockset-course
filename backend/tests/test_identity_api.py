@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from stratexec.api.identity_app import create_app
-from stratexec.identity.models import EffectiveAppAccess, Member
+from stratexec.identity.models import AppAccessMode, EffectiveAppAccess, InstalledAppCatalogEntry, Member
 
 
 class StubIdentityService:
@@ -21,6 +21,12 @@ class StubIdentityService:
 
     def list_installed_app_keys(self) -> list[str]:
         return ["access-control", "course-app"]
+
+    def list_installed_app_catalog(self) -> list[InstalledAppCatalogEntry]:
+        return [
+            InstalledAppCatalogEntry(app_key="access-control", access_mode=AppAccessMode.ADMINS_ONLY),
+            InstalledAppCatalogEntry(app_key="course-app", access_mode=AppAccessMode.GRANT_REQUIRED),
+        ]
 
 
 class StubDeploymentIdentityService(StubIdentityService):
@@ -55,7 +61,13 @@ def test_installed_app_catalog_is_available_before_login() -> None:
     response = client.get("/api/identity/v1/apps")
 
     assert response.status_code == 200
-    assert response.json() == {"appKeys": ["access-control", "course-app"]}
+    assert response.json() == {
+        "appKeys": ["access-control", "course-app"],
+        "apps": [
+            {"appKey": "access-control", "accessMode": "admins_only"},
+            {"appKey": "course-app", "accessMode": "grant_required"},
+        ],
+    }
 
 
 def test_me_returns_the_server_owned_member_shape() -> None:

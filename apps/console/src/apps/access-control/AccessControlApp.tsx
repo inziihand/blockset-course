@@ -5,7 +5,7 @@ import { useAuth } from '../../shared/auth';
 import type { IdentityMember } from '../../shared/auth/identityClient';
 import { Button, ConfirmDialog, EmptyState, ErrorState, Field, LoadingState } from '../../shared/ui/controls';
 import { FolderTabs, StatusBanner } from '../../shared/ui/patterns';
-import { notifyAppLifecycleChanged } from '../../shared/api/appLifecycle';
+import { notifyAppLifecycleChanged, notifyAppPolicyChanged } from '../../shared/api/appLifecycle';
 import {
   createAccessControlApi,
   type AccessControlApi,
@@ -35,6 +35,8 @@ const accessModeLabels: Record<AppAccessMode, string> = {
   admins_only: '僅管理員',
   disabled: '暫停開放',
 };
+
+const adminManagedAccessModes: AppAccessMode[] = ['public', 'all_members', 'grant_required'];
 
 export default function AccessControlApp({ signal }: ShellAppProps) {
   const { member, getIdToken } = useAuth();
@@ -132,6 +134,7 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
                   run(`policy:${policy.appKey}`, async () => {
                     const updated = await api.setPolicy(policy.appKey, { accessMode, adminAllowed }, signal);
                     setPolicies((current) => current.map((item) => item.appKey === updated.appKey ? updated : item));
+                    notifyAppPolicyChanged();
                   })} />
               : <AppManagementPanel installations={installations} pending={pending} packageApi={packageApi}
                   settingsApi={settingsApi} deploymentApi={deploymentApi} installationKey={installationKey} signal={signal}
@@ -170,7 +173,7 @@ function AppManagementPanel({ installations, pending, packageApi, settingsApi, d
   const closeConfirmation = () => { setRemoveTarget(null); setConfirmation(''); };
   return <>
     {packageApi && <AppPackageInstaller api={packageApi} signal={signal} onJobsChange={setPackageJobs}
-      registeredAppKeys={new Set(installations.map((installation) => installation.appKey))} onRegistered={onReload} />}
+      onRegistered={onReload} />}
     {deploymentApi && <DeploymentLifecycleManager api={deploymentApi} packageJobs={packageJobs}
       installations={installations} installationKey={installationKey} signal={signal}
       onOpenSettings={(appKey, displayName) => setSettingsTarget({ appKey, displayName })}
@@ -226,11 +229,10 @@ function AppManagementPanel({ installations, pending, packageApi, settingsApi, d
   </>;
 }
 
-function AppPackageInstaller({ api, signal, onJobsChange, registeredAppKeys, onRegistered }: {
+function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
   api: AppPackageApi;
   signal?: AbortSignal;
   onJobsChange?(jobs: AppPackageJob[]): void;
-  registeredAppKeys: ReadonlySet<string>;
   onRegistered(): Promise<void>;
 }) {
   const fileInputId = useId();
@@ -312,7 +314,8 @@ function AppPackageInstaller({ api, signal, onJobsChange, registeredAppKeys, onR
   };
   const actionLabels = { add: '新增', update: '更新', delete: '刪除', unchanged: '未變更' } as const;
   const needsRegistration = Boolean(selectedJob && ['succeeded', 'no-op'].includes(selectedJob.status)
-    && !registeredAppKeys.has(selectedJob.appKey));
+    && selectedJob.sourceRegistration?.required
+    && selectedJob.sourceRegistration.status !== 'succeeded');
 
   return <section className="access-package-installer" aria-labelledby="app-package-installer-title">
     <header>
@@ -375,9 +378,9 @@ function AppPackageInstaller({ api, signal, onJobsChange, registeredAppKeys, onR
         ? <>
           <p className="access-package-success">{selectedJob.status === 'succeeded' ? '來源套件已完成驗證與套用。' : '目前來源內容已與此套件一致。'}</p>
           {needsRegistration && <div className="access-package-apply">
-            <p>此純前端 App 尚未登錄 Identity API；完成登錄後即可依原會員權限規則啟用。</p>
+            <p>此純前端 App 的平台資料尚未同步；同步後會更新名稱、entitlement 目錄與安裝狀態，但保留管理員選定的整體開放政策。</p>
             <Button disabled={Boolean(busy)} onClick={() => void activateSource()}>
-              {busy === 'register' ? '登錄中…' : '完成平台登錄'}
+              {busy === 'register' ? '同步中…' : '同步平台資料'}
             </Button>
           </div>}
         </>
@@ -478,13 +481,17 @@ function PoliciesPanel({ policies, pending, onUpdate }: {
     <div role="row" className="access-policy-head"><span role="columnheader">App</span><span role="columnheader">一般會員政策</span><span role="columnheader">管理員</span></div>
     {policies.map((policy) => {
       const busy = pending === `policy:${policy.appKey}`;
-      const modeLocked = policy.protected || policy.allowedAccessModes.length === 1;
+      const selectableModes = policy.protected
+        ? policy.allowedAccessModes
+        : [...adminManagedAccessModes, ...(
+            adminManagedAccessModes.includes(policy.accessMode) ? [] : [policy.accessMode]
+          )];
       const adminToggleRelevant = policy.accessMode === 'grant_required' || policy.accessMode === 'admins_only';
       return <div role="row" key={policy.appKey}>
         <span role="cell"><strong>{policy.displayName}</strong><small>{policy.appKey}{policy.protected ? ' · 系統保護' : ''}</small></span>
         <span role="cell"><select aria-label={`${policy.displayName}一般會員政策`} value={policy.accessMode}
-          disabled={modeLocked || busy} onChange={(event) => onUpdate(policy, event.target.value as AppAccessMode, policy.adminAllowed)}>
-          {policy.allowedAccessModes.map((value) => <option key={value} value={value}>{accessModeLabels[value]}</option>)}
+          disabled={policy.protected || busy} onChange={(event) => onUpdate(policy, event.target.value as AppAccessMode, policy.adminAllowed)}>
+          {selectableModes.map((value) => <option key={value} value={value}>{accessModeLabels[value]}</option>)}
         </select></span>
         <span role="cell"><label><input type="checkbox" checked={policy.adminAllowed}
           disabled={policy.protected || busy || !adminToggleRelevant}

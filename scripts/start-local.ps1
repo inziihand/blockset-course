@@ -11,6 +11,8 @@ $runtimeDirectory = Join-Path $repoRoot '.stratexec\local-runtime'
 $settingsPath = Join-Path $runtimeDirectory 'settings.json'
 $processStatePath = Join-Path $runtimeDirectory 'processes.json'
 $identityCandidates = @(8180, 8181) + @(8184..8189)
+$packageAgentCandidates = @(8182) + @(8190..8195)
+$deploymentAgentCandidates = @(8183) + @(8196..8201)
 $frontendCandidates = @(5175..5180)
 
 function Write-JsonFile {
@@ -87,18 +89,18 @@ function Get-ListenerProcess {
 function Get-OwnedAncestor {
     param(
         [Parameter(Mandatory = $true)] $Process,
-        [Parameter(Mandatory = $true)][ValidateSet('identity', 'frontend')] [string] $Kind
+        [Parameter(Mandatory = $true)][ValidateSet('identity', 'packageAgent', 'deploymentAgent', 'frontend')] [string] $Kind
     )
 
     $escapedRoot = [regex]::Escape($repoRoot)
     $current = $Process
     for ($depth = 0; $depth -lt 4 -and $current; $depth += 1) {
         $commandLine = [string] $current.CommandLine
-        $kindMatches = if ($Kind -eq 'identity') {
-            $commandLine -match 'stratexec\.api\.main:app'
-        }
-        else {
-            $commandLine -match 'vite(?:\.js)?' -and $commandLine -match 'apps[\\/]console'
+        $kindMatches = switch ($Kind) {
+            'identity' { $commandLine -match 'stratexec\.api\.main:app' }
+            'packageAgent' { $commandLine -match 'tools[\\/]app-package-agent[\\/]src[\\/]server\.mjs' }
+            'deploymentAgent' { $commandLine -match 'tools[\\/]deployment-agent[\\/]src[\\/]server\.mjs' }
+            'frontend' { $commandLine -match 'vite(?:\.js)?' -and $commandLine -match 'apps[\\/]console' }
         }
         if ($commandLine -match $escapedRoot -and $kindMatches) { return $current }
         if (-not $current.ParentProcessId) { break }
@@ -120,7 +122,7 @@ function Stop-ProcessTree {
 function Stop-OwnedListener {
     param(
         [Parameter(Mandatory = $true)][int] $Port,
-        [Parameter(Mandatory = $true)][ValidateSet('identity', 'frontend')] [string] $Kind
+        [Parameter(Mandatory = $true)][ValidateSet('identity', 'packageAgent', 'deploymentAgent', 'frontend')] [string] $Kind
     )
 
     $process = Get-ListenerProcess -Port $Port
@@ -208,6 +210,10 @@ if (-not (Test-PythonImports -PythonPath $venvPython)) {
 New-Item -ItemType Directory -Force -Path $runtimeDirectory | Out-Null
 $identityStdout = Join-Path $runtimeDirectory 'identity.stdout.log'
 $identityStderr = Join-Path $runtimeDirectory 'identity.stderr.log'
+$packageAgentStdout = Join-Path $runtimeDirectory 'app-package-agent.stdout.log'
+$packageAgentStderr = Join-Path $runtimeDirectory 'app-package-agent.stderr.log'
+$deploymentAgentStdout = Join-Path $runtimeDirectory 'deployment-agent.stdout.log'
+$deploymentAgentStderr = Join-Path $runtimeDirectory 'deployment-agent.stderr.log'
 $frontendStdout = Join-Path $runtimeDirectory 'frontend.stdout.log'
 $frontendStderr = Join-Path $runtimeDirectory 'frontend.stderr.log'
 
@@ -217,6 +223,20 @@ foreach ($candidate in $identityCandidates) {
     if ($available) { $identityPort = $candidate; break }
 }
 if (-not $identityPort) { throw 'Identity API ports 8180, 8181, and 8184 through 8189 are occupied by other applications.' }
+
+$packageAgentPort = $null
+foreach ($candidate in $packageAgentCandidates) {
+    $available = Stop-OwnedListener -Port $candidate -Kind packageAgent
+    if ($available) { $packageAgentPort = $candidate; break }
+}
+if (-not $packageAgentPort) { throw 'App Package Agent ports 8182 and 8190 through 8195 are occupied by other applications.' }
+
+$deploymentAgentPort = $null
+foreach ($candidate in $deploymentAgentCandidates) {
+    $available = Stop-OwnedListener -Port $candidate -Kind deploymentAgent
+    if ($available) { $deploymentAgentPort = $candidate; break }
+}
+if (-not $deploymentAgentPort) { throw 'Deployment Agent ports 8183 and 8196 through 8201 are occupied by other applications.' }
 
 $frontendPort = $null
 foreach ($candidate in $frontendCandidates) {
@@ -254,14 +274,98 @@ if (-not $identityApps) {
 }
 
 $nodeExecutable = (Get-Command 'node').Source
+$packageAgentScript = Join-Path $repoRoot 'tools\app-package-agent\src\server.mjs'
+$deploymentAgentScript = Join-Path $repoRoot 'tools\deployment-agent\src\server.mjs'
+if (-not (Test-Path -LiteralPath $packageAgentScript) -or
+    -not (Test-Path -LiteralPath $deploymentAgentScript)) {
+    Stop-Process -Id $identityProcess.Id -ErrorAction SilentlyContinue
+    throw 'App installation management services are missing. Fetch a complete platform template and re-run setup.'
+}
+
+$previousPort = $env:PORT
+$previousRepositoryRoot = $env:STRATEXEC_REPOSITORY_ROOT
+$previousIdentityBaseUrl = $env:STRATEXEC_IDENTITY_BASE_URL
+$previousPackageAgentHost = $env:STRATEXEC_APP_PACKAGE_AGENT_HOST
+$previousPackageAgentPort = $env:STRATEXEC_APP_PACKAGE_AGENT_PORT
+try {
+    $env:PORT = $null
+    $env:STRATEXEC_REPOSITORY_ROOT = $repoRoot
+    $env:STRATEXEC_IDENTITY_BASE_URL = "http://127.0.0.1:$identityPort"
+    $env:STRATEXEC_APP_PACKAGE_AGENT_HOST = '127.0.0.1'
+    $env:STRATEXEC_APP_PACKAGE_AGENT_PORT = [string] $packageAgentPort
+    $packageAgentProcess = Start-Process -FilePath $nodeExecutable -ArgumentList @(
+        '--use-system-ca', '--env-file-if-exists=.env.local', $packageAgentScript
+    ) -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput $packageAgentStdout `
+        -RedirectStandardError $packageAgentStderr -PassThru
+}
+finally {
+    $env:PORT = $previousPort
+    $env:STRATEXEC_REPOSITORY_ROOT = $previousRepositoryRoot
+    $env:STRATEXEC_IDENTITY_BASE_URL = $previousIdentityBaseUrl
+    $env:STRATEXEC_APP_PACKAGE_AGENT_HOST = $previousPackageAgentHost
+    $env:STRATEXEC_APP_PACKAGE_AGENT_PORT = $previousPackageAgentPort
+}
+
+$packageAgentUrl = "http://127.0.0.1:$packageAgentPort"
+$packageAgentHealth = Wait-HttpReady -Uri "$packageAgentUrl/healthz"
+if (-not $packageAgentHealth) {
+    Stop-Process -Id $packageAgentProcess.Id -ErrorAction SilentlyContinue
+    Stop-Process -Id $identityProcess.Id -ErrorAction SilentlyContinue
+    $details = Get-Content -LiteralPath $packageAgentStderr -Tail 10 -ErrorAction SilentlyContinue
+    throw "App Package Agent did not become healthy. $($details -join ' ')"
+}
+
+$previousPort = $env:PORT
+$previousRepositoryRoot = $env:STRATEXEC_REPOSITORY_ROOT
+$previousIdentityBaseUrl = $env:STRATEXEC_IDENTITY_BASE_URL
+$previousPackageAgentBaseUrl = $env:STRATEXEC_APP_PACKAGE_AGENT_BASE_URL
+$previousDeploymentAgentHost = $env:STRATEXEC_DEPLOYMENT_AGENT_HOST
+$previousDeploymentAgentPort = $env:STRATEXEC_DEPLOYMENT_AGENT_PORT
+try {
+    $env:PORT = $null
+    $env:STRATEXEC_REPOSITORY_ROOT = $repoRoot
+    $env:STRATEXEC_IDENTITY_BASE_URL = "http://127.0.0.1:$identityPort"
+    $env:STRATEXEC_APP_PACKAGE_AGENT_BASE_URL = $packageAgentUrl
+    $env:STRATEXEC_DEPLOYMENT_AGENT_HOST = '127.0.0.1'
+    $env:STRATEXEC_DEPLOYMENT_AGENT_PORT = [string] $deploymentAgentPort
+    $deploymentAgentProcess = Start-Process -FilePath $nodeExecutable -ArgumentList @(
+        '--use-system-ca', '--env-file-if-exists=.env.local', $deploymentAgentScript
+    ) -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput $deploymentAgentStdout `
+        -RedirectStandardError $deploymentAgentStderr -PassThru
+}
+finally {
+    $env:PORT = $previousPort
+    $env:STRATEXEC_REPOSITORY_ROOT = $previousRepositoryRoot
+    $env:STRATEXEC_IDENTITY_BASE_URL = $previousIdentityBaseUrl
+    $env:STRATEXEC_APP_PACKAGE_AGENT_BASE_URL = $previousPackageAgentBaseUrl
+    $env:STRATEXEC_DEPLOYMENT_AGENT_HOST = $previousDeploymentAgentHost
+    $env:STRATEXEC_DEPLOYMENT_AGENT_PORT = $previousDeploymentAgentPort
+}
+
+$deploymentAgentUrl = "http://127.0.0.1:$deploymentAgentPort"
+$deploymentAgentHealth = Wait-HttpReady -Uri "$deploymentAgentUrl/healthz"
+if (-not $deploymentAgentHealth) {
+    Stop-Process -Id $deploymentAgentProcess.Id -ErrorAction SilentlyContinue
+    Stop-Process -Id $packageAgentProcess.Id -ErrorAction SilentlyContinue
+    Stop-Process -Id $identityProcess.Id -ErrorAction SilentlyContinue
+    $details = Get-Content -LiteralPath $deploymentAgentStderr -Tail 10 -ErrorAction SilentlyContinue
+    throw "Deployment Agent did not become healthy. $($details -join ' ')"
+}
+
 $viteScript = Join-Path $repoRoot 'node_modules\vite\bin\vite.js'
 if (-not (Test-Path -LiteralPath $viteScript)) {
+    Stop-Process -Id $deploymentAgentProcess.Id -ErrorAction SilentlyContinue
+    Stop-Process -Id $packageAgentProcess.Id -ErrorAction SilentlyContinue
     Stop-Process -Id $identityProcess.Id -ErrorAction SilentlyContinue
     throw 'Vite is unavailable. Run scripts/install.ps1 to install npm dependencies.'
 }
 $previousIdentityBaseUrl = $env:STRATEXEC_IDENTITY_BASE_URL
+$previousPackageAgentBaseUrl = $env:STRATEXEC_APP_PACKAGE_AGENT_BASE_URL
+$previousDeploymentAgentBaseUrl = $env:STRATEXEC_DEPLOYMENT_AGENT_BASE_URL
 try {
     $env:STRATEXEC_IDENTITY_BASE_URL = "http://127.0.0.1:$identityPort"
+    $env:STRATEXEC_APP_PACKAGE_AGENT_BASE_URL = $packageAgentUrl
+    $env:STRATEXEC_DEPLOYMENT_AGENT_BASE_URL = $deploymentAgentUrl
     $frontendProcess = Start-Process -FilePath $nodeExecutable -ArgumentList @(
         $viteScript, 'apps/console', '--host', '127.0.0.1', '--port', [string] $frontendPort, '--strictPort'
     ) -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput $frontendStdout `
@@ -269,12 +373,16 @@ try {
 }
 finally {
     $env:STRATEXEC_IDENTITY_BASE_URL = $previousIdentityBaseUrl
+    $env:STRATEXEC_APP_PACKAGE_AGENT_BASE_URL = $previousPackageAgentBaseUrl
+    $env:STRATEXEC_DEPLOYMENT_AGENT_BASE_URL = $previousDeploymentAgentBaseUrl
 }
 
 $frontendUrl = "http://127.0.0.1:$frontendPort/"
 $frontendHealth = Wait-HttpReady -Uri $frontendUrl
 if (-not $frontendHealth -or $frontendHealth.Content -notmatch 'StratExec') {
     Stop-Process -Id $frontendProcess.Id -ErrorAction SilentlyContinue
+    Stop-Process -Id $deploymentAgentProcess.Id -ErrorAction SilentlyContinue
+    Stop-Process -Id $packageAgentProcess.Id -ErrorAction SilentlyContinue
     Stop-Process -Id $identityProcess.Id -ErrorAction SilentlyContinue
     $details = Get-Content -LiteralPath $frontendStderr -Tail 10 -ErrorAction SilentlyContinue
     throw "StratExec Console did not become healthy. $($details -join ' ')"
@@ -290,6 +398,8 @@ Write-JsonFile -Path $processStatePath -Value ([ordered]@{
     configPath = [string] $resolvedConfig
     projectId = $projectId
     identity = [ordered]@{ pid = $identityProcess.Id; url = "http://127.0.0.1:$identityPort" }
+    packageAgent = [ordered]@{ pid = $packageAgentProcess.Id; url = $packageAgentUrl }
+    deploymentAgent = [ordered]@{ pid = $deploymentAgentProcess.Id; url = $deploymentAgentUrl }
     frontend = [ordered]@{ pid = $frontendProcess.Id; url = $frontendUrl }
     startedAt = [DateTime]::UtcNow.ToString('o')
 })
@@ -298,5 +408,7 @@ Write-Host ''
 Write-Host 'StratExec 完整本地環境已啟動。' -ForegroundColor Green
 Write-Host "Console:      $frontendUrl"
 Write-Host "Identity API: http://127.0.0.1:$identityPort"
+Write-Host "Package Agent:    $packageAgentUrl"
+Write-Host "Deployment Agent: $deploymentAgentUrl"
 Write-Host "本機日誌：   $runtimeDirectory"
 Write-Host '停止服務：   .\scripts\stop-local.ps1'

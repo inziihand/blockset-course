@@ -303,6 +303,31 @@ def test_role_policy_can_open_an_app_to_all_active_members() -> None:
     assert access.entitlements == []
 
 
+def test_platform_admin_can_change_a_legacy_single_mode_app_policy() -> None:
+    repository = FakeRepository()
+    repository.policies["premium-course"] = repository.policies["premium-course"].model_copy(
+        update={"allowed_access_modes": [AppAccessMode.GRANT_REQUIRED]}
+    )
+    service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
+    actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
+
+    listed = next(item for item in service.list_app_policies(actor) if item.app_key == "premium-course")
+    assert listed.allowed_access_modes == [
+        AppAccessMode.PUBLIC,
+        AppAccessMode.ALL_MEMBERS,
+        AppAccessMode.GRANT_REQUIRED,
+    ]
+
+    updated = service.set_app_policy(
+        actor,
+        "premium-course",
+        AppPolicyPatch(access_mode=AppAccessMode.PUBLIC, admin_allowed=True),
+    )
+
+    assert updated.access_mode is AppAccessMode.PUBLIC
+    assert updated.allowed_access_modes == listed.allowed_access_modes
+
+
 def test_open_app_can_grant_a_member_an_optional_feature_entitlement() -> None:
     repository = FakeRepository()
     repository.policies["premium-course"] = repository.policies["premium-course"].model_copy(
@@ -346,6 +371,28 @@ def test_app_administrator_receives_all_declared_entitlements() -> None:
     assert access.entitlements == ["course"]
 
 
+def test_public_app_administrator_receives_all_declared_entitlements() -> None:
+    repository = FakeRepository()
+    repository.policies["premium-course"] = repository.policies["premium-course"].model_copy(
+        update={"access_mode": AppAccessMode.PUBLIC}
+    )
+    repository.members["admin-1"] = Member(
+        uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN
+    )
+    service = IdentityService(
+        FakeVerifier(principal(uid="admin-1", email="admin@example.com")),
+        repository,
+        FakeClaims(),
+    )
+
+    member = service.authenticate("valid-token")
+    access = next(item for item in member.app_access if item.app_key == "premium-course")
+
+    assert access.allowed is True
+    assert access.reason == "admin_policy"
+    assert access.entitlements == ["course"]
+
+
 def test_protected_access_app_cannot_be_opened_to_members() -> None:
     service = IdentityService(FakeVerifier(principal()), FakeRepository(), FakeClaims())
     actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
@@ -358,15 +405,15 @@ def test_protected_access_app_cannot_be_opened_to_members() -> None:
         )
 
 
-def test_app_policy_rejects_a_mode_not_declared_by_the_app() -> None:
+def test_general_app_policy_rejects_a_system_only_mode() -> None:
     service = IdentityService(FakeVerifier(principal()), FakeRepository(), FakeClaims())
     actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
 
-    with pytest.raises(ValueError, match="not supported"):
+    with pytest.raises(ValueError, match="not managed by the platform"):
         service.set_app_policy(
             actor,
             "premium-course",
-            AppPolicyPatch(access_mode=AppAccessMode.PUBLIC, admin_allowed=True),
+            AppPolicyPatch(access_mode=AppAccessMode.ADMINS_ONLY, admin_allowed=True),
         )
 
 
@@ -460,7 +507,27 @@ def test_source_installed_frontend_app_is_registered_without_runtime_evidence() 
     assert installed.required_services == []
     assert installed.runtime_revision is None
     assert repository.policies["options-strategy-lab"].access_mode is AppAccessMode.GRANT_REQUIRED
+    assert repository.policies["options-strategy-lab"].allowed_access_modes == [
+        AppAccessMode.PUBLIC,
+        AppAccessMode.ALL_MEMBERS,
+        AppAccessMode.GRANT_REQUIRED,
+    ]
     assert "options-strategy-lab" in service.list_installed_app_keys()
+
+
+def test_public_catalog_exposes_current_policy_and_fails_closed_without_one() -> None:
+    repository = FakeRepository()
+    repository.installations["orphan-app"] = AppInstallation(
+        app_key="orphan-app",
+        display_name="缺少政策的 App",
+    )
+    service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
+
+    catalog = {item.app_key: item.access_mode for item in service.list_installed_app_catalog()}
+
+    assert catalog["premium-course"] is AppAccessMode.GRANT_REQUIRED
+    assert catalog["access-control"] is AppAccessMode.ADMINS_ONLY
+    assert catalog["orphan-app"] is AppAccessMode.DISABLED
 
 
 def test_installed_backend_app_without_runtime_evidence_is_not_available() -> None:

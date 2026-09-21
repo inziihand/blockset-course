@@ -90,7 +90,7 @@ npm run setup
 8. 檢查或引導 Application Default Credentials。
 9. 檢查 Python、建立 `.venv` 並安裝 Identity API。
 10. 視需要以 Y/N 初始化 Firestore、Rules 與 App 清冊。
-11. 從 Console `5175～5180` 與 Identity API `8180、8181、8184～8189` 各選第一個可用埠，啟動並驗證後顯示實際本地網址；`8182／8183` 保留給兩個管理 Agent。
+11. 從 Console `5175～5180` 與 Identity API `8180、8181、8184～8189` 各選第一個可用埠；Package Agent 優先使用 `8182`、Deployment Agent 優先使用 `8183`，衝突時從 `8190～8201` 選用備援埠。四個服務都啟動並通過健康檢查後才顯示實際本地網址；已驗證管理員登入後可直接預檢並安裝 App。本機 source install 可接受經管理員精確確認的未簽章開發套件，正式 runtime deployment 仍要求可信簽章。
 
 第一次安裝不詢問正式部署。正式部署入口這一階段仍是 Windows PowerShell，完成本地測試後才另行執行：
 

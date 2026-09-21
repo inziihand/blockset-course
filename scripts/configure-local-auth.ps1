@@ -140,6 +140,7 @@ function Write-ManagedDotEnv {
         VITE_FIREBASE_APP_ID = [string] $Sdk.appId
         VITE_FIREBASE_MEASUREMENT_ID = [string] $Sdk.measurementId
         STRATEXEC_IDENTITY_BASE_URL = 'http://127.0.0.1:8180'
+        STRATEXEC_ALLOW_UNSIGNED_APP_PACKAGES = 'true'
     }
     $managedNames = @($managed.Keys)
     $preserved = @()
@@ -156,6 +157,7 @@ function Write-ManagedDotEnv {
     $lines = @($preserved)
     if ($lines.Count -gt 0) { $lines += '' }
     $lines += '# Managed by scripts/configure-local-auth.ps1. Firebase Web values are public project identifiers.'
+    $lines += '# Local source install accepts administrator-confirmed development packages; runtime deployment still requires trusted signatures.'
     $lines += @($managed.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" })
 
     $directory = Split-Path -Parent $Path

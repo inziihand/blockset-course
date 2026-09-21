@@ -294,6 +294,7 @@ export async function installAppPackage({
   expectedPlanFingerprint,
   installationContext = { installationKey: 'repository-local', settings: {} },
   postApply,
+  transactionOperations = {},
 }) {
   const resolvedRoot = resolve(rootPath ?? fileURLToPath(new URL('../../', import.meta.url)));
   const plan = await planAppPackageInstall({
@@ -336,13 +337,16 @@ export async function installAppPackage({
   ];
   const transactionRoots = collapseRoots([...plan.roots, ...derivedRoots]);
   const backedUp = new Set();
+  const changedTargets = new Set();
+  const movePath = transactionOperations.rename ?? rename;
+  let preserveTransaction = false;
   try {
     for (const root of transactionRoots) {
       const target = absoluteInRoot(resolvedRoot, root.path);
       if (!(await exists(target))) continue;
       const backup = absoluteInRoot(backupRoot, root.path);
       await mkdir(dirname(backup), { recursive: true });
-      await rename(target, backup);
+      await movePath(target, backup);
       backedUp.add(root.path);
     }
     for (const root of plan.nextRoots) {
@@ -350,8 +354,10 @@ export async function installAppPackage({
       if (!(await exists(staged))) throw new Error(`Staged package root is missing: ${root.path}`);
       const target = absoluteInRoot(resolvedRoot, root.path);
       await mkdir(dirname(target), { recursive: true });
-      await rename(staged, target);
+      await movePath(staged, target);
+      changedTargets.add(root.path);
     }
+    for (const root of derivedRoots) changedTargets.add(root.path);
     await regenerateDerivedFiles(resolvedRoot);
     if (postApply) await postApply({ rootPath: resolvedRoot, plan: publicPlan });
     plan.lock.packages[plan.appKey] = {
@@ -366,18 +372,32 @@ export async function installAppPackage({
       'utf8',
     );
   } catch (error) {
+    const rollbackErrors = [];
     for (const root of [...transactionRoots].reverse()) {
       const target = absoluteInRoot(resolvedRoot, root.path);
-      if (await exists(target)) await rm(target, { recursive: true, force: true });
-      if (backedUp.has(root.path)) {
-        const backup = absoluteInRoot(backupRoot, root.path);
-        await mkdir(dirname(target), { recursive: true });
-        await rename(backup, target);
+      try {
+        if ((changedTargets.has(root.path) || backedUp.has(root.path)) && await exists(target)) {
+          await rm(target, { recursive: true, force: true });
+        }
+        if (backedUp.has(root.path)) {
+          const backup = absoluteInRoot(backupRoot, root.path);
+          await mkdir(dirname(target), { recursive: true });
+          await movePath(backup, target);
+        }
+      } catch (rollbackError) {
+        rollbackErrors.push(new Error(`Failed to restore ${root.path}: ${rollbackError.message}`, { cause: rollbackError }));
       }
+    }
+    if (rollbackErrors.length > 0) {
+      preserveTransaction = true;
+      throw new AggregateError(
+        [error, ...rollbackErrors],
+        `App package install failed and rollback was incomplete. Recovery files are preserved at ${transactionRoot}. Original error: ${error.message}`,
+      );
     }
     throw error;
   } finally {
-    await rm(transactionRoot, { recursive: true, force: true });
+    if (!preserveTransaction) await rm(transactionRoot, { recursive: true, force: true });
   }
   return { ...publicPlan, applied: true };
 }

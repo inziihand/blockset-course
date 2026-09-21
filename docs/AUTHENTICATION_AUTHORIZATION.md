@@ -9,7 +9,7 @@
 3. 公開母版只提供 `infrastructure/environments/installation.example.json`；每個客戶複製為被 Git 忽略的 `*.local.json` 或 repository 外的私人 overlay，再填入自己的 GCP/Firebase project。
 4. 在 Firebase Console 明確檢查 Google Provider、support email 與正式網域，再重新啟動 Vite。
 
-安裝完成後可用 `npm run start:local` 重啟本地 Identity API 與 Console，使用 `npm run stop:local` 停止。Cloud Run／Hosting 正式部署是日後獨立的 `.\scripts\deploy.ps1` 流程，不在第一次本地安裝中詢問或執行。
+安裝完成後可用 `npm run start:local` 一起重啟本地 Identity API、Package Agent、Deployment Agent 與 Console，使用 `npm run stop:local` 停止。首位已驗證管理員可直接使用 App 安裝管理；本機 source install 可接受經管理員精確確認的未簽章開發套件，但 runtime deployment 仍要求 `trusted-signed`，且正式雲端 target 維持停用。Cloud Run／Hosting 正式部署是日後獨立的 `.\scripts\deploy.ps1` 流程，不在第一次本地安裝中詢問或執行。
 
 Firebase Web App 設定會進入瀏覽器 bundle。它負責識別 Firebase 專案，不是管理員憑證；資料安全仍須依靠後端 ID Token 驗證、Firebase Security Rules 與需要時的 App Check。
 
@@ -30,7 +30,7 @@ STRATEXEC_BOOTSTRAP_ADMIN_EMAILS=
 3. 只有可信任 Identity API 可讀取 `STRATEXEC_BOOTSTRAP_ADMIN_EMAILS`；僅在該帳號第一次建立會員文件時給予 admin，後續變更環境變數不會默默提升既有會員。
 4. 伺服器端 `members/{uid}` 是角色與狀態權威；custom claim 只作粗粒度 UI／Rules 提示，不取代伺服器授權。
 5. App 全域政策放在 `appPolicies/{appKey}`，安裝生命週期放在 `appInstallations/{appKey}`；個別授權放在 `members/{uid}/appGrants/{appKey}`，不把所有 App 權限塞入 custom claims。
-6. Identity API 依安裝狀態、會員狀態、平台角色、App policy、個別 grant 與有效期限算出 `appAccess`；每筆結果同時包含整體 `allowed` 與該 App 自訂的 `entitlements[]`。未安裝、已停用與未知 App 預設拒絕。
+6. Identity API 依安裝狀態、會員狀態、平台角色、App policy、個別 grant 與有效期限算出 `appAccess`；每筆結果同時包含整體 `allowed` 與該 App 自訂的 `entitlements[]`。未安裝、已停用與未知 App 預設拒絕。未登入 Shell 則透過公開 App catalog 取得已安裝 App 的目前 `accessMode`，只讓 `public` 入口通過；catalog 不公開會員 grant 或 entitlement。
 7. 管理 API 每次都驗證 ID Token 與 Firestore 權限；異動寫入 `adminAuditLogs`。
 8. 首位管理員完成 bootstrap 後，其他使用權限由受保護的「會員與權限」App 維護並留下稽核紀錄；最後一位 active admin 不可停用或降級。
 
@@ -40,7 +40,7 @@ STRATEXEC_BOOTSTRAP_ADMIN_EMAILS=
 
 - `members/{uid}`：平台會員、角色、狀態與方案。
 - `members/{uid}/appGrants/{appKey}`：個別 App 的 `enabled`、App-local `roles[]` 與功能 `entitlements[]`；不另建第二份功能授權 collection。
-- `appPolicies/{appKey}`：已安裝 App 的全域開放模式及 manifest 宣告的功能權限目錄；升級會同步目錄，但不覆蓋既有 `accessMode`／`adminAllowed`。
+- `appPolicies/{appKey}`：已安裝 App 的全域開放模式及 manifest 宣告的功能權限目錄；一般 App 的 `public`／`all_members`／`grant_required` 由平台管理員決定，升級會同步功能目錄但不覆蓋既有 `accessMode`／`adminAllowed`。
 - `appInstallations/{appKey}`：App 的 `installed`／`disabled`／`uninstalled` 狀態、分類、可移除性與相依服務；管理員只透過 Identity API 異動。
 - `apps/{appKey}/...`：App 自有資料；每個 App 必須另外提出 schema 與 Rules，母版不提供泛用開口。
 - `adminAuditLogs/{id}`：管理異動稽核。
@@ -50,7 +50,7 @@ STRATEXEC_BOOTSTRAP_ADMIN_EMAILS=
 
 ## 目前完成與未完成
 
-已完成：Firebase SDK、Google popup 登入、登入後 Identity session 同步、ID Token 介面、可移植安裝描述、Identity API、Firestore 會員／App grant／App policy／App installation adapter、整體 App 與 App-local 功能權限解析、custom claim 同步、管理 API、「會員與權限」App 的會員／權限／App 管理頁籤、預設拒絕 Rules、Rules 測試、OpenAPI 契約，以及批次 1～5 Cloud Run／Hosting／bootstrap admin 安裝器。`GET /api/identity/v1/access/{appKey}` 提供 App 後端查詢 `allowed` 與 `entitlements[]`；付費 API 必須查驗兩者，不能只靠前端鎖頭或模糊遮罩。`GET /api/identity/v1/admin/deployment-access/{appKey}` 則專供 Deployment Agent 複驗 active admin 的 App 安裝管理權，可識別尚未註冊的新 App，且拒絕受保護核心 App。第 7 批設定與秘密 API 也對每個 App 寫入操作重新呼叫此權限檢查；平台級 OAuth／bootstrap 摘要則只開放 active admin，且不回傳秘密。`GET /api/identity/v1/apps` 讓 Shell 套用伺服器端已安裝清單。
+已完成：Firebase SDK、Google popup 登入、登入後 Identity session 同步、ID Token 介面、可移植安裝描述、Identity API、Firestore 會員／App grant／App policy／App installation adapter、整體 App 與 App-local 功能權限解析、custom claim 同步、管理 API、「會員與權限」App 的會員／權限／App 管理頁籤、預設拒絕 Rules、Rules 測試、OpenAPI 契約，以及批次 1～5 Cloud Run／Hosting／bootstrap admin 安裝器。`GET /api/identity/v1/access/{appKey}` 提供 App 後端查詢 `allowed` 與 `entitlements[]`；付費 API 必須查驗兩者，不能只靠前端鎖頭或模糊遮罩。`GET /api/identity/v1/admin/deployment-access/{appKey}` 則專供 Deployment Agent 複驗 active admin 的 App 安裝管理權，可識別尚未註冊的新 App，且拒絕受保護核心 App。第 7 批設定與秘密 API 也對每個 App 寫入操作重新呼叫此權限檢查；平台級 OAuth／bootstrap 摘要則只開放 active admin，且不回傳秘密。公開的 `GET /api/identity/v1/apps` 只回傳可用 installation 及目前 `accessMode`，讓 Shell 在登入前套用管理員設定；若 catalog 無法讀取，已設定 Firebase 的環境會 fail closed，不使用 manifest 預設值猜測。
 
 尚未完成：App Check、正式自訂網域，以及公開母版的全新客戶雲端發布驗收。安裝器目前只有本機與唯讀 preflight 證據；未啟動 Identity API 時，前端 session 同步 fail closed，不會在瀏覽器自行授予管理權。Registry 隱藏與拒絕導覽只是使用者體驗；凡是付費或敏感 App，其專屬 API仍必須在伺服器端查驗 `appAccess`。母版目前不預載業務 App，後續以外部簽章 ZIP 驗證完整安裝流程。
 

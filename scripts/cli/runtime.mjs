@@ -17,6 +17,8 @@ function portRange(start, end) {
 }
 
 const IDENTITY_PORTS = [8180, 8181, ...portRange(8184, 8189)];
+const PACKAGE_AGENT_PORTS = [8182, ...portRange(8190, 8195)];
+const DEPLOYMENT_AGENT_PORTS = [8183, ...portRange(8196, 8201)];
 const FRONTEND_PORTS = portRange(5175, 5180);
 
 function runtimePaths(repoRoot) {
@@ -217,7 +219,12 @@ export async function stopLocal(repoRoot, options = {}) {
   if (path.resolve(state.repoRoot ?? '') !== path.resolve(repoRoot)) {
     throw new Error('拒絕停止服務：程序狀態不屬於目前 StratExec checkout。');
   }
-  const pids = [state.frontend?.pid, state.identity?.pid]
+  const pids = [
+    state.frontend?.pid,
+    state.deploymentAgent?.pid,
+    state.packageAgent?.pid,
+    state.identity?.pid,
+  ]
     .map(Number)
     .filter((pid) => Number.isInteger(pid) && pid > 0);
   for (const pid of pids) stopManagedPid(pid);
@@ -261,12 +268,23 @@ export async function startLocal(repoRoot, options = {}) {
   const pythonPath = await ensureVirtualEnvironment(repoRoot, options.guided ?? false);
   const viteScript = path.join(repoRoot, 'node_modules', 'vite', 'bin', 'vite.js');
   if (!await pathExists(viteScript)) throw new Error('找不到 Vite。請先執行 npm run setup。');
+  const packageAgentScript = path.join(repoRoot, 'tools', 'app-package-agent', 'src', 'server.mjs');
+  const deploymentAgentScript = path.join(repoRoot, 'tools', 'deployment-agent', 'src', 'server.mjs');
+  if (!await pathExists(packageAgentScript) || !await pathExists(deploymentAgentScript)) {
+    throw new Error('找不到 App 安裝管理服務。請重新取得完整母版後執行 npm run setup。');
+  }
 
   const identityOut = openSync(path.join(paths.directory, 'identity.stdout.log'), 'a');
   const identityErr = openSync(path.join(paths.directory, 'identity.stderr.log'), 'a');
+  const packageAgentOut = openSync(path.join(paths.directory, 'app-package-agent.stdout.log'), 'a');
+  const packageAgentErr = openSync(path.join(paths.directory, 'app-package-agent.stderr.log'), 'a');
+  const deploymentAgentOut = openSync(path.join(paths.directory, 'deployment-agent.stdout.log'), 'a');
+  const deploymentAgentErr = openSync(path.join(paths.directory, 'deployment-agent.stderr.log'), 'a');
   const frontendOut = openSync(path.join(paths.directory, 'frontend.stdout.log'), 'a');
   const frontendErr = openSync(path.join(paths.directory, 'frontend.stderr.log'), 'a');
   let identityProcess;
+  let packageAgentProcess;
+  let deploymentAgentProcess;
   let frontendProcess;
   try {
     const identity = await launchOnAvailablePort(IDENTITY_PORTS, {
@@ -299,6 +317,61 @@ export async function startLocal(repoRoot, options = {}) {
     identityProcess = identity.managedProcess;
     const identityUrl = `http://127.0.0.1:${identity.port}`;
 
+    const packageAgent = await launchOnAvailablePort(PACKAGE_AGENT_PORTS, {
+      label: 'App Package Agent',
+      launch: (port) => spawnDetached(process.execPath, [
+        '--use-system-ca', '--env-file-if-exists=.env.local', packageAgentScript,
+      ], {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          PORT: '',
+          STRATEXEC_REPOSITORY_ROOT: repoRoot,
+          STRATEXEC_IDENTITY_BASE_URL: identityUrl,
+          STRATEXEC_APP_PACKAGE_AGENT_HOST: '127.0.0.1',
+          STRATEXEC_APP_PACKAGE_AGENT_PORT: String(port),
+        },
+        stdoutFd: packageAgentOut,
+        stderrFd: packageAgentErr,
+      }),
+      ready: (managedProcess, port) => waitForManagedHttp(
+        `http://127.0.0.1:${port}/healthz`, managedProcess.pid,
+      ),
+    });
+    if (!packageAgent) {
+      throw new Error('App Package Agent 連接埠 8182、8190～8195 都已被其他程式使用。');
+    }
+    packageAgentProcess = packageAgent.managedProcess;
+    const packageAgentUrl = `http://127.0.0.1:${packageAgent.port}`;
+
+    const deploymentAgent = await launchOnAvailablePort(DEPLOYMENT_AGENT_PORTS, {
+      label: 'Deployment Agent',
+      launch: (port) => spawnDetached(process.execPath, [
+        '--use-system-ca', '--env-file-if-exists=.env.local', deploymentAgentScript,
+      ], {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          PORT: '',
+          STRATEXEC_REPOSITORY_ROOT: repoRoot,
+          STRATEXEC_IDENTITY_BASE_URL: identityUrl,
+          STRATEXEC_APP_PACKAGE_AGENT_BASE_URL: packageAgentUrl,
+          STRATEXEC_DEPLOYMENT_AGENT_HOST: '127.0.0.1',
+          STRATEXEC_DEPLOYMENT_AGENT_PORT: String(port),
+        },
+        stdoutFd: deploymentAgentOut,
+        stderrFd: deploymentAgentErr,
+      }),
+      ready: (managedProcess, port) => waitForManagedHttp(
+        `http://127.0.0.1:${port}/healthz`, managedProcess.pid,
+      ),
+    });
+    if (!deploymentAgent) {
+      throw new Error('Deployment Agent 連接埠 8183、8196～8201 都已被其他程式使用。');
+    }
+    deploymentAgentProcess = deploymentAgent.managedProcess;
+    const deploymentAgentUrl = `http://127.0.0.1:${deploymentAgent.port}`;
+
     const frontend = await launchOnAvailablePort(FRONTEND_PORTS, {
       label: 'StratExec Console',
       launch: (port) => spawnDetached(process.execPath, [
@@ -309,6 +382,8 @@ export async function startLocal(repoRoot, options = {}) {
         env: {
           ...process.env,
           STRATEXEC_IDENTITY_BASE_URL: identityUrl,
+          STRATEXEC_APP_PACKAGE_AGENT_BASE_URL: packageAgentUrl,
+          STRATEXEC_DEPLOYMENT_AGENT_BASE_URL: deploymentAgentUrl,
         },
         stdoutFd: frontendOut,
         stderrFd: frontendErr,
@@ -336,6 +411,8 @@ export async function startLocal(repoRoot, options = {}) {
       configPath,
       projectId,
       identity: { pid: identityProcess.pid, url: identityUrl },
+      packageAgent: { pid: packageAgentProcess.pid, url: packageAgentUrl },
+      deploymentAgent: { pid: deploymentAgentProcess.pid, url: deploymentAgentUrl },
       frontend: { pid: frontendProcess.pid, url: frontendUrl },
       startedAt: new Date().toISOString(),
     });
@@ -343,16 +420,24 @@ export async function startLocal(repoRoot, options = {}) {
     console.log('\nStratExec 完整本地環境已啟動。');
     console.log(`Console:      ${frontendUrl}`);
     console.log(`Identity API: ${identityUrl}`);
+    console.log(`Package Agent:    ${packageAgentUrl}`);
+    console.log(`Deployment Agent: ${deploymentAgentUrl}`);
     console.log(`本機日誌：   ${paths.directory}`);
     console.log('停止服務：   npm run stop:local');
     return { frontendUrl, identityUrl };
   } catch (error) {
     if (frontendProcess?.pid) stopManagedPid(frontendProcess.pid);
+    if (deploymentAgentProcess?.pid) stopManagedPid(deploymentAgentProcess.pid);
+    if (packageAgentProcess?.pid) stopManagedPid(packageAgentProcess.pid);
     if (identityProcess?.pid) stopManagedPid(identityProcess.pid);
     throw error;
   } finally {
     closeSync(identityOut);
     closeSync(identityErr);
+    closeSync(packageAgentOut);
+    closeSync(packageAgentErr);
+    closeSync(deploymentAgentOut);
+    closeSync(deploymentAgentErr);
     closeSync(frontendOut);
     closeSync(frontendErr);
   }
@@ -362,6 +447,8 @@ export const runtimeInternals = {
   compatiblePython,
   venvPythonPath,
   portRange,
+  packageAgentPorts: PACKAGE_AGENT_PORTS,
+  deploymentAgentPorts: DEPLOYMENT_AGENT_PORTS,
   waitForManagedHttp,
   launchOnAvailablePort,
 };

@@ -92,6 +92,16 @@ describe('會員與權限 App', () => {
     const protectedSelect = screen.getByRole('combobox', { name: '會員與權限一般會員政策' });
     expect(protectedSelect.hasAttribute('disabled')).toBe(true);
 
+    const appSelect = screen.getByRole('combobox', { name: '付費課程一般會員政策' });
+    expect(appSelect.hasAttribute('disabled')).toBe(false);
+    expect(Array.from((appSelect as HTMLSelectElement).options).map((option) => option.value)).toEqual([
+      'public', 'all_members', 'grant_required',
+    ]);
+    await user.selectOptions(appSelect, 'public');
+    await waitFor(() => expect(api.setPolicy).toHaveBeenCalledWith(
+      'premium-course', { accessMode: 'public', adminAllowed: true }, undefined,
+    ));
+
     await user.click(screen.getByRole('tab', { name: 'App 管理' }));
     expect(screen.getByText('系統保護')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: '移除' }));
@@ -181,6 +191,7 @@ describe('會員與權限 App', () => {
       createdAt: '2026-09-18T00:00:00Z',
       updatedAt: '2026-09-18T00:00:00Z',
       createdBy: { uid: 'admin-1', email: 'admin@example.com' },
+      sourceRegistration: { required: true, status: 'pending' },
     };
     const inspectPackage = vi.fn(async () => packageJob);
     const applyJob = vi.fn(async () => ({ ...packageJob, status: 'succeeded' as const, applyAllowed: false }));
@@ -222,7 +233,7 @@ describe('會員與權限 App', () => {
       packageJob.jobId, 'course-app@1.0.0', undefined,
     ));
     expect(await screen.findByText(/來源套件已完成驗證與套用/)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: '完成平台登錄' }));
+    await user.click(screen.getByRole('button', { name: '同步平台資料' }));
     await waitFor(() => expect(activateSource).toHaveBeenCalledWith(packageJob.jobId, undefined));
   });
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -131,6 +131,47 @@ test('rolls source and derived files back when post-install validation fails', a
     assert.equal(await exists(join(target, 'apps', 'console', 'src', 'shell', 'generatedAppRegistry.ts')), false);
     const lock = JSON.parse(await readFile(join(target, 'infrastructure', 'app-packages.lock.json'), 'utf8'));
     assert.deepEqual(lock.packages, {});
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('does not delete an untouched target when the backup phase fails', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-backup-failure-'));
+  try {
+    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const target = await prepareTarget(directory);
+    const servicesPath = join(target, 'infrastructure', 'services.json');
+    const lockPath = join(target, 'infrastructure', 'app-packages.lock.json');
+    const originalServices = '{"sentinel":"services"}\n';
+    const originalLock = await readFile(lockPath, 'utf8');
+    await writeFile(servicesPath, originalServices);
+    let failed = false;
+
+    await assert.rejects(
+      () => installAppPackage({
+        zipPath: packed.zipPath,
+        rootPath: target,
+        apply: true,
+        confirmation: 'demo@0.1.0',
+        transactionOperations: {
+          rename: async (source, destination) => {
+            if (!failed && source === lockPath) {
+              failed = true;
+              throw new Error('simulated backup failure');
+            }
+            await rename(source, destination);
+          },
+        },
+      }),
+      /simulated backup failure/,
+    );
+
+    assert.equal(await readFile(servicesPath, 'utf8'), originalServices);
+    assert.equal(await readFile(lockPath, 'utf8'), originalLock);
+    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'demo')), false);
+    const transactions = join(target, '.stratexec', 'app-installations');
+    assert.deepEqual(await import('node:fs/promises').then(({ readdir }) => readdir(transactions)), []);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

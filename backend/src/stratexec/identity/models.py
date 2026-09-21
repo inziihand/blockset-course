@@ -210,5 +210,11 @@ class AppInstallationList(ApiModel):
     installations: list[AppInstallation]
 
 
+class InstalledAppCatalogEntry(ApiModel):
+    app_key: str
+    access_mode: AppAccessMode
+
+
 class InstalledAppList(ApiModel):
     app_keys: list[str]
+    apps: list[InstalledAppCatalogEntry]

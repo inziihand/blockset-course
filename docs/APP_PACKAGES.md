@@ -107,7 +107,7 @@ Source install 的 `planFingerprint` 綁定 ZIP digest、目前 owned files、�
 npm run dev:app-packages
 ```
 
-Agent 永遠只綁定 `127.0.0.1:8182`；狀態位於 `.stratexec/app-package-agent/`。`trusted-signed` 套件可進行 source apply；母版的 `STRATEXEC_ALLOW_UNSIGNED_APP_PACKAGES=false` 讓 `development-unsigned` 套件只能預檢。受信任的開發 checkout 若要實際套用未簽章套件，必須在未提交的 `.env.local` 明確設為 `true` 並重啟代理。
+Agent 永遠只綁定 loopback；單獨開發啟動預設為 `127.0.0.1:8182`，母版本機生命週期會在多份 checkout 衝突時選用備援埠並把實際端點交給 Console。狀態位於 `.stratexec/app-package-agent/`。`trusted-signed` 套件可進行 source apply；原始母版與單獨 Agent 預設 `STRATEXEC_ALLOW_UNSIGNED_APP_PACKAGES=false`，完整 `npm run setup` 產生的本機 overlay 則設為 `true`，讓 active verified admin 經精確版本確認後套用開發套件。這個例外只允許本機 source install；Deployment Agent 及正式 runtime deployment 永遠仍要求 `trusted-signed`。
 
 這是 repository control agent，不是 runtime Service：不登錄客戶 service placement、不產生 Hosting rewrite，也禁止使用 Cloud Run 的 `PORT` 啟動。前端只送檔案與確認值，不能接觸 repository 路徑、Git、建置憑證或 artifact 磁碟位置。API 契約為 `contracts/app-packages/openapi.json`。
 

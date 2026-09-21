@@ -1,4 +1,5 @@
 import type { IdentityMember } from '../shared/auth/identityClient';
+import type { AppAccessMode } from '../shared/api/appLifecycle';
 import type { ShellAppDefinition, ShellAppKey } from './types';
 import { generatedAppRegistry } from './generatedAppRegistry';
 
@@ -13,8 +14,14 @@ export function isLaunchableDefinition(
 
 export const getLaunchableApps = (apps = appRegistry) => apps.filter(isLaunchableDefinition);
 
-export function canAccessDefinition(app: ShellAppDefinition, member: IdentityMember | null) {
-  if (app.access === 'public') return true;
+export function canAccessDefinition(
+  app: ShellAppDefinition,
+  member: IdentityMember | null,
+  accessMode?: AppAccessMode,
+) {
+  if (accessMode === 'disabled') return false;
+  if (accessMode === 'public' || (!accessMode && app.access === 'public')) return true;
+  if (accessMode === 'all_members') return member?.status === 'active';
   return member?.appAccess.some((access) => access.appKey === app.key && access.allowed) === true;
 }
 

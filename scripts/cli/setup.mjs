@@ -419,12 +419,14 @@ async function writeManagedEnv(repoRoot, installation, sdk) {
     ['VITE_FIREBASE_APP_ID', sdk.appId],
     ['VITE_FIREBASE_MEASUREMENT_ID', sdk.measurementId ?? ''],
     ['STRATEXEC_IDENTITY_BASE_URL', 'http://127.0.0.1:8180'],
+    ['STRATEXEC_ALLOW_UNSIGNED_APP_PACKAGES', 'true'],
   ]);
   const previous = await pathExists(envPath) ? (await readFile(envPath, 'utf8')).split(/\r?\n/) : [];
   const preserved = previous.filter((line) => ![...managed.keys()].some((key) => line.startsWith(`${key}=`)));
   while (preserved.length && !preserved.at(-1)?.trim()) preserved.pop();
   if (preserved.length) preserved.push('');
   preserved.push('# Managed by npm run setup. Firebase Web values are public project identifiers.');
+  preserved.push('# Local source install accepts administrator-confirmed development packages; runtime deployment still requires trusted signatures.');
   for (const [key, value] of managed) preserved.push(`${key}=${value ?? ''}`);
   await writeFile(envPath, `${preserved.join('\n')}\n`, 'utf8');
   return envPath;

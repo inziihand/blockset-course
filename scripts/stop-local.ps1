@@ -23,7 +23,7 @@ function Stop-ProcessTree {
     Stop-Process -Id $ProcessId -ErrorAction SilentlyContinue
 }
 
-foreach ($entry in @($state.identity, $state.frontend)) {
+foreach ($entry in @($state.frontend, $state.deploymentAgent, $state.packageAgent, $state.identity)) {
     if (-not $entry -or -not $entry.pid) { continue }
     $process = Get-CimInstance Win32_Process -Filter "ProcessId=$([int] $entry.pid)" -ErrorAction SilentlyContinue
     if (-not $process) { continue }

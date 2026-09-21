@@ -16,6 +16,7 @@ from stratexec.identity.models import (
     AppPolicyPatch,
     DeploymentAccess,
     EffectiveAppAccess,
+    InstalledAppCatalogEntry,
     Member,
     MemberList,
     MemberPatch,
@@ -63,7 +64,8 @@ def create_app(service: IdentityService | None = None) -> FastAPI:
 
     @app.get("/api/identity/v1/apps", response_model=InstalledAppList, response_model_by_alias=True)
     def list_installed_apps(request: Request) -> InstalledAppList:
-        return InstalledAppList(app_keys=request.app.state.identity_service.list_installed_app_keys())
+        apps: list[InstalledAppCatalogEntry] = request.app.state.identity_service.list_installed_app_catalog()
+        return InstalledAppList(app_keys=[item.app_key for item in apps], apps=apps)
 
     @app.post("/api/identity/v1/session", response_model=Member, response_model_by_alias=True)
     def synchronize_session(member: Annotated[Member, Depends(authenticated_member)]) -> Member:

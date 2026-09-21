@@ -42,10 +42,16 @@ test('cross-platform runtime resolves both Windows and POSIX virtual environment
 
 test('local lifecycle allocates consecutive ports for multiple checkouts', () => {
   assert.deepEqual(runtimeInternals.portRange(5175, 5180), [5175, 5176, 5177, 5178, 5179, 5180]);
+  assert.deepEqual(runtimeInternals.packageAgentPorts, [8182, 8190, 8191, 8192, 8193, 8194, 8195]);
+  assert.deepEqual(runtimeInternals.deploymentAgentPorts, [8183, 8196, 8197, 8198, 8199, 8200, 8201]);
   assert.match(runtimeSource, /IDENTITY_PORTS = \[8180, 8181, \.\.\.portRange\(8184, 8189\)\]/);
   assert.doesNotMatch(runtimeSource.match(/const IDENTITY_PORTS = .+;/)?.[0] ?? '', /8182|8183/);
   assert.match(runtimeSource, /FRONTEND_PORTS = portRange\(5175, 5180\)/);
   assert.match(runtimeSource, /STRATEXEC_IDENTITY_BASE_URL: identityUrl/);
+  assert.match(runtimeSource, /STRATEXEC_APP_PACKAGE_AGENT_BASE_URL: packageAgentUrl/);
+  assert.match(runtimeSource, /STRATEXEC_DEPLOYMENT_AGENT_BASE_URL: deploymentAgentUrl/);
+  assert.match(runtimeSource, /packageAgent: \{ pid: packageAgentProcess\.pid, url: packageAgentUrl \}/);
+  assert.match(runtimeSource, /deploymentAgent: \{ pid: deploymentAgentProcess\.pid, url: deploymentAgentUrl \}/);
   assert.match(viteConfigSource, /STRATEXEC_IDENTITY_BASE_URL/);
   assert.match(viteConfigSource, /target: identityOrigin/);
   assert.match(viteConfigSource, /STRATEXEC_APP_PACKAGE_AGENT_PORT/);
@@ -122,6 +128,7 @@ test('setup keeps local installation separate from formal cloud deployment', () 
   assert.match(setupSource, /firestoreReady/);
   assert.match(setupSource, /configureLocalAuth/);
   assert.match(setupSource, /startLocal/);
+  assert.match(setupSource, /\['STRATEXEC_ALLOW_UNSIGNED_APP_PACKAGES', 'true'\]/);
 });
 
 test('Firebase Auth bootstrap separates OAuth redirects from local authorized domains', () => {

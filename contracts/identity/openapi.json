@@ -536,6 +536,23 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InstalledAppCatalogEntry": {
+        "properties": {
+          "accessMode": {
+            "$ref": "#/components/schemas/AppAccessMode"
+          },
+          "appKey": {
+            "title": "Appkey",
+            "type": "string"
+          }
+        },
+        "required": [
+          "appKey",
+          "accessMode"
+        ],
+        "title": "InstalledAppCatalogEntry",
+        "type": "object"
+      },
       "InstalledAppList": {
         "properties": {
           "appKeys": {
@@ -544,10 +561,18 @@
             },
             "title": "Appkeys",
             "type": "array"
+          },
+          "apps": {
+            "items": {
+              "$ref": "#/components/schemas/InstalledAppCatalogEntry"
+            },
+            "title": "Apps",
+            "type": "array"
           }
         },
         "required": [
-          "appKeys"
+          "appKeys",
+          "apps"
         ],
         "title": "InstalledAppList",
         "type": "object"

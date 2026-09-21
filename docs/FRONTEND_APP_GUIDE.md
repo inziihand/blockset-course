@@ -27,15 +27,16 @@
 
 ### App 內功能權限
 
-- 整體 App 存取由 `access.defaultMode`／`allowedModes` 控制；App 內的課程、即時資料或進階分析等功能才使用 `access.entitlements[]`。
+- 整體 App 目前採用「未登入可用／所有登入會員／需要個別授權」哪一種模式，由平台管理員在安裝後決定；`access.defaultMode` 只是首次安裝預設值。舊版套件仍須攜帶 `allowedModes` 以維持契約相容，但非系統 App 不得用它限制管理員後續切換政策。Shell 必須讀取 Identity API 的目前政策，不能把建置時的預設值當成永久授權結果。
+- App 內維持三層即可：公開基本功能不加條件、會員功能檢查 active 登入身分、需付費或指定授權的功能才檢查 `access.entitlements[]`。登入本身不是 entitlement，也不代表已取得任何功能授權。
 - entitlement key 由 App manifest 定義，平台只驗證、保存與回傳，不解讀業務語意。管理員在「會員與權限」App 對會員勾選功能；active admin 在 `adminAllowed` 下取得該 App 宣告的全部功能權限。
 - 前端可用 `hasAppEntitlement(member, appKey, key)` 決定鎖頭、說明與導流，但這只改善介面。付費內容、下載或計算 API 必須向 Identity API 取得伺服器解析的 `allowed` 與 `entitlements[]` 後再執行。
-- 不用平台 `role` 或 App-local `roles[]` 模擬每個付費功能，也不為 entitlement 增加第二套 collection／服務。
+- 不用平台 `role` 或 App-local `roles[]` 模擬每個付費功能，也不為 entitlement 增加第二套 collection／服務。多個一起販售或授權的功能共用一個能力型 entitlement，例如 `course`；只有能獨立授權的產品能力才拆成 `realtime-data`、`strategy-export` 等其他 key。
 
 ```json
 "access": {
-  "defaultMode": "all_members",
-  "allowedModes": ["all_members", "grant_required", "admins_only", "disabled"],
+  "defaultMode": "public",
+  "allowedModes": ["public", "all_members", "grant_required"],
   "entitlements": [
     { "key": "course", "displayName": "課程學員功能", "description": "解鎖課程模板與進階分析" }
   ],
@@ -79,6 +80,8 @@ export default function ExampleApp() {
   </>;
 }
 ```
+
+例如公開 App 可讓任何人試用基本分析；active 會員登入後可存取自己的草稿；只有 Identity 回傳 `course` entitlement 時才解鎖課程模板與進階分析。若平台管理員把整個 App 改成 `all_members` 或 `grant_required`，Shell 的選單與直接網址都以伺服器目前政策為準，不需重新建置前端。
 
 ## 顯示模式與裝置適配
 

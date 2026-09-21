@@ -45,7 +45,7 @@ customer-a project             customer-b project
    npm run setup
    ```
 
-   再次執行時可沿用精靈偵測到的單一完整 local overlay；有多份時以編號選擇，仍含公開範例值或 `unassigned` placement 的副本會被略過。衝突覆寫不要求鍵入確認字串。唯讀 preflight 後，Node 安裝器會讀取 Firebase／Google Provider／Web App 狀態，準備 ADC、跨平台 Python `.venv`、Firestore／Rules／App 清冊，然後從 Console `5175～5180` 與 Identity API `8180、8181、8184～8189` 各選第一個可用埠，啟動並驗證兩個本機服務；`8182／8183` 保留給 Package Agent 與 Deployment Agent。必要的 managed service 初始化均在動作前以 Y/N 確認。第一次安裝到此結束，不詢問 Cloud Run／Hosting 正式部署。進階 Windows 操作者仍可使用 `install.ps1 -ConfigPath ...`；正式維運也可把私人 overlay 放在 repository 外。
+   再次執行時可沿用精靈偵測到的單一完整 local overlay；有多份時以編號選擇，仍含公開範例值或 `unassigned` placement 的副本會被略過。衝突覆寫不要求鍵入確認字串。唯讀 preflight 後，Node 安裝器會讀取 Firebase／Google Provider／Web App 狀態，準備 ADC、跨平台 Python `.venv`、Firestore／Rules／App 清冊，然後啟動並驗證 Identity API、loopback Package Agent、loopback Deployment Agent 與 Console。Package Agent／Deployment Agent 優先使用 `8182／8183`，多份 checkout 衝突時使用 `8190～8201` 備援埠；Console 會取得本次實際端點。必要的 managed service 初始化均在動作前以 Y/N 確認。第一次安裝到此結束，不詢問 Cloud Run／Hosting 正式部署。進階 Windows 操作者仍可使用 `install.ps1 -ConfigPath ...`；正式維運也可把私人 overlay 放在 repository 外。
 
 3. 完成本地測試後，日後另行執行部署入口。它會沿用私人 overlay，並以 Y/N 分別取得 billing 資源及公開 ingress 的當次授權：
 
@@ -91,7 +91,7 @@ customer-a project             customer-b project
 
 Custom claims 只保存 `admin` 這類粗粒度提示；細部 App grant 留在 Firestore，避免 token 膨脹與權限撤銷延遲。正式管理 API 每次仍讀取伺服器端會員狀態。
 
-安裝器只在 `appPolicies/{appKey}` 尚不存在時套用 manifest 的 `access.defaultMode`、`adminAllowed` 與 `protected`；部署能力欄位 `allowedModes` 與 `entitlements` 目錄每次由 manifest 同步，但重跑安裝不覆蓋管理員後續選擇的 `accessMode`／`adminAllowed`。`access-control` 是受保護 App，固定只允許 active admin。每個 App 只能切換 manifest 明確允許的模式；`grant_required` 控制整個 App，功能 `entitlements[]` 控制 App 內的付費或課程功能。兩者都必須由該 App 後端查驗，不能只靠 Console 隱藏入口。
+安裝器只在 `appPolicies/{appKey}` 尚不存在時套用 manifest 的 `access.defaultMode`、`adminAllowed` 與 `protected`；`entitlements` 目錄每次由 manifest 同步，但重跑安裝不覆蓋管理員後續選擇的 `accessMode`／`adminAllowed`。純前端 App 每次新增或升級後，都必須依套件工作的 `sourceRegistration` 狀態同步平台資料；不能只因同一 `appKey` 曾登錄過就略過，否則新版 entitlement 目錄不會進入 Identity。`access-control` 是受保護 App，固定只允許 active admin。一般 App 的整體政策固定由平台管理員在 `public`、`all_members`、`grant_required` 間切換；套件的 `allowedModes` 僅保留作舊版契約相容資料，不得鎖住管理介面。`grant_required` 控制整個 App，功能 `entitlements[]` 控制 App 內的付費或課程功能。兩者都必須由該 App 後端查驗，不能只靠 Console 隱藏入口。
 
 每個 frontend App manifest 另須宣告 `lifecycle.category`、`removable` 與初始狀態。安裝器會建立 `appInstallations` 並在重跑時只同步 metadata，不覆蓋管理員在平台介面選擇的狀態。`installed` 才出現在導覽並參與授權；`disabled` 保留註冊與資料但拒絕進入；`uninstalled` 從導覽及直接路由移除，但保留程式、政策、會員 grant 與相依服務，供日後重新安裝。雲端 runtime／資料庫的實體刪除不屬於此可逆操作，仍需獨立影響分析與動作前確認。
 

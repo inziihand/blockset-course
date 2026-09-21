@@ -10,9 +10,9 @@
 npm run dev:app-packages
 ```
 
-代理固定綁定 `127.0.0.1:8182`，Vite 將 `/api/app-packages/**` 同源代理到這裡。狀態及 artifact 保存在 Git 忽略的 `.stratexec/app-package-agent/`。
+代理只允許綁定 `127.0.0.1`；單獨開發啟動預設使用 `8182`，`npm run setup`／`npm run start:local` 則會管理其生命週期，並在多份 checkout 衝突時選擇備援埠。Vite 將 `/api/app-packages/**` 同源代理到本次實際端點。狀態及 artifact 保存在 Git 忽略的 `.stratexec/app-package-agent/`。
 
-母版預設 `STRATEXEC_ALLOW_UNSIGNED_APP_PACKAGES=false`，所以 `development-unsigned` 開發套件只能預檢。通過 `infrastructure/app-publisher-trust.json` 的 Ed25519 簽章套件會標為 `trusted-signed`，可進行 source apply 並作為後續正式部署的必要輸入。只有受信任的本機開發 checkout 才可在 `.env.local` 明確設為 `true` 並重啟代理以套用未簽章套件；此例外不得用於 runtime deployment。
+原始母版與單獨 Agent 預設 `STRATEXEC_ALLOW_UNSIGNED_APP_PACKAGES=false`；完整 `npm run setup` 會在 Git 忽略的本機 `.env.local` 設為 `true`，讓 active verified admin 經精確版本確認後套用 `development-unsigned` 開發套件。通過 `infrastructure/app-publisher-trust.json` 的 Ed25519 簽章套件會標為 `trusted-signed`，可進行 source apply 並作為後續正式部署的必要輸入。未簽章例外不得用於 runtime deployment。
 
 ## 安全契約
 

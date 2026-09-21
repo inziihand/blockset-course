@@ -12,7 +12,12 @@ import { NotificationProvider } from '../shared/ui/Notifications';
 import { buildInfo } from '../shared/buildInfo';
 import { useAuth } from '../shared/auth';
 import { firebaseAuthConfiguration } from '../shared/auth/config';
-import { APP_LIFECYCLE_CHANGED_EVENT, fetchInstalledAppKeys } from '../shared/api/appLifecycle';
+import {
+  APP_LIFECYCLE_CHANGED_EVENT,
+  fetchInstalledAppCatalog,
+  type AppAccessMode,
+  type InstalledAppCatalog,
+} from '../shared/api/appLifecycle';
 import { APP_HEADER_ACTIONS_HOST_ID } from '../shared/ui/AppHeaderActions';
 
 export default function AppShell(props: { apps?: readonly ShellAppDefinition[] }) {
@@ -25,21 +30,49 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
-  const [installedAppKeys, setInstalledAppKeys] = useState<Set<string> | null>(null);
+  const usesServerCatalog = apps === appRegistry && firebaseAuthConfiguration.state === 'configured';
+  const [installedAppCatalog, setInstalledAppCatalog] = useState<InstalledAppCatalog | null>(null);
+  const [appCatalogStatus, setAppCatalogStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
+    usesServerCatalog ? 'loading' : 'idle',
+  );
+  const [appCatalogError, setAppCatalogError] = useState('');
+  const [appCatalogRevision, setAppCatalogRevision] = useState(0);
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const definition = apps.find((app) => app.path === pathname);
+  const fallbackAccessMode = (app: ShellAppDefinition): AppAccessMode => (
+    app.access === 'public' ? 'public' : 'grant_required'
+  );
+  const accessModeFor = useCallback((app: ShellAppDefinition) => (
+    usesServerCatalog ? installedAppCatalog?.get(app.key) : fallbackAccessMode(app)
+  ), [installedAppCatalog, usesServerCatalog]);
+  const appCatalogReady = !usesServerCatalog || appCatalogStatus === 'ready';
   const installedApps = useMemo(
-    () => installedAppKeys ? apps.filter((app) => installedAppKeys.has(app.key)) : apps,
-    [apps, installedAppKeys],
+    () => usesServerCatalog
+      ? (appCatalogReady && installedAppCatalog
+          ? apps.filter((app) => installedAppCatalog.has(app.key))
+          : [])
+      : apps,
+    [appCatalogReady, apps, installedAppCatalog, usesServerCatalog],
   );
   const accessibleApps = useMemo(
-    () => installedApps.filter((app) => canAccessDefinition(app, member)),
-    [installedApps, member],
+    () => installedApps.filter((app) => canAccessDefinition(app, member, accessModeFor(app))),
+    [accessModeFor, installedApps, member],
   );
-  const definitionInstalled = definition ? (!installedAppKeys || installedAppKeys.has(definition.key)) : false;
-  const definitionAccessible = definition && definitionInstalled ? canAccessDefinition(definition, member) : false;
-  const identitySyncPending = definition?.access === 'identity' && identityStatus === 'syncing';
-  const identitySyncFailed = definition?.access === 'identity' && identityStatus === 'error';
+  const definitionAccessMode = definition ? accessModeFor(definition) : undefined;
+  const definitionInstalled = definition ? (
+    usesServerCatalog
+      ? appCatalogReady && installedAppCatalog?.has(definition.key) === true
+      : true
+  ) : false;
+  const definitionAccessible = definition && definitionInstalled
+    ? canAccessDefinition(definition, member, definitionAccessMode)
+    : false;
+  const definitionRequiresIdentity = definitionAccessMode !== undefined
+    && !['public', 'disabled'].includes(definitionAccessMode);
+  const identitySyncPending = definitionRequiresIdentity && identityStatus === 'syncing';
+  const identitySyncFailed = definitionRequiresIdentity && identityStatus === 'error';
+  const appCatalogPending = Boolean(definition && usesServerCatalog && appCatalogStatus === 'loading');
+  const appCatalogFailed = Boolean(definition && usesServerCatalog && appCatalogStatus === 'error');
   const mergedHeader = definition?.headerLayout === 'merged';
   const activeApp = definition?.key ?? null;
   const mainRef = useRef<HTMLElement>(null);
@@ -50,22 +83,49 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
     mainRef.current?.focus({ preventScroll: true });
   }, [pathname, definition?.title]);
   useEffect(() => {
-    if (apps !== appRegistry || firebaseAuthConfiguration.state !== 'configured') return;
+    if (!usesServerCatalog) {
+      setInstalledAppCatalog(null);
+      setAppCatalogStatus('idle');
+      setAppCatalogError('');
+      return;
+    }
     let active = true;
-    const refresh = () => { void fetchInstalledAppKeys()
-      .then((keys) => { if (active) setInstalledAppKeys(keys); })
-      .catch(() => { /* Offline mother-template previews keep the compiled App catalog. */ }); };
-    refresh();
+    setInstalledAppCatalog(null);
+    setAppCatalogStatus('loading');
+    setAppCatalogError('');
+    void fetchInstalledAppCatalog()
+      .then((catalog) => {
+        if (!active) return;
+        setInstalledAppCatalog(catalog);
+        setAppCatalogStatus('ready');
+      })
+      .catch(() => {
+        if (!active) return;
+        setInstalledAppCatalog(null);
+        setAppCatalogStatus('error');
+        setAppCatalogError('平台無法取得目前的 App 開放政策；為避免誤開放，已暫停載入 App。');
+      });
+    return () => { active = false; };
+  }, [appCatalogRevision, usesServerCatalog]);
+  useEffect(() => {
+    if (!usesServerCatalog) return;
+    const refresh = () => {
+      retryIdentitySync();
+      setAppCatalogRevision((revision) => revision + 1);
+    };
     window.addEventListener(APP_LIFECYCLE_CHANGED_EVENT, refresh);
-    return () => { active = false; window.removeEventListener(APP_LIFECYCLE_CHANGED_EVENT, refresh); };
-  }, [apps]);
+    return () => window.removeEventListener(APP_LIFECYCLE_CHANGED_EVENT, refresh);
+  }, [retryIdentitySync, usesServerCatalog]);
 
   const hideThemeMenu = () => themeMenuRef.current?.hidePopover();
   const openDrawer = () => { hideThemeMenu(); setDrawerOpen(true); };
   const selectApp = (key: ShellAppKey) => {
     const app = getAppDefinition(key, apps);
-    if (app && (!installedAppKeys || installedAppKeys.has(app.key))
-      && isLaunchableDefinition(app) && canAccessDefinition(app, member)) { hideThemeMenu(); navigate(app.path); }
+    if (app && (!usesServerCatalog || installedAppCatalog?.has(app.key) === true)
+      && isLaunchableDefinition(app) && canAccessDefinition(app, member, accessModeFor(app))) {
+      hideThemeMenu();
+      navigate(app.path);
+    }
   };
 
   return (
@@ -106,14 +166,22 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
             <section className="app-content card" aria-label={definition?.title ?? '找不到頁面'}>
               {definition && definitionAccessible && isLaunchableDefinition(definition) ? <AppHost app={definition} onOpenHome={openHome} onOpenAppMenu={openDrawer} /> : (
                 <div className="platform-state" role="alert">
-                  <h3>{definition ? (!definitionInstalled ? '此 App 尚未安裝'
-                    : identitySyncPending ? '正在同步平台權限'
+                  <h3>{definition ? (appCatalogPending ? '正在同步 App 開放政策'
+                    : appCatalogFailed ? 'App 開放政策無法使用'
+                      : !definitionInstalled ? '此 App 尚未安裝'
+                        : definitionAccessMode === 'disabled' ? '此 App 已暫停開放'
+                          : identitySyncPending ? '正在同步平台權限'
                       : identitySyncFailed ? '平台權限尚未同步'
-                        : definitionAccessible ? '應用程式尚未開放'
-                          : '目前帳號沒有此 App 使用權') : '此網址沒有對應的應用程式'}</h3>
-                  <p>{identitySyncPending ? '請稍候，平台正在驗證目前的 Google 登入身分。'
-                    : identitySyncFailed ? identityError || 'Identity API 暫時無法完成權限驗證。'
-                      : '請返回首頁選擇可用的功能。'}</p>
+                        : definitionRequiresIdentity && !member ? '請先登入使用此 App'
+                          : definitionAccessible ? '應用程式尚未開放'
+                            : '目前帳號沒有此 App 使用權') : '此網址沒有對應的應用程式'}</h3>
+                  <p>{appCatalogPending ? '請稍候，平台正在讀取管理員設定的 App 開放方式。'
+                    : appCatalogFailed ? appCatalogError
+                      : identitySyncPending ? '請稍候，平台正在驗證目前的 Google 登入身分。'
+                        : identitySyncFailed ? identityError || 'Identity API 暫時無法完成權限驗證。'
+                          : '請返回首頁選擇可用的功能。'}</p>
+                  {appCatalogFailed && <button type="button" className="platform-button"
+                    onClick={() => setAppCatalogRevision((revision) => revision + 1)}>重新讀取 App 政策</button>}
                   {identitySyncFailed && <button type="button" className="platform-button" onClick={retryIdentitySync}>重新同步權限</button>}
                   {!definition && <button type="button" className="platform-button" onClick={openHome}>返回平台首頁</button>}
                 </div>
