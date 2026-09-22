@@ -314,7 +314,9 @@ export async function installAppPackage({
     planFingerprint: plan.planFingerprint,
     planContext: plan.planContext,
   };
-  if (!apply || plan.status === 'no-op') return { ...publicPlan, applied: false };
+  if (!apply || (plan.status === 'no-op' && !plan.adoptedExisting)) {
+    return { ...publicPlan, applied: false };
+  }
   if (plan.blockers.length > 0) throw new Error(`App package install is blocked: ${plan.blockers.join(' | ')}`);
   const expectedConfirmation = `${plan.appKey}@${plan.version}`;
   if (confirmation !== expectedConfirmation) {

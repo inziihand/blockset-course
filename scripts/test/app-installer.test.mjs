@@ -75,6 +75,40 @@ test('dry-runs and atomically installs a verified App package into an isolated t
   }
 });
 
+test('adopts identical unmanaged App source into the package lock', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-adopt-'));
+  try {
+    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const target = await prepareTarget(directory);
+    await installAppPackage({
+      zipPath: packed.zipPath,
+      rootPath: target,
+      apply: true,
+      confirmation: 'demo@0.1.0',
+    });
+    await writeFile(
+      join(target, 'infrastructure', 'app-packages.lock.json'),
+      `${JSON.stringify({ schemaVersion: 1, packages: {} }, null, 2)}\n`,
+    );
+
+    const adopted = await installAppPackage({
+      zipPath: packed.zipPath,
+      rootPath: target,
+      apply: true,
+      confirmation: 'demo@0.1.0',
+      adoptExisting: true,
+    });
+
+    assert.equal(adopted.status, 'no-op');
+    assert.equal(adopted.applied, true);
+    const lock = JSON.parse(await readFile(join(target, 'infrastructure', 'app-packages.lock.json'), 'utf8'));
+    assert.equal(lock.packages.demo.version, '0.1.0');
+    assert.equal(lock.packages.demo.packageSha256, adopted.packageSha256);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('binds plan fingerprints to installation settings and repository control state', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-plan-context-'));
   try {
