@@ -212,8 +212,9 @@ try {
         $configuredAsEnabled = @($config.enabledApps) -contains $appKey
         $policyUri = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/appPolicies/$appKey"
         $policyExists = $true
+        $existingPolicy = $null
         try {
-            Invoke-RestMethod -Method Get -Uri $policyUri -Headers $identityHeaders | Out-Null
+            $existingPolicy = Invoke-RestMethod -Method Get -Uri $policyUri -Headers $identityHeaders
         }
         catch {
             if ($_.Exception.Response.StatusCode -eq [System.Net.HttpStatusCode]::NotFound) {
@@ -224,8 +225,13 @@ try {
             }
         }
 
+        $declaredAllowedModes = @(
+            @($manifest.access.allowedModes | ForEach-Object { [string] $_ }) + 'admins_only' |
+                Select-Object -Unique
+        )
+        $allowedModeValues = @($declaredAllowedModes | ForEach-Object { @{ stringValue = [string] $_ } })
+
         if (-not $policyExists) {
-            $allowedModeValues = @($manifest.access.allowedModes | ForEach-Object { @{ stringValue = [string] $_ } })
             $entitlementValues = @($manifest.access.entitlements | ForEach-Object {
                 $fields = @{
                     key = @{ stringValue = [string] $_.key }
@@ -251,7 +257,6 @@ try {
                 -ContentType 'application/json' -Body $policyDocument | Out-Null
         }
         else {
-            $allowedModeValues = @($manifest.access.allowedModes | ForEach-Object { @{ stringValue = [string] $_ } })
             $entitlementValues = @($manifest.access.entitlements | ForEach-Object {
                 $fields = @{
                     key = @{ stringValue = [string] $_.key }
@@ -260,13 +265,32 @@ try {
                 if ($_.description) { $fields.description = @{ stringValue = [string] $_.description } }
                 @{ mapValue = @{ fields = $fields } }
             })
+            $currentAccessMode = [string] $existingPolicy.fields.accessMode.stringValue
+            $nextAccessMode = if ($declaredAllowedModes -contains $currentAccessMode) {
+                $currentAccessMode
+            }
+            else {
+                [string] $manifest.access.defaultMode
+            }
+            $storedAdminAllowed = $existingPolicy.fields.adminAllowed.booleanValue
+            $nextAdminAllowed = if ($nextAccessMode -eq 'admins_only') {
+                $true
+            }
+            elseif ($null -ne $storedAdminAllowed) {
+                [bool] $storedAdminAllowed
+            }
+            else {
+                [bool] $manifest.access.adminAllowed
+            }
             $policyMigration = @{
                 fields = @{
+                    accessMode = @{ stringValue = $nextAccessMode }
                     allowedAccessModes = @{ arrayValue = @{ values = $allowedModeValues } }
                     entitlements = @{ arrayValue = @{ values = $entitlementValues } }
+                    adminAllowed = @{ booleanValue = $nextAdminAllowed }
                 }
             } | ConvertTo-Json -Depth 10
-            $migrationUri = "$policyUri`?updateMask.fieldPaths=allowedAccessModes&updateMask.fieldPaths=entitlements"
+            $migrationUri = "$policyUri`?updateMask.fieldPaths=accessMode&updateMask.fieldPaths=allowedAccessModes&updateMask.fieldPaths=entitlements&updateMask.fieldPaths=adminAllowed"
             Invoke-RestMethod -Method Patch -Uri $migrationUri -Headers $identityHeaders `
                 -ContentType 'application/json' -Body $policyMigration | Out-Null
         }

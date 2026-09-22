@@ -27,7 +27,7 @@
 
 ### App 內功能權限
 
-- 整體 App 目前採用「未登入可用／所有登入會員／需要個別授權」哪一種模式，由平台管理員在安裝後決定；`access.defaultMode` 只是首次安裝預設值。舊版套件仍須攜帶 `allowedModes` 以維持契約相容，但非系統 App 不得用它限制管理員後續切換政策。Shell 必須讀取 Identity API 的目前政策，不能把建置時的預設值當成永久授權結果。
+- 整體 App 支援 `public`、`all_members`、`grant_required`、`admins_only`、`disabled` 五種模式。`access.allowedModes` 是該 App 可開放的一般存取模式白名單；平台永遠額外提供更嚴格的 `admins_only`，讓管理員可在不升級 App 的情況下先收斂存取。`access.defaultMode` 是首次安裝預設值；開發中的 App 建議直接以 `admins_only` 為唯一宣告模式。升級時若目前政策仍在新版白名單或平台保留模式內就保留，若已被移除則回到新版 `defaultMode`。Shell 必須讀取 Identity API 的目前政策，不能把建置時的預設值當成永久授權結果。
 - App 內維持三層即可：公開基本功能不加條件、會員功能檢查 active 登入身分、需付費或指定授權的功能才檢查 `access.entitlements[]`。登入本身不是 entitlement，也不代表已取得任何功能授權。
 - entitlement key 由 App manifest 定義，平台只驗證、保存與回傳，不解讀業務語意。管理員在「會員與權限」App 對會員勾選功能；active admin 在 `adminAllowed` 下取得該 App 宣告的全部功能權限。
 - 前端可用 `hasAppEntitlement(member, appKey, key)` 決定鎖頭、說明與導流，但這只改善介面。付費內容、下載或計算 API 必須向 Identity API 取得伺服器解析的 `allowed` 與 `entitlements[]` 後再執行。
@@ -35,8 +35,8 @@
 
 ```json
 "access": {
-  "defaultMode": "public",
-  "allowedModes": ["public", "all_members", "grant_required"],
+  "defaultMode": "admins_only",
+  "allowedModes": ["admins_only"],
   "entitlements": [
     { "key": "course", "displayName": "課程學員功能", "description": "解鎖課程模板與進階分析" }
   ],

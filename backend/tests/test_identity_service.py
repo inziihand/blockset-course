@@ -340,7 +340,7 @@ def test_role_policy_can_open_an_app_to_all_active_members() -> None:
     assert access.entitlements == []
 
 
-def test_platform_admin_can_change_a_legacy_single_mode_app_policy() -> None:
+def test_platform_admin_can_always_restrict_an_app_to_administrators() -> None:
     repository = FakeRepository()
     repository.policies["premium-course"] = repository.policies["premium-course"].model_copy(
         update={"allowed_access_modes": [AppAccessMode.GRANT_REQUIRED]}
@@ -349,20 +349,22 @@ def test_platform_admin_can_change_a_legacy_single_mode_app_policy() -> None:
     actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
 
     listed = next(item for item in service.list_app_policies(actor) if item.app_key == "premium-course")
-    assert listed.allowed_access_modes == [
-        AppAccessMode.PUBLIC,
-        AppAccessMode.ALL_MEMBERS,
-        AppAccessMode.GRANT_REQUIRED,
-    ]
+    assert listed.allowed_access_modes == [AppAccessMode.GRANT_REQUIRED, AppAccessMode.ADMINS_ONLY]
 
-    updated = service.set_app_policy(
+    with pytest.raises(ValueError, match="not declared by this App"):
+        service.set_app_policy(
+            actor,
+            "premium-course",
+            AppPolicyPatch(access_mode=AppAccessMode.PUBLIC, admin_allowed=True),
+        )
+
+    restricted = service.set_app_policy(
         actor,
         "premium-course",
-        AppPolicyPatch(access_mode=AppAccessMode.PUBLIC, admin_allowed=True),
+        AppPolicyPatch(access_mode=AppAccessMode.ADMINS_ONLY, admin_allowed=True),
     )
-
-    assert updated.access_mode is AppAccessMode.PUBLIC
-    assert updated.allowed_access_modes == listed.allowed_access_modes
+    assert restricted.access_mode is AppAccessMode.ADMINS_ONLY
+    assert restricted.allowed_access_modes == listed.allowed_access_modes
 
 
 def test_open_app_can_grant_a_member_an_optional_feature_entitlement() -> None:
@@ -442,15 +444,46 @@ def test_protected_access_app_cannot_be_opened_to_members() -> None:
         )
 
 
-def test_general_app_policy_rejects_a_system_only_mode() -> None:
+def test_general_app_policy_supports_declared_administrators_only_mode() -> None:
+    repository = FakeRepository()
+    service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
+    actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
+
+    updated = service.set_app_policy(
+        actor,
+        "premium-course",
+        AppPolicyPatch(access_mode=AppAccessMode.ADMINS_ONLY, admin_allowed=True),
+    )
+    assert updated.access_mode is AppAccessMode.ADMINS_ONLY
+
+    member = service.authenticate("valid-token")
+    member_access = next(item for item in member.app_access if item.app_key == "premium-course")
+    assert member_access.allowed is False
+    assert member_access.reason == "admin_required"
+
+    repository.members["admin-1"] = actor
+    admin_service = IdentityService(
+        FakeVerifier(principal(uid="admin-1", email="admin@example.com")),
+        repository,
+        FakeClaims(),
+    )
+    admin_access = next(
+        item for item in admin_service.authenticate("valid-token").app_access
+        if item.app_key == "premium-course"
+    )
+    assert admin_access.allowed is True
+    assert admin_access.reason == "admin_policy"
+
+
+def test_administrators_only_mode_cannot_disable_administrator_access() -> None:
     service = IdentityService(FakeVerifier(principal()), FakeRepository(), FakeClaims())
     actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
 
-    with pytest.raises(ValueError, match="not managed by the platform"):
+    with pytest.raises(ValueError, match="must remain available to administrators"):
         service.set_app_policy(
             actor,
             "premium-course",
-            AppPolicyPatch(access_mode=AppAccessMode.ADMINS_ONLY, admin_allowed=True),
+            AppPolicyPatch(access_mode=AppAccessMode.ADMINS_ONLY, admin_allowed=False),
         )
 
 
@@ -545,11 +578,51 @@ def test_source_installed_frontend_app_is_registered_without_runtime_evidence() 
     assert installed.runtime_revision is None
     assert repository.policies["options-strategy-lab"].access_mode is AppAccessMode.GRANT_REQUIRED
     assert repository.policies["options-strategy-lab"].allowed_access_modes == [
-        AppAccessMode.PUBLIC,
-        AppAccessMode.ALL_MEMBERS,
         AppAccessMode.GRANT_REQUIRED,
+        AppAccessMode.ADMINS_ONLY,
     ]
     assert "options-strategy-lab" in service.list_installed_app_keys()
+
+
+def test_source_activation_falls_back_to_declared_default_when_a_mode_is_removed() -> None:
+    repository = FakeRepository()
+    repository.policies["options-strategy-lab"] = AppPolicy(
+        app_key="options-strategy-lab",
+        display_name="選擇權策略分析",
+        access_mode=AppAccessMode.PUBLIC,
+        allowed_access_modes=[AppAccessMode.PUBLIC],
+        admin_allowed=False,
+    )
+    service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
+    actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
+
+    service.activate_source_app(actor, "options-strategy-lab", SourceAppActivation(
+        display_name="選擇權策略分析",
+        category=AppCategory.APPLICATION,
+        default_access_mode=AppAccessMode.ADMINS_ONLY,
+        allowed_access_modes=[AppAccessMode.ADMINS_ONLY, AppAccessMode.GRANT_REQUIRED],
+        admin_allowed=True,
+    ))
+
+    policy = repository.policies["options-strategy-lab"]
+    assert policy.access_mode is AppAccessMode.ADMINS_ONLY
+    assert policy.allowed_access_modes == [AppAccessMode.ADMINS_ONLY, AppAccessMode.GRANT_REQUIRED]
+    assert policy.admin_allowed is True
+
+
+def test_source_activation_rejects_an_inaccessible_administrators_only_default() -> None:
+    repository = FakeRepository()
+    service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
+    actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
+
+    with pytest.raises(ValueError, match="must remain available to administrators"):
+        service.activate_source_app(actor, "options-strategy-lab", SourceAppActivation(
+            display_name="選擇權策略分析",
+            category=AppCategory.APPLICATION,
+            default_access_mode=AppAccessMode.ADMINS_ONLY,
+            allowed_access_modes=[AppAccessMode.ADMINS_ONLY],
+            admin_allowed=False,
+        ))
 
 
 def test_public_catalog_exposes_current_policy_and_fails_closed_without_one() -> None:

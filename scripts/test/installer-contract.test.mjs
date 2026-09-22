@@ -160,15 +160,20 @@ test('administrator bootstrap is finalized only after server-side Firestore veri
   assert.doesNotMatch(source, /Write-Host[^\n]*\$admins/);
 });
 
-test('bootstrap seeds App access policies without overwriting administrator changes', () => {
+test('bootstrap syncs App access policy metadata while preserving still-declared administrator choices', () => {
   assert.match(bootstrapSource, /documents\/appPolicies\/\$appKey/);
   assert.match(bootstrapSource, /\$manifest\.access\.defaultMode/);
   const existenceCheck = bootstrapSource.indexOf('Invoke-RestMethod -Method Get -Uri $policyUri');
   const createCheck = bootstrapSource.indexOf('if (-not $policyExists)');
   const write = bootstrapSource.indexOf('Invoke-RestMethod -Method Patch -Uri $policyUri');
   assert.ok(existenceCheck > 0 && createCheck > existenceCheck && write > createCheck);
+  assert.match(bootstrapSource, /\$declaredAllowedModes -contains \$currentAccessMode/);
+  assert.match(bootstrapSource, /\+ 'admins_only'/);
+  assert.match(bootstrapSource, /updateMask\.fieldPaths=accessMode/);
   assert.match(bootstrapSource, /updateMask\.fieldPaths=allowedAccessModes/);
   assert.match(bootstrapSource, /updateMask\.fieldPaths=entitlements/);
+  assert.match(bootstrapSource, /updateMask\.fieldPaths=adminAllowed/);
+  assert.match(bootstrapSource, /\$nextAccessMode -eq 'admins_only'/);
   assert.match(bootstrapSource, /\$manifest\.access\.entitlements/);
 });
 

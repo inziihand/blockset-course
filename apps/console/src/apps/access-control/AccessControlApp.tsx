@@ -36,7 +36,6 @@ const accessModeLabels: Record<AppAccessMode, string> = {
   disabled: '暫停開放',
 };
 
-const adminManagedAccessModes: AppAccessMode[] = ['public', 'all_members', 'grant_required'];
 const MEMBER_PAGE_SIZE = 10;
 
 export default function AccessControlApp({ signal }: ShellAppProps) {
@@ -621,19 +620,18 @@ function PoliciesPanel({ policies, pending, onUpdate }: {
     <div role="row" className="access-policy-head"><span role="columnheader">App</span><span role="columnheader">一般會員政策</span><span role="columnheader">管理員</span></div>
     {policies.map((policy) => {
       const busy = pending === `policy:${policy.appKey}`;
-      const selectableModes = policy.protected
-        ? policy.allowedAccessModes
-        : [...adminManagedAccessModes, ...(
-            adminManagedAccessModes.includes(policy.accessMode) ? [] : [policy.accessMode]
-          )];
-      const adminToggleRelevant = policy.accessMode === 'grant_required' || policy.accessMode === 'admins_only';
+      const selectableModes = policy.allowedAccessModes;
+      const adminToggleRelevant = policy.accessMode === 'grant_required';
       return <div role="row" key={policy.appKey}>
         <span role="cell"><strong>{policy.displayName}</strong><small>{policy.appKey}{policy.protected ? ' · 系統保護' : ''}</small></span>
         <span role="cell"><select aria-label={`${policy.displayName}一般會員政策`} value={policy.accessMode}
-          disabled={policy.protected || busy} onChange={(event) => onUpdate(policy, event.target.value as AppAccessMode, policy.adminAllowed)}>
+          disabled={policy.protected || busy} onChange={(event) => {
+            const accessMode = event.target.value as AppAccessMode;
+            onUpdate(policy, accessMode, accessMode === 'admins_only' ? true : policy.adminAllowed);
+          }}>
           {selectableModes.map((value) => <option key={value} value={value}>{accessModeLabels[value]}</option>)}
         </select></span>
-        <span role="cell"><label><input type="checkbox" checked={policy.adminAllowed}
+        <span role="cell"><label><input type="checkbox" checked={policy.accessMode === 'admins_only' || policy.adminAllowed}
           disabled={policy.protected || busy || !adminToggleRelevant}
           onChange={(event) => onUpdate(policy, policy.accessMode, event.target.checked)} />可用</label></span>
       </div>;

@@ -1,6 +1,6 @@
 # App 自動化安裝與 Deployment Agent Codex 工作清單
 
-更新：2026-09-18。
+更新：2026-09-22。
 
 ## 目標
 
@@ -151,6 +151,39 @@
 
 實作界線：第 10 批完成通用 `vm-docker` plan／executor、外部 Ed25519 desired-state signer、Deployment Agent→VM Agent mTLS client、VM Agent、固定 Docker argv、具體 Secret Manager version 掛載、持久 volume／備份／SQLite／單帳戶安全預檢、UNKNOWN reconciliation、immutable rollback 與四層 UI。母版預設兩端 runtime driver 仍為 `disabled`；本批只以離線 adapter／fixture 驗收，沒有建立 VM、IAM、憑證、券商連線、Worker 或 PAPER／LIVE 權限。首次 bootstrap 的實際 GCP 寫入仍須業主當次精確確認；證據見 [第 10 批驗收](evidence/APP-deployment-agent-batch-10-20260919.md)。
 
+## 第 11 批：本機 App source install 進度與效能
+
+依賴：既有 App 套件第 1～3 批。此批只改善 loopback Package Agent 的來源套用流程，不擴張到 Cloud Run／VM runtime deployment。
+
+現況問題：Package Agent 的 apply 請求會同步等待完整交易結束；管理介面只顯示「套用中」，job 只有建立／更新時間，無法辨識驗證、備份、寫入、建置或平台登錄何者耗時。同一 artifact 在預檢後，apply 內部仍會重建 source plan，transaction 入口又再重建一次，保守但有重複解析／雜湊。
+
+### 工作清單
+
+- [ ] 定義 source install phase：`queued`、`revalidating`、`staging`、`backing-up`、`applying`、`regenerating`、`validating`、`registering`、`rolling-back`、`completed`、`failed`、`recovery-required`；不得用單一百分比掩蓋未知耗時。
+- [ ] Job 持久保存 `startedAt`、`completedAt`、目前 phase、各 phase 起訖／耗時及單調遞增事件序號；事件不得含 token、套件內容、秘密或 repository 絕對路徑。
+- [ ] `POST apply` 改為只完成授權、確認值、排他鎖與工作建立後回傳 accepted job；實際 transaction 由 Agent 工作程序執行，瀏覽器中斷或重新整理不得中止工作。
+- [ ] 提供單一 job 狀態／事件查詢 API；管理介面以 AJAX polling 接續工作，不重新載入整個 App 管理頁，並以 `aria-live` 顯示目前階段與已耗時間。
+- [ ] 寫入來源前允許取消 queued job；開始 staging／backup 後不得假裝立即取消，只能完成安全回復或進入 `recovery-required`。
+- [ ] 保留 apply 前一次完整 revalidation，核對 artifact digest、plan fingerprint、目前 repository hashes、平台契約、service registry 與 package lock；將同一份不可變 prepared plan 傳入 transaction，移除 transaction 內第二次重複規劃。
+- [ ] Prepared plan 僅存在受控 Agent 程序內；不得信任瀏覽器回傳的 plan、路徑、差異或 hash，也不得以快取繞過 repository drift 檢查。
+- [ ] 保留 staging、transaction backup、排他 apply、衍生檔重建、母版 validator、Console production build、lock 最後寫入及失敗自動回復；效能改善不得刪除這些安全界線。
+- [ ] 為 inspect、revalidation、檔案 staging／backup、derived regeneration、validator／build、Identity source registration 分別記錄結構化耗時，讓慢點能以 evidence 判定，不以使用者體感猜測。
+- [ ] Agent 啟動時檢查未完成 job、`apply.lock` 與 transaction 目錄；無法證明安全完成或安全回復時標為 `recovery-required`，不得自動重做、刪 lock 或宣稱成功。
+- [ ] 更新 OpenAPI、前端型別、管理介面文案與 Package Agent README，清楚區分 `source installed`、`source registered` 與 runtime deployment。
+
+### 測試與驗收
+
+- [ ] 單元測試證明每次 apply 只執行一次完整 revalidation，且 prepared plan fingerprint／artifact digest／repository hash 任一漂移都 fail closed。
+- [ ] 覆蓋成功、validator 失敗、build 失敗、Identity registration pending、rollback 成功、rollback 不完整、Agent 中止／重啟、重複 apply 與並行 apply。
+- [ ] 驗證瀏覽器重新整理、關閉與重新開啟後可接續顯示同一 job；過程不整頁 reload，也不會重送 apply。
+- [ ] 以至少一個 50 檔以上純前端 App 及一個含 Service fragment 的 App 記錄逐階段 baseline；不設定脫離硬體與套件大小的武斷總秒數門檻。
+- [ ] 驗證桌面與窄版手機可辨識目前階段、耗時、失敗原因與可採取動作；鍵盤操作、焦點及讀屏訊息通過元件測試。
+- [ ] 確認成功安裝結果、lock hashes 與既有同步流程完全一致；production build、transaction rollback 與安全限制沒有因去重或背景化而降級。
+
+驗收：管理員按下套用後能持續看見真實階段，重新整理頁面可接續且不重送；Agent evidence 能指出實際慢點。同一 artifact 在 apply 階段只做一次完整 revalidation，但任何 drift、失敗或程序中斷仍維持 fail closed 與可稽核回復。
+
+實作界線：本節是待辦計畫，尚未修改 Package Agent、API 或管理介面；也不代表既有 App 需要重新安裝。正式 runtime deployment 仍由第 6～10 批的 Deployment Agent 流程處理。
+
 ## Codex 執行規則
 
 - 每次只實作一批，開始前讀本文件及其依賴規格，先確認工作樹與現有雲端狀態。
@@ -171,5 +204,6 @@
 5. 「實作 App Deployment Agent 第 8 批」
 6. 「實作 App Deployment Agent 第 9 批」
 7. 「實作 App Deployment Agent 第 10 批」
+8. 「實作 App Deployment Agent 第 11 批」
 
-Cloud Run 網頁安裝以第 4～9 批全部完成為準；免 SSH 的 VM／持續執行型 App 另需完成第 10 批。
+Cloud Run 網頁安裝以第 4～9 批全部完成為準；免 SSH 的 VM／持續執行型 App 另需完成第 10 批。第 11 批改善本機 source install 的可觀測性與效能，不改變前述 runtime deployment 完成條件。

@@ -31,7 +31,7 @@ const policies: AppPolicy[] = [
     appKey: 'premium-course', displayName: '付費課程', accessMode: 'grant_required',
     allowedAccessModes: ['all_members', 'grant_required', 'admins_only', 'disabled'],
     entitlements: [{ key: 'course', displayName: '課程學員功能', description: '解鎖課程模板與進階分析。' }],
-    adminAllowed: true, protected: false, updatedAt: '2026-09-17T00:00:00Z',
+    adminAllowed: false, protected: false, updatedAt: '2026-09-17T00:00:00Z',
   },
   {
     appKey: 'access-control', displayName: '會員與權限', accessMode: 'admins_only',
@@ -96,11 +96,11 @@ describe('會員與權限 App', () => {
     const appSelect = screen.getByRole('combobox', { name: '付費課程一般會員政策' });
     expect(appSelect.hasAttribute('disabled')).toBe(false);
     expect(Array.from((appSelect as HTMLSelectElement).options).map((option) => option.value)).toEqual([
-      'public', 'all_members', 'grant_required',
+      'all_members', 'grant_required', 'admins_only', 'disabled',
     ]);
-    await user.selectOptions(appSelect, 'public');
+    await user.selectOptions(appSelect, 'admins_only');
     await waitFor(() => expect(api.setPolicy).toHaveBeenCalledWith(
-      'premium-course', { accessMode: 'public', adminAllowed: true }, undefined,
+      'premium-course', { accessMode: 'admins_only', adminAllowed: true }, undefined,
     ));
 
     await user.click(screen.getByRole('tab', { name: 'App 管理' }));

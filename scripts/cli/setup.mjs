@@ -499,14 +499,17 @@ const fsBoolean = (value) => ({ booleanValue: Boolean(value) });
 const fsTimestamp = (value) => ({ timestampValue: value });
 const fsArray = (values) => ({ arrayValue: { values } });
 
-async function documentExists(url, headers) {
+async function readDocument(url, headers) {
   try {
-    await fetchJson(url, { headers });
-    return true;
+    return await fetchJson(url, { headers });
   } catch (error) {
-    if (error.status === 404) return false;
+    if (error.status === 404) return null;
     throw error;
   }
+}
+
+async function documentExists(url, headers) {
+  return Boolean(await readDocument(url, headers));
 }
 
 async function patchFirestore(url, headers, fields, masks = []) {
@@ -565,7 +568,8 @@ async function bootstrapFirestore(repoRoot, installation, adminEmail) {
     if (manifest.kind !== 'frontend-app') continue;
     const appKey = manifest.appKey;
     const updatedAt = new Date().toISOString();
-    const allowedModes = fsArray((manifest.access.allowedModes ?? []).map(fsString));
+    const declaredModes = [...new Set([...(manifest.access.allowedModes ?? []), 'admins_only'])];
+    const allowedModes = fsArray(declaredModes.map(fsString));
     const entitlements = fsArray((manifest.access.entitlements ?? []).map((entry) => ({
       mapValue: {
         fields: {
@@ -576,7 +580,8 @@ async function bootstrapFirestore(repoRoot, installation, adminEmail) {
       },
     })));
     const policyUrl = `${base}/appPolicies/${appKey}`;
-    if (!await documentExists(policyUrl, headers)) {
+    const existingPolicy = await readDocument(policyUrl, headers);
+    if (!existingPolicy) {
       await patchFirestore(policyUrl, headers, {
         appKey: fsString(appKey),
         displayName: fsString(manifest.displayName),
@@ -589,10 +594,22 @@ async function bootstrapFirestore(repoRoot, installation, adminEmail) {
         updatedBy: fsString('installation-bootstrap'),
       });
     } else {
+      const currentAccessMode = existingPolicy.fields?.accessMode?.stringValue;
+      const accessMode = declaredModes.includes(currentAccessMode)
+        ? currentAccessMode
+        : manifest.access.defaultMode;
+      const storedAdminAllowed = existingPolicy.fields?.adminAllowed?.booleanValue;
+      const adminAllowed = accessMode === 'admins_only'
+        ? true
+        : typeof storedAdminAllowed === 'boolean'
+          ? storedAdminAllowed
+          : manifest.access.adminAllowed;
       await patchFirestore(policyUrl, headers, {
+        accessMode: fsString(accessMode),
         allowedAccessModes: allowedModes,
         entitlements,
-      }, ['allowedAccessModes', 'entitlements']);
+        adminAllowed: fsBoolean(adminAllowed),
+      }, ['accessMode', 'allowedAccessModes', 'entitlements', 'adminAllowed']);
     }
 
     const installationUrl = `${base}/appInstallations/${appKey}`;

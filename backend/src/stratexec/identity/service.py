@@ -50,11 +50,6 @@ class MemberNotFound(IdentityError):
 
 class IdentityService:
     PROTECTED_ACCESS_APP = "access-control"
-    ADMIN_MANAGED_ACCESS_MODES = (
-        AppAccessMode.PUBLIC,
-        AppAccessMode.ALL_MEMBERS,
-        AppAccessMode.GRANT_REQUIRED,
-    )
 
     def __init__(
         self,
@@ -152,7 +147,7 @@ class IdentityService:
 
     def list_app_policies(self, actor: Member) -> list[AppPolicy]:
         self._require_admin(actor)
-        return [self._with_admin_managed_modes(policy) for policy in self._repository.list_app_policies()]
+        return [self._with_declared_modes(policy) for policy in self._repository.list_app_policies()]
 
     def list_installed_app_keys(self) -> list[str]:
         return [item.app_key for item in self.list_installed_app_catalog()]
@@ -289,8 +284,11 @@ class IdentityService:
             raise ValueError("Verified activation is reserved for Apps with backend services.")
         if activation.verified_at > datetime.now(timezone.utc):
             raise ValueError("Deployment verification time cannot be in the future.")
-        if activation.default_access_mode not in activation.allowed_access_modes:
-            raise ValueError("Default App access mode must be included in allowed access modes.")
+        allowed_access_modes = self._validated_declared_modes(
+            activation.default_access_mode,
+            activation.allowed_access_modes,
+            activation.admin_allowed,
+        )
         entitlement_keys = [item.key for item in activation.entitlements]
         if len(entitlement_keys) != len(set(entitlement_keys)):
             raise ValueError("App entitlement keys must be unique.")
@@ -324,17 +322,24 @@ class IdentityService:
                 app_key=app_key,
                 display_name=activation.display_name,
                 access_mode=activation.default_access_mode,
-                allowed_access_modes=self._admin_managed_modes(activation.default_access_mode),
+                allowed_access_modes=allowed_access_modes,
                 entitlements=activation.entitlements,
                 admin_allowed=activation.admin_allowed,
                 protected=False,
                 updated_by=actor.uid,
             )
         else:
+            access_mode = (
+                existing_policy.access_mode
+                if existing_policy.access_mode in allowed_access_modes
+                else activation.default_access_mode
+            )
             policy = existing_policy.model_copy(update={
                 "display_name": activation.display_name,
-                "allowed_access_modes": self._admin_managed_modes(existing_policy.access_mode),
+                "access_mode": access_mode,
+                "allowed_access_modes": allowed_access_modes,
                 "entitlements": activation.entitlements,
+                "admin_allowed": True if access_mode is AppAccessMode.ADMINS_ONLY else existing_policy.admin_allowed,
                 "updated_at": datetime.now(timezone.utc),
                 "updated_by": actor.uid,
             })
@@ -352,8 +357,11 @@ class IdentityService:
         self._validate_app_key(app_key)
         if activation.protected or app_key == self.PROTECTED_ACCESS_APP:
             raise AccessDenied("Protected platform Apps cannot be registered by Package Agent.")
-        if activation.default_access_mode not in activation.allowed_access_modes:
-            raise ValueError("Default App access mode must be included in allowed access modes.")
+        allowed_access_modes = self._validated_declared_modes(
+            activation.default_access_mode,
+            activation.allowed_access_modes,
+            activation.admin_allowed,
+        )
         entitlement_keys = [item.key for item in activation.entitlements]
         if len(entitlement_keys) != len(set(entitlement_keys)):
             raise ValueError("App entitlement keys must be unique.")
@@ -384,17 +392,24 @@ class IdentityService:
                 app_key=app_key,
                 display_name=activation.display_name,
                 access_mode=activation.default_access_mode,
-                allowed_access_modes=self._admin_managed_modes(activation.default_access_mode),
+                allowed_access_modes=allowed_access_modes,
                 entitlements=activation.entitlements,
                 admin_allowed=activation.admin_allowed,
                 protected=False,
                 updated_by=actor.uid,
             )
         else:
+            access_mode = (
+                existing_policy.access_mode
+                if existing_policy.access_mode in allowed_access_modes
+                else activation.default_access_mode
+            )
             policy = existing_policy.model_copy(update={
                 "display_name": activation.display_name,
-                "allowed_access_modes": self._admin_managed_modes(existing_policy.access_mode),
+                "access_mode": access_mode,
+                "allowed_access_modes": allowed_access_modes,
                 "entitlements": activation.entitlements,
+                "admin_allowed": True if access_mode is AppAccessMode.ADMINS_ONLY else existing_policy.admin_allowed,
                 "updated_at": datetime.now(timezone.utc),
                 "updated_by": actor.uid,
             })
@@ -421,10 +436,12 @@ class IdentityService:
         allowed_access_modes = (
             [AppAccessMode.ADMINS_ONLY]
             if protected
-            else list(self.ADMIN_MANAGED_ACCESS_MODES)
+            else self._with_platform_access_modes(existing.allowed_access_modes)
         )
         if patch.access_mode not in allowed_access_modes:
-            raise ValueError("The requested access mode is not managed by the platform for this App.")
+            raise ValueError("The requested access mode is not declared by this App.")
+        if patch.access_mode is AppAccessMode.ADMINS_ONLY and not patch.admin_allowed:
+            raise ValueError("Administrator-only App access must remain available to administrators.")
         policy = existing.model_copy(
             update={
                 "access_mode": patch.access_mode,
@@ -437,21 +454,33 @@ class IdentityService:
         )
         return self._repository.set_app_policy(policy, actor_uid=actor.uid)
 
-    def _admin_managed_modes(self, current: AppAccessMode) -> list[AppAccessMode]:
-        modes = list(self.ADMIN_MANAGED_ACCESS_MODES)
-        if current not in modes:
-            modes.append(current)
-        return modes
+    @staticmethod
+    def _validated_declared_modes(
+        default: AppAccessMode,
+        declared: list[AppAccessMode],
+        admin_allowed: bool,
+    ) -> list[AppAccessMode]:
+        modes = list(dict.fromkeys(declared))
+        if default not in modes:
+            raise ValueError("Default App access mode must be included in allowed access modes.")
+        if default is AppAccessMode.ADMINS_ONLY and not admin_allowed:
+            raise ValueError("Administrator-only App access must remain available to administrators.")
+        return IdentityService._with_platform_access_modes(modes)
 
-    def _with_admin_managed_modes(self, policy: AppPolicy) -> AppPolicy:
+    @staticmethod
+    def _with_platform_access_modes(declared: list[AppAccessMode]) -> list[AppAccessMode]:
+        return list(dict.fromkeys([*declared, AppAccessMode.ADMINS_ONLY]))
+
+    def _with_declared_modes(self, policy: AppPolicy) -> AppPolicy:
         protected = policy.protected or policy.app_key == self.PROTECTED_ACCESS_APP
         allowed_access_modes = (
             [AppAccessMode.ADMINS_ONLY]
             if protected
-            else self._admin_managed_modes(policy.access_mode)
+            else self._with_platform_access_modes(policy.allowed_access_modes)
         )
         return policy.model_copy(update={
             "allowed_access_modes": allowed_access_modes,
+            "admin_allowed": True if protected else policy.admin_allowed,
             "protected": protected,
         })
 

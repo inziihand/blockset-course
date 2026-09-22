@@ -91,7 +91,7 @@ customer-a project             customer-b project
 
 Custom claims 只保存 `admin` 這類粗粒度提示；細部 App grant 留在 Firestore，避免 token 膨脹與權限撤銷延遲。正式管理 API 每次仍讀取伺服器端會員狀態。
 
-安裝器只在 `appPolicies/{appKey}` 尚不存在時套用 manifest 的 `access.defaultMode`、`adminAllowed` 與 `protected`；`entitlements` 目錄每次由 manifest 同步，但重跑安裝不覆蓋管理員後續選擇的 `accessMode`／`adminAllowed`。純前端 App 每次新增或升級後，都必須依套件工作的 `sourceRegistration` 狀態同步平台資料；不能只因同一 `appKey` 曾登錄過就略過，否則新版 entitlement 目錄不會進入 Identity。`access-control` 是受保護 App，固定只允許 active admin。一般 App 的整體政策固定由平台管理員在 `public`、`all_members`、`grant_required` 間切換；套件的 `allowedModes` 僅保留作舊版契約相容資料，不得鎖住管理介面。`grant_required` 控制整個 App，功能 `entitlements[]` 控制 App 內的付費或課程功能。兩者都必須由該 App 後端查驗，不能只靠 Console 隱藏入口。
+安裝器第一次建立 `appPolicies/{appKey}` 時套用 manifest 的 `access.defaultMode`、`allowedModes`、`adminAllowed`、`protected` 與 `entitlements`，並把平台保留的 `admins_only` 加入可選模式。重跑安裝或升級時，App 宣告的 `allowedModes`、平台保留模式與 `entitlements` 一律同步；目前 `accessMode` 若仍在新版白名單或平台保留模式內就保留，若已被移除則回到新版 `defaultMode`。既有 `adminAllowed` 原則上保留，但 `admins_only` 必須強制為 `true`。純前端 App 每次新增或升級後，都必須依套件工作的 `sourceRegistration` 狀態同步平台資料；不能只因同一 `appKey` 曾登錄過就略過，否則新版模式與 entitlement 目錄不會進入 Identity。`access-control` 是受保護 App，固定只允許 active admin。一般 App 可從 `public`、`all_members`、`grant_required`、`admins_only`、`disabled` 中宣告自己的 `allowedModes`；Identity API 會另外把 `admins_only` 提供為所有 App 都可使用的安全收斂模式，管理介面顯示兩者合併後的清單。`grant_required` 控制整個 App，功能 `entitlements[]` 控制 App 內的付費或課程功能；兩者都必須由該 App 後端查驗，不能只靠 Console 隱藏入口。
 
 每個 frontend App manifest 另須宣告 `lifecycle.category`、`removable` 與初始狀態。安裝器會建立 `appInstallations` 並在重跑時只同步 metadata，不覆蓋管理員在平台介面選擇的狀態。`installed` 才出現在導覽並參與授權；`disabled` 保留註冊與資料但拒絕進入；`uninstalled` 從導覽及直接路由移除，但保留程式、政策、會員 grant 與相依服務，供日後重新安裝。雲端 runtime／資料庫的實體刪除不屬於此可逆操作，仍需獨立影響分析與動作前確認。
 
