@@ -80,6 +80,7 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
   const appCatalogPending = Boolean(definition && usesServerCatalog && appCatalogStatus === 'loading');
   const appCatalogFailed = Boolean(definition && usesServerCatalog && appCatalogStatus === 'error');
   const mergedHeader = definition?.headerLayout === 'merged';
+  const ActiveAppIcon = definition?.icon;
   const activeApp = definition?.key ?? null;
   const mainRef = useRef<HTMLElement>(null);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
@@ -180,9 +181,12 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
             <div className="brand">
               <button type="button" className="icon-button mobile-menu" onClick={openDrawer} aria-label="開啟平台選單" aria-expanded={drawerOpen} aria-controls="platform-drawer"><Menu size={20} aria-hidden="true" /></button>
               {definition ? (
-                mergedHeader
-                  ? <div className="merged-brand-copy"><Wordmark /><h1>{definition.title}</h1></div>
-                  : <div className="app-title-copy"><h1>{definition.title}</h1><p>{definition.subtitle}</p></div>
+                <>
+                  {ActiveAppIcon ? <ActiveAppIcon className="app-title-icon" size={23} strokeWidth={1.8} aria-hidden="true" /> : null}
+                  {mergedHeader
+                    ? <div className="merged-brand-copy"><Wordmark /><h1>{definition.title}</h1></div>
+                    : <div className="app-title-copy"><h1>{definition.title}</h1><p>{definition.subtitle}</p></div>}
+                </>
               ) : <div><h1>{pathname === '/' ? <Wordmark /> : '找不到頁面'}</h1><p>{pathname === '/' ? '策略執行平台' : '請返回平台首頁'}</p></div>}
             </div>
             {definition ? <div className="app-header-controls">

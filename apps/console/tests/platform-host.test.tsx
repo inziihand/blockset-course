@@ -161,12 +161,15 @@ describe('URL-owned App navigation', () => {
     const main = screen.getByRole('main');
     expect(main.getAttribute('data-header-layout')).toBe('merged');
     expect(main.getAttribute('data-display-mode')).toBe('compact');
+    expect(main.querySelector('.app-title-icon')).toBeTruthy();
+    expect(main.querySelector('.app-title-icon')?.getAttribute('aria-hidden')).toBe('true');
     expect(within(main).getByRole('heading', { name: '測試甲', level: 1 }).closest('.topbar')).toBeTruthy();
     expect(main.querySelector('.app-content-heading')).toBeNull();
     expect(screen.queryByRole('button', { name: '返回平台首頁' })).toBeNull();
     await userEvent.click(rail().getByRole('button', { name: '測試乙' }));
     await screen.findByText('測試乙內容');
     expect(main.hasAttribute('data-header-layout')).toBe(false);
+    expect(main.querySelector('.app-title-icon')).toBeTruthy();
     expect(within(main).getByRole('heading', { name: '測試乙', level: 1 }).closest('.topbar')).toBeTruthy();
     expect(main.querySelector('.app-content-heading')).toBeNull();
     goTo('/apps/alpha');
