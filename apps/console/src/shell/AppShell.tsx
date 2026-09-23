@@ -19,6 +19,7 @@ import {
   type InstalledAppCatalog,
 } from '../shared/api/appLifecycle';
 import { APP_HEADER_ACTIONS_HOST_ID } from '../shared/ui/AppHeaderActions';
+import { APP_INFO_BAR_HOST_ID } from '../shared/ui/AppInfoBar';
 
 export default function AppShell(props: { apps?: readonly ShellAppDefinition[] }) {
   return <NotificationProvider><PlatformShell {...props} /></NotificationProvider>;
@@ -188,6 +189,7 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
               <div id={APP_HEADER_ACTIONS_HOST_ID} className="platform-app-header-actions" role="group" aria-label="App 操作" />
             </div> : <span className="platform-badge">{pathname === '/' ? '平台首頁' : '找不到頁面'}</span>}
           </header>
+          {definition ? <aside id={APP_INFO_BAR_HOST_ID} className="platform-app-info card" aria-label="App 資訊" /> : null}
           {pathname === '/' ? <AppLauncherPanel apps={accessibleApps} onSelectApp={selectApp} /> : (
             <section className="app-content card" aria-label={definition?.title ?? '找不到頁面'}>
               {definition && definitionAccessible && isLaunchableDefinition(definition) ? <AppHost app={definition} onOpenHome={openHome} onOpenAppMenu={openDrawer} /> : (
