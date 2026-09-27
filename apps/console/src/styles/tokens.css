@@ -29,6 +29,7 @@
   --color-border-brand: #d9e5ff;
   --color-accent: #2563eb;
   --color-accent-hover: #1f5fcf;
+  --color-text-on-accent: #fff;
   --color-error: #b42318;
   --color-focus: #5791ff;
   --color-overlay: rgba(15, 23, 42, .36);
@@ -69,6 +70,7 @@
   --color-border-brand: #36537a;
   --color-accent: #6ea1ff;
   --color-accent-hover: #82afff;
+  --color-text-on-accent: #fff;
   --color-error: #ffb4ab;
   --color-focus: #75a7ff;
   --color-overlay: rgba(2, 6, 23, .66);
@@ -108,6 +110,7 @@
   --color-border-brand: rgba(95, 127, 149, .28);
   --color-accent: #5f7f95;
   --color-accent-hover: #4f7188;
+  --color-text-on-accent: #fff;
   --color-error: #a83e32;
   --color-focus: #668ca3;
   --color-overlay: rgba(47, 52, 55, .36);

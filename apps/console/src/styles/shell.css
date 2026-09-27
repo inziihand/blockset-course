@@ -110,6 +110,9 @@ svg { flex-shrink: 0; }
 .app-rail-logo:hover, .app-rail-button:hover, .app-rail-button.active { background: var(--color-surface-hover); border-color: var(--color-border-hover); color: var(--color-accent); }
 .app-rail-divider { width: 28px; height: 1px; margin: 2px 0; background: var(--color-border-subtle); }
 .app-rail-settings { margin-top: auto; }
+.app-rail-account { overflow: hidden; }
+.app-rail-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; display: inline-flex; align-items: center; justify-content: center; color: var(--color-text-secondary); background: var(--color-surface-solid); box-shadow: inset 0 0 0 1px var(--color-border-shell); }
+.app-rail-avatar.has-initial { color: var(--color-text-on-accent); background: var(--color-accent); box-shadow: none; font-size: 11px; font-weight: 850; }
 .icon-button { min-width: 40px; height: 40px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--color-border-shell); border-radius: 10px; color: var(--color-text-strong); background: var(--color-surface-control); }
 .icon-button:hover { background: var(--color-surface-hover); border-color: var(--color-border-hover); }
 .mobile-menu { display: none; }

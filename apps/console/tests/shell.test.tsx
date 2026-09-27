@@ -27,6 +27,38 @@ describe('App-free platform', () => {
     expect(screen.queryByRole('button', { name: '以 Google 帳號登入' })).toBeNull();
   });
 
+  it('shows the signed-in profile image on the collapsed rail and opens the account drawer', async () => {
+    const user = userEvent.setup();
+    render(<AuthContext.Provider value={{
+      ...fallbackAuthContext,
+      user: {
+        uid: 'member-1',
+        displayName: '王小明',
+        email: 'member@example.test',
+        photoURL: 'https://example.test/avatar.png',
+      } as never,
+      status: 'ready',
+    }}><ThemeProvider><AppShell apps={[]} /></ThemeProvider></AuthContext.Provider>);
+
+    const accountButton = screen.getByRole('button', { name: '開啟帳號選單：王小明' });
+    const avatar = accountButton.querySelector('img.app-rail-avatar');
+    expect(avatar?.getAttribute('src')).toBe('https://example.test/avatar.png');
+
+    await user.click(accountButton);
+    expect((screen.getByRole('dialog', { name: 'StratExec 選單' }) as HTMLDialogElement).open).toBe(true);
+  });
+
+  it('uses the signed-in initial when the account has no profile image', () => {
+    render(<AuthContext.Provider value={{
+      ...fallbackAuthContext,
+      user: { uid: 'member-1', displayName: '王小明', email: 'member@example.test', photoURL: null } as never,
+      status: 'ready',
+    }}><ThemeProvider><AppShell apps={[]} /></ThemeProvider></AuthContext.Provider>);
+
+    const accountButton = screen.getByRole('button', { name: '開啟帳號選單：王小明' });
+    expect(accountButton.querySelector('.app-rail-avatar.has-initial')?.textContent).toBe('王');
+  });
+
   it('uses a single drawer and returns to the empty home', async () => {
     renderShell();
     const { user, drawer } = await openDrawer();

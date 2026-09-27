@@ -27,7 +27,7 @@ export default function AppShell(props: { apps?: readonly ShellAppDefinition[] }
 
 function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinition[] }) {
   useMemo(() => validateAppRegistry(apps), [apps]);
-  const { member, identityStatus, identityError, retryIdentitySync } = useAuth();
+  const { user, member, identityStatus, identityError, retryIdentitySync } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
@@ -82,6 +82,8 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
   const mergedHeader = definition?.headerLayout === 'merged';
   const ActiveAppIcon = definition?.icon;
   const activeApp = definition?.key ?? null;
+  const accountName = user?.displayName || user?.email || 'StratExec 會員';
+  const accountInitial = accountName.trim().slice(0, 1).toUpperCase();
   const mainRef = useRef<HTMLElement>(null);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const openHome = useCallback(() => navigate('/'), []);
@@ -167,7 +169,21 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
           return <button key={app.key} type="button" className={`app-rail-button${activeApp === app.key ? ' active' : ''}`} onClick={() => selectApp(app.key)} aria-current={activeApp === app.key ? 'page' : undefined} aria-label={app.title} title={app.title}><Icon size={19} aria-hidden="true" /></button>;
         })}
         <button type="button" className={`app-rail-button app-rail-settings${themeMenuOpen ? ' active' : ''}`} popoverTarget="appearance-popover" aria-label="個人化" aria-expanded={themeMenuOpen} aria-haspopup="dialog" title="個人化"><Settings size={19} aria-hidden="true" /></button>
-        <button type="button" className="app-rail-button" onClick={openDrawer} aria-label="開啟登入與帳戶選單" title="登入與帳戶"><UserRound size={19} aria-hidden="true" /></button>
+        <button
+          type="button"
+          className="app-rail-button app-rail-account"
+          onClick={openDrawer}
+          aria-label={user ? `開啟帳號選單：${accountName}` : '開啟登入與帳戶選單'}
+          title={user ? accountName : '登入與帳戶'}
+        >
+          {user?.photoURL ? (
+            <img className="app-rail-avatar" src={user.photoURL} alt="" referrerPolicy="no-referrer" />
+          ) : (
+            <span className={`app-rail-avatar${user ? ' has-initial' : ''}`} aria-hidden="true">
+              {user ? accountInitial : <UserRound size={18} aria-hidden="true" />}
+            </span>
+          )}
+        </button>
       </nav>
       <div
         ref={themeMenuRef} id="appearance-popover" popover="auto" role="dialog" aria-label="個人化外觀"
