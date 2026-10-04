@@ -131,6 +131,7 @@ for (const app of manifests) {
       || !/^[A-Z][A-Za-z0-9]*$/.test(frontend.icon)
       || !['enabled', 'preview', 'planned'].includes(frontend.status)
       || !['compact', 'responsive'].includes(frontend.displayMode)
+      || (frontend.keepAlive !== undefined && typeof frontend.keepAlive !== 'boolean')
       || !Number.isInteger(frontend.order) || frontend.order < 0 || frontend.order > 10000) {
       throw new Error(`Frontend App requires packageable Registry metadata: ${app.appKey}`);
     }

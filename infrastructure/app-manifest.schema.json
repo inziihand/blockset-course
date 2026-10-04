@@ -118,6 +118,7 @@
         "status": { "enum": ["enabled", "preview", "planned"] },
         "displayMode": { "enum": ["compact", "responsive"] },
         "headerLayout": { "enum": ["standard", "merged"] },
+        "keepAlive": { "type": "boolean" },
         "order": { "type": "integer", "minimum": 0, "maximum": 10000 }
       }
     }

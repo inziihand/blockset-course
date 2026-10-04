@@ -9,7 +9,7 @@
 | 註冊 | 唯一 key／path、標題、圖示、狀態、displayMode、loader | 驗證定義、首頁與選單、網址導覽 |
 | 顯示 | 選擇 compact／responsive；安排內容與必要資訊 | 套用整個 App 視窗的寬度、置中及內容具名容器 |
 | 共用能力 | 使用主題、UI、通知、API 與偏好；處理業務語意 | 提供一致介面與錯誤格式 |
-| 生命週期 | 清理 timer／訂閱，傳遞 signal，處理非同步失敗 | lazy 載入、錯誤隔離、離開取消 |
+| 生命週期 | 清理 timer／訂閱，傳遞 signal，處理非同步失敗；啟用 Keep-alive 時整合活動狀態 | lazy 載入、錯誤隔離、離開取消；依明確宣告保留工作區 |
 
 平台已有可選的 Firebase Auth Google 登入與 ID Token 取得介面；後端身分驗證、帳戶授權及 Worker 快照仍屬 F7／F8。目前契約不提供假的帳戶能力，能登入也不代表能管理或交易。App 與平台位於同一 React 程序，不是第三方程式沙箱。
 
@@ -24,6 +24,7 @@
 3. 在 `infrastructure/apps/<app-key>.json` 宣告 `frontend` metadata，再執行 `npm run apps:registry`；`generatedAppRegistry.ts` 不可手改。不要另建 React root、Shell、登入或帳戶狀態。
 4. `key`、`path` 不重複，路徑限定 `/apps/<slug>`；每個 App 都必須明確選擇 `displayMode`。`enabled`／`preview` 必須提供 `load`，`planned` 不可開啟。
 5. 使用平台主題 tokens、共用 UI 及 API transport。新增 App 仍須當次工作授權，本例不是實際註冊指令。
+6. 需要切換後保留草稿的 App，先完成下方「受控 Keep-alive」驗收，再於 manifest 宣告 `frontend.keepAlive: true`。未宣告或設為 `false` 時仍解除掛載，不預設為所有 App 保留。
 
 ### App 內功能權限
 
@@ -65,7 +66,7 @@
 - 這是標題排列方式，與 `displayMode` 的視窗寬度規則相互獨立；不以 App key 寫特例，也不讓 App CSS 隱藏或覆寫平台標題。
 - 平台首頁導覽統一由桌面側欄或 Drawer 提供；App 不在標題列或本文重複建立「返回平台首頁」。未知路由、載入失敗或明確工作流程仍可提供返回動作。
 - App 若有作用於整個工作區的「檔案／模板／工具」等操作，使用 `AppHeaderActions` 掛入 Host 提供的標題列操作區；不要用 absolute positioning、負 margin 或 App CSS 越界定位到 `.topbar`。
-- 標題列操作會隨目前 App 掛載與卸載，不可在切換 App 後殘留。按鈕必須有可及名稱與至少 44×44 CSS px 的操作面積；窄版可改用圖示或換行，但不可造成整頁水平溢出。
+- 標題列操作只屬於目前活動 App；暫停或卸載時自動移除 Portal，重新啟用時重新取得 Host，不可在切換 App 後殘留。按鈕必須有可及名稱與至少 44×44 CSS px 的操作面積；窄版可改用圖示或換行，但不可造成整頁水平溢出。
 - App 內部可收合次要說明，但帳戶、環境、可交易狀態與異常警告不可一起藏起來。
 
 ```tsx
@@ -90,7 +91,7 @@ export default function ExampleApp() {
 | `compact` | 整個 App 視窗依可用寬度縮小 | 整個 App 視窗最大 420 CSS px，水平置中 |
 | `responsive` | 依內容容器排列為單欄 | 維持原有寬版 App 視窗，內容依可用空間展開 |
 
-- 規格套用於 `main.app-shell` 整個 App 視窗，包含 StratExec 頂列、App 標題列、內容與頁尾；不是只縮窄 App 本文。外部平台側欄及 Drawer 保持原有行為，不調整瀏覽器視窗的大小。兩種模式都必須支援鍵盤與觸控。
+- 規格套用於 `main.app-shell` 整個 App 視窗，包含 StratExec 頂列、App 標題列與內容；不是只縮窄 App 本文。外部平台側欄及 Drawer 保持原有行為，不調整瀏覽器視窗的大小。兩種模式都必須支援鍵盤與觸控。
 - 420 px 是包含邊框與內距的最大寬度（border-box），不是強制寬度；內容可用寬度會再扣除視窗內距。App 視窗與內容容器的高度依內容延伸，不用 `100vh`／`100dvh`、固定高度或只為與鄰欄齊高而製造大片留白；同一 grid row 內的卡片可以互相 stretch。預設沿用頁面垂直捲動，並由頁面頂端排列；內容高度或頁籤切換不得觸發整窗垂直重新置中。
 - 尺寸與共用斷點集中在 `src/styles/app-layout.css`。App 不覆寫 `.app-shell`、`.platform-app-frame` 或 `--app-compact-max-width`。
 - `npm run check:boundaries` 會拒絕 App CSS 選取 `html`／`body`／`#root`、平台 Shell 或共用 UI 內部 class；App 只能在自己的根節點安排版面，或設定平台明確公開的 CSS 變數。
@@ -98,7 +99,7 @@ export default function ExampleApp() {
 - 共用 `.platform-grid`：容器小於 600 px 一欄、600–1023 px 兩欄、1024 px 起三欄；加 `.platform-grid--two` 最多兩欄。這些是內容寬度分級，不是裝置偵測。App 決定哪些區塊放入 grid。
 - `responsive` 不會自動將表格變成卡片。寬表格需在自身區塊捲動或改排；頁面不可整體水平溢出。圖片、圖表、長字串需容納在容器內。
 - 共用按鈕至少 44×44 CSS px；觸控操作不依賴 hover，必要資訊也不能只靠顏色表達。確認視窗使用原生 dialog，跟隨 viewport 保持可操作。
-- App 可從唯讀 props `displayMode` 得知註冊模式；變更視窗寬度不改模式或建立新 App instance。不同路由入口的切換仍依既有解除掛載／取消規則。
+- App 可從唯讀 props `displayMode` 得知註冊模式；變更視窗寬度不改模式或建立新 App instance。不同路由入口依各自 `keepAlive` 宣告決定保留或解除掛載；離開仍取消本次活動期的工作。
 - `workspace`／`dashboard`／`focus` 僅作版面設計範例，沒有另加 Registry 欄位。
 
 ```tsx
@@ -127,10 +128,35 @@ export default function ExampleApp() {
 - App 安裝生命週期由 Identity API 的 `appInstallations` 管理，與 React 元件掛載生命週期及 App 權限政策分開。
 - 非核心 App 可經管理介面 `install`、`disable`、`enable`、`uninstall`；`access-control` 與平台核心不可停用或移除。
 - 邏輯移除立即影響首頁、導覽、直接網址及伺服器端 `appAccess`，但不刪除 bundle、業務資料或相依服務。這使新手可安全重裝，也避免單一 App 誤刪共用服務。
-- Props 提供唯讀 `displayMode`、`onOpenAppMenu`、`onOpenHome`、本次掛載的 `signal`。一般首頁導覽由平台側欄／Drawer 處理；`onOpenHome` 保留給錯誤復原或明確工作流程，不用來重建固定標題列按鈕。
+- Props 提供唯讀 `displayMode`、`active`、`onOpenAppMenu`、`onOpenHome`、本次活動期的 `signal`。一般首頁導覽由平台側欄／Drawer 處理；`onOpenHome` 保留給錯誤復原或明確工作流程，不用來重建固定標題列按鈕。
 - App 必須清理 timer、事件監聽、訂閱；請求傳入 `signal`。離開 App、故障解除掛載或關網頁，不是停止策略命令。
 - 平台隔離 lazy 載入／React 渲染錯誤；事件處理與 Promise 錯誤由 App 處理。故障頁可返回首頁或重新載入前端，不重送命令。
 - 每個 App 沒有獨立權限沙箱；不要載入不受信任的程式碼。
+
+### 受控 Keep-alive
+
+- manifest 的 `frontend.keepAlive` 是選填 boolean，會產生 Registry 的 `keepAlive`；只保留使用者已開啟且明確啟用的 App，不預載所有 App。模板的 Demo、Demo Compact 與會員管理 App 維持原本解除掛載行為。
+- 保留時不重建 React／DOM 工作區，草稿、游標及元件內狀態可延續；切走後使用 `hidden`／`inert`，活動狀態變為 `false`，舊 `signal` 取消。返回時提供新的 `signal`，不是恢復已取消的訊號。
+- 背景工作必須使用 `shared/lifecycle/AppActivity.tsx` 的 `useAppActive`、`useAppEffect` 或 `useAppLayoutEffect`：暫停時清理 timer、polling、listener、observer 與訂閱，啟用時重新連接；可卸載的工作與需保留的編輯器實體應分開。Host 無法替 App 暫停所有普通 `useEffect`。
+- 讀取 Hook 可用 `active ? path : null` 停止讀取，並傳遞本次活動期的 `signal`；無法取消的 Promise 仍須檢查活動期／帳號，丟棄晚到結果。重新啟用不得自動重送存檔、刪除或交易寫入。
+- `AppHeaderActions`／`AppInfoBar` 只在活動時掛入 Host。共用 `ConfirmDialog` 暫停時關閉原生 modal，但保留呼叫端的 `open` 狀態；返回時可恢復。App 自有 Portal、popover、fullscreen／editor widget 仍須個別處理。
+- 權限／App 政策重新同步時暫停並暫存；確認失去權限、停用、移除或政策讀取失敗時釋放。登出或 UID 切換會清除整個工作區快取，包括公開 App；不使用上一個 UID 的 member 授權。
+- 啟用的 App 標題列提供「關閉目前 App」，確認後釋放其工作區並返回首頁；取消確認不丟草稿。沒有自動 LRU 淘汰，記憶體用量隨已開啟且保留的 App 增加，使用者可明確關閉。
+- Keep-alive 不是自動儲存：重新整理、關閉頁面或明確關閉工作區仍可能丟失未保存草稿。持久化仍由各 App 的保存／匯入契約處理；暫停、關閉及 Abort 都不停止後端策略、不撤單，也不賦予 PAPER／LIVE 權限。
+
+```tsx
+import { useAppEffect } from '../../shared/lifecycle/AppActivity';
+
+function ExampleApp({ signal }: ShellAppProps) {
+  useAppEffect(() => {
+    const timer = window.setInterval(() => refreshReadOnly(signal), 3_000);
+    return () => window.clearInterval(timer);
+  }, [signal]);
+  return <EditorWorkspace />;
+}
+```
+
+`refreshReadOnly`／`EditorWorkspace` 是示意介面，不是平台提供的交易能力。接入需驗證切換、首頁、Back／Forward、StrictMode、暫停效果、Portal／dialog、關閉確認及帳號／權限清理；平台同步紀錄見 [Keep-alive 模板驗收](evidence/FRONTEND-keep-alive-sync-20261004.md)。
 
 ## 共用介面與偏好
 
@@ -189,11 +215,12 @@ npm run test:e2e
 
 - `npm run dev`：5175，一般平台及 Demo 的兩種模式入口。
 - `npm run dev:test`：5176，兩個離線測試 App；只供開發驗收。
+- 測試宿主加上 `?keepAliveFixture=1` 可切換為兩個純離線 Keep-alive fixtures，驗證草稿 DOM、timer 暫停、Portal 與關閉確認；不改變一般 Registry，也不進入 production bundle。
 - E2E 同時啟動 5176 測試宿主及 5177 一般平台，分別驗證故障 fixtures 與真正的 Demo Registry。埠已占用會拒絕，不接手不明服務。
 - 測試宿主由同一入口在 `DEV && MODE==='platform-test'` 載入；production build 會移除。建置自動檢查沒有 fixture marker／路徑／宿主文案。
 - E2E 設定包括 Chromium 桌面／手機及 WebKit 手機；實際執行結果見驗收紀錄，不能以手機 viewport 代替實體裝置驗收。
 - 若下載 Chromium 受限，可明確設定 `PLAYWRIGHT_CHROMIUM_CHANNEL=chrome` 使用已安裝 Chrome；CI 預設使用 Playwright 版本，不套用此本機例外。
 - `.github/workflows/console.yml` 提供安裝、單元測試、建置、瀏覽器測試及失敗附件。尚未推送，因此沒有雲端 CI 成功紀錄。
-- 頁尾顯示前端版本與 CI commit 短碼；本機顯示 `local`，不冒充已發版 commit 或後端健康資訊。
+- 目前 Shell 不顯示版本頁尾；建置提供的版本／revision 常數不等於已發布版本或後端健康資訊。
 
 後續仍需完成 F7 後端 ID Token 驗證／權限管理與 F8 帳戶／Worker 快照整合；前端 Firebase 登入與 UI 基礎通過不等於交易平台已可下單。

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useAppActive } from '../lifecycle/AppActivity';
 
 export function Button({ className = '', type = 'button', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return <button {...props} type={type} className={`platform-button ${className}`} />;
@@ -32,12 +33,13 @@ export function ConfirmDialog({ open, title, children, onConfirm, onClose, pendi
   open: boolean; title: string; children: ReactNode; onConfirm: () => void; onClose: () => void; pending?: boolean; confirmDisabled?: boolean; confirmLabel?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const active = useAppActive();
   const titleId = useId();
   const descriptionId = useId();
   useEffect(() => {
-    if (open && !dialog.current?.open) dialog.current?.showModal();
-    if (!open && dialog.current?.open) dialog.current.close();
-  }, [open]);
+    if (active && open && !dialog.current?.open) dialog.current?.showModal();
+    if ((!active || !open) && dialog.current?.open) dialog.current.close();
+  }, [active, open]);
   return (
     <dialog ref={dialog} className="platform-dialog" aria-labelledby={titleId} aria-describedby={descriptionId}
       onCancel={(event) => { event.preventDefault(); if (!pending) onClose(); }}>

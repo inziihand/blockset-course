@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Menu, Settings, UserRound } from 'lucide-react';
+import { Menu, Settings, UserRound, X } from 'lucide-react';
 import AppLauncherPanel from './AppLauncherPanel';
 import { BrandMark, Wordmark } from './Brand';
 import OffCanvasDrawer from './OffCanvasDrawer';
@@ -7,7 +7,8 @@ import ThemePicker from './ThemePicker';
 import { appRegistry, canAccessDefinition, getAppDefinition, getLaunchableApps, isLaunchableDefinition, validateAppRegistry } from './appRegistry';
 import type { ShellAppDefinition, ShellAppKey } from './types';
 import { navigate, usePathname } from './navigation';
-import AppHost from './AppHost';
+import { AppWorkspaceHost } from './AppHost';
+import { ConfirmDialog } from '../shared/ui/controls';
 import { NotificationProvider } from '../shared/ui/Notifications';
 import { useAuth } from '../shared/auth';
 import { firebaseAuthConfiguration } from '../shared/auth/config';
@@ -31,6 +32,8 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [closingApp, setClosingApp] = useState<ShellAppDefinition | null>(null);
+  const [closeRequest, setCloseRequest] = useState<{ key: string; revision: number } | null>(null);
   const usesServerCatalog = apps === appRegistry && firebaseAuthConfiguration.state === 'configured';
   const [installedAppCatalog, setInstalledAppCatalog] = useState<InstalledAppCatalog | null>(null);
   const [appCatalogStatus, setAppCatalogStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
@@ -40,6 +43,8 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
   const [appCatalogRevision, setAppCatalogRevision] = useState(0);
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const definition = apps.find((app) => app.path === pathname);
+  // Auth can change one render before Identity clears the previous member.
+  const trustedMember = identityStatus === 'ready' && member && user?.uid === member.uid ? member : null;
   const fallbackAccessMode = (app: ShellAppDefinition): AppAccessMode => (
     app.access === 'public' ? 'public' : 'grant_required'
   );
@@ -61,8 +66,8 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
     [appCatalogReady, apps, installedAppCatalog, usesServerCatalog],
   );
   const accessibleApps = useMemo(
-    () => installedApps.filter((app) => canAccessDefinition(app, member, accessModeFor(app))),
-    [accessModeFor, installedApps, member],
+    () => installedApps.filter((app) => canAccessDefinition(app, trustedMember, accessModeFor(app))),
+    [accessModeFor, installedApps, trustedMember],
   );
   const definitionAccessMode = definition ? accessModeFor(definition) : undefined;
   const definitionInstalled = definition ? (
@@ -71,7 +76,7 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
       : true
   ) : false;
   const definitionAccessible = definition && definitionInstalled
-    ? canAccessDefinition(definition, member, definitionAccessMode)
+    ? canAccessDefinition(definition, trustedMember, definitionAccessMode)
     : false;
   const definitionRequiresIdentity = definitionAccessMode !== undefined
     && !['public', 'disabled'].includes(definitionAccessMode);
@@ -79,6 +84,11 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
   const identitySyncFailed = definitionRequiresIdentity && identityStatus === 'error';
   const appCatalogPending = Boolean(definition && usesServerCatalog && appCatalogStatus === 'loading');
   const appCatalogFailed = Boolean(definition && usesServerCatalog && appCatalogStatus === 'error');
+  const permissionRefreshPending = (usesServerCatalog && appCatalogStatus === 'loading') || identityStatus === 'syncing';
+  const activeDefinition = definition && definitionAccessible && isLaunchableDefinition(definition)
+    && !permissionRefreshPending ? definition : null;
+  const retainedAccess = permissionRefreshPending ? null
+    : usesServerCatalog && appCatalogStatus !== 'ready' ? [] : getLaunchableApps(accessibleApps);
   const mergedHeader = definition?.headerLayout === 'merged';
   const ActiveAppIcon = definition?.icon;
   const activeApp = definition?.key ?? null;
@@ -152,7 +162,7 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
   const selectApp = (key: ShellAppKey) => {
     const app = getAppDefinition(key, apps);
     if (app && (!usesServerCatalog || installedAppCatalog?.has(app.key) === true)
-      && isLaunchableDefinition(app) && canAccessDefinition(app, member, accessModeFor(app))) {
+      && isLaunchableDefinition(app) && canAccessDefinition(app, trustedMember, accessModeFor(app))) {
       hideThemeMenu();
       navigate(app.path);
     }
@@ -207,12 +217,16 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
             </div>
             {definition ? <div className="app-header-controls">
               <div id={APP_HEADER_ACTIONS_HOST_ID} className="platform-app-header-actions" role="group" aria-label="App 操作" />
+              {activeDefinition?.keepAlive && <button type="button" className="icon-button" aria-label="關閉目前 App"
+                title="關閉目前 App 並釋放工作區" onClick={() => setClosingApp(activeDefinition)}><X size={18} aria-hidden="true" /></button>}
             </div> : <span className="platform-badge">{pathname === '/' ? '平台首頁' : '找不到頁面'}</span>}
           </header>
           {definition ? <aside id={APP_INFO_BAR_HOST_ID} className="platform-app-info card" aria-label="App 資訊" /> : null}
-          {pathname === '/' ? <AppLauncherPanel apps={accessibleApps} onSelectApp={selectApp} /> : (
-            <section className="app-content card" aria-label={definition?.title ?? '找不到頁面'}>
-              {definition && definitionAccessible && isLaunchableDefinition(definition) ? <AppHost app={definition} onOpenHome={openHome} onOpenAppMenu={openDrawer} /> : (
+          {pathname === '/' && <AppLauncherPanel apps={accessibleApps} onSelectApp={selectApp} />}
+            <section className="app-content card" hidden={pathname === '/'} aria-label={definition?.title ?? '找不到頁面'}>
+              <AppWorkspaceHost key={user?.uid ?? 'anonymous'} app={activeDefinition} allowedApps={retainedAccess}
+                closeRequest={closeRequest} onOpenHome={openHome} onOpenAppMenu={openDrawer} />
+              {pathname !== '/' && !activeDefinition && (
                 <div className="platform-state" role="alert">
                   <h3>{definition ? (appCatalogPending ? '正在同步 App 開放政策'
                     : appCatalogFailed ? 'App 開放政策無法使用'
@@ -235,7 +249,16 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
                 </div>
               )}
             </section>
-          )}
+          <ConfirmDialog open={Boolean(closingApp)} title="關閉 App 工作區" confirmLabel="關閉 App"
+            onClose={() => setClosingApp(null)} onConfirm={() => {
+              if (closingApp) {
+                setCloseRequest(previous => ({ key: closingApp.key, revision: (previous?.revision ?? 0) + 1 }));
+                if (definition?.key === closingApp.key) openHome();
+              }
+              setClosingApp(null);
+            }}>
+            關閉「{closingApp?.title}」會釋放工作區，未儲存的草稿將遺失。切換 App 不需要關閉；此動作不停止後端策略，也不發送交易命令。
+          </ConfirmDialog>
         </main>
     </>
   );

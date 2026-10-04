@@ -20,7 +20,8 @@
 | Button、Field、ConfirmDialog | 平台 | stable | 通用表單與明確確認 |
 | LoadingState、EmptyState、ErrorState | 平台 | stable | 通用讀取狀態 |
 | NotificationProvider／useNotifications | 平台 | stable | 平台通知區與手動關閉 |
-| AppHeaderActions | 平台 | preview | 將目前 App 的工作區操作掛入 Host 標題列；切換 App 時自動卸載 |
+| AppHeaderActions | 平台 | preview | 將活動 App 的工作區操作掛入 Host 標題列；暫停／卸載時移除 Portal，啟用時重新掛入 |
+| AppInfoBar | 平台 | preview | 活動 App 的資訊列 Portal；暫停時清理內容與 variant |
 | FolderTabs | 平台 | stable | Demo 與 TAIFEX 控制台採用；窄版不得超出內容容器 |
 | SegmentedControl | 平台 | preview | 受控單選檢視切換 |
 | ChoiceGroup | 平台 | stable | TAIFEX 商品單選篩選；使用按鈕 pressed 語意 |
@@ -48,6 +49,7 @@
 - 從 `src/shared/ui` 引用共用元件，不複製其 markup／互動程式碼。
 - App 可以用外層版面安排寬度、間距與位置；不可覆寫元件內部角色、焦點、選取及 disabled 行為。
 - `AppHeaderActions` 只放作用於整個 App 工作區的動作，例如檔案、模板與工具；區塊內的篩選、送出或編輯動作仍留在所屬卡片。App 不得直接選取 `.topbar`、操作 Portal host，或自行建立第二個平台標題列。
+- Keep-alive App 的共用 Portal 與 `ConfirmDialog` 會依活動狀態暫停；自有 Portal／popover 需自行整合 `useAppActive`。完整生命週期責任見 [App 接入契約](FRONTEND_APP_GUIDE.md#受控-keep-alive)。
 - 標題列按鈕須有可及名稱及至少 44×44 CSS px 的操作面積；窄版可收斂為圖示或換行，但不可隱藏必要狀態、造成水平溢出或讓選單被內容容器裁切。
 - FolderTabs 必須提供穩定 `id`、`value`、`items` 與對應 `panelId`；tabpanel 以 `aria-labelledby` 指向目前頁籤。
 - SegmentedControl 用於同一內容的觀察角度；真正的頁面或 App 導覽仍走 Registry／網址。

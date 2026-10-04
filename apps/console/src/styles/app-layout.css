@@ -51,6 +51,7 @@
   overflow-wrap: anywhere;
 }
 .platform-app-frame > * { min-inline-size: 0; }
+.platform-app-frame[hidden], .app-content[hidden] { display: none; }
 
 /* Optional shared layout primitives: Apps choose which content belongs together. */
 .platform-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--app-layout-gap); }

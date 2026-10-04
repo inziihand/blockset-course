@@ -9,14 +9,14 @@ export async function appWindowGeometry(page: Page) {
     const shellRect = shell.getBoundingClientRect();
     const content = shell.querySelector('.app-content')!;
     const contentStyle = getComputedStyle(content);
-    const frame = shell.querySelector('.platform-app-frame')!;
+    const frame = shell.querySelector('.platform-app-frame:not([hidden])')!;
     const frameStyle = getComputedStyle(frame);
     const frameRect = frame.getBoundingClientRect();
     const available = root.clientWidth - parseFloat(rootStyle.paddingLeft) - parseFloat(rootStyle.paddingRight);
     const rootContentLeft = rootRect.left + parseFloat(rootStyle.borderLeftWidth) + parseFloat(rootStyle.paddingLeft);
     const contentWidth = content.clientWidth - parseFloat(contentStyle.paddingLeft) - parseFloat(contentStyle.paddingRight);
     const shellContentWidth = shell.clientWidth - parseFloat(shellStyle.paddingLeft) - parseFloat(shellStyle.paddingRight);
-    const contained = ['.topbar', '.app-content', '.shell-footer'].every((selector) => {
+    const contained = ['.topbar', '.app-content'].every((selector) => {
       const rect = shell.querySelector(selector)!.getBoundingClientRect();
       return rect.left >= shellRect.left - 1 && rect.right <= shellRect.right + 1;
     });
@@ -27,7 +27,6 @@ export async function appWindowGeometry(page: Page) {
       shellOffset: shellRect.left - rootContentLeft,
       shellContentWidth,
       topbarWidth: shell.querySelector('.topbar')!.getBoundingClientRect().width,
-      footerWidth: shell.querySelector('.shell-footer')!.getBoundingClientRect().width,
       frameWidth: frameRect.width,
       contentWidth,
       chromeContained: contained,
@@ -47,7 +46,6 @@ export function expectAppWindow(geometry: Awaited<ReturnType<typeof appWindowGeo
   expect(Math.abs(geometry.shellWidth - expectedWidth), `${context} whole-window width`).toBeLessThanOrEqual(1);
   expect(Math.abs(geometry.shellOffset - (geometry.available - expectedWidth) / 2), `${context} centered window`).toBeLessThanOrEqual(1);
   expect(Math.abs(geometry.topbarWidth - geometry.shellContentWidth), `${context} topbar width`).toBeLessThanOrEqual(1);
-  expect(Math.abs(geometry.footerWidth - geometry.shellContentWidth), `${context} footer width`).toBeLessThanOrEqual(1);
   expect(Math.abs(geometry.frameWidth - geometry.contentWidth), `${context} full inner frame`).toBeLessThanOrEqual(1);
   expect(geometry.chromeContained, `${context} complete window chrome`).toBe(true);
   expect(geometry.railIsOutsideWindow, `${context} external platform rail`).toBe(true);

@@ -18,6 +18,8 @@ npm run setup
 
 ## 本機啟動
 
+前端平台支援 App 明確宣告的受控 Keep-alive：保留已開啟工作區，切走時暫停本地工作；不預載所有 App，也不替代保存功能。接入方式與限制見 [App 接入契約](docs/FRONTEND_APP_GUIDE.md#受控-keep-alive)。
+
 一般使用者在 repository 根目錄執行跨平台安裝精靈即可。精靈只依賴 Node.js 內建模組啟動，會準備 npm 與 Python 相依套件、Firebase／Firestore 本地測試設定、Application Default Credentials，並啟動 Identity API 與前端：
 
 ```bash

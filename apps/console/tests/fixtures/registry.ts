@@ -1,7 +1,9 @@
 import { FlaskConical } from 'lucide-react';
 import type { ShellAppDefinition } from '../../src/shell/types';
+import { getKeepAliveTestApps } from './keepAliveRegistry';
 
-export function getTestApps({ failBetaLoad = false }: { failBetaLoad?: boolean } = {}): readonly ShellAppDefinition[] {
+export function getTestApps({ failBetaLoad = false, keepAliveTest = false }: { failBetaLoad?: boolean; keepAliveTest?: boolean } = {}): readonly ShellAppDefinition[] {
+  if (keepAliveTest) return getKeepAliveTestApps();
   return [
     {
       key: 'fixture-alpha',

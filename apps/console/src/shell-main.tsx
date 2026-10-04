@@ -15,6 +15,7 @@ async function bootstrap() {
   const apps = fixtureMode
     ? (await import('../tests/fixtures/registry')).getTestApps({
       failBetaLoad: new URLSearchParams(window.location.search).get('fixtureLoadFailure') === '1',
+      keepAliveTest: new URLSearchParams(window.location.search).get('keepAliveFixture') === '1',
     })
     : undefined;
   createRoot(document.getElementById('root')!).render(

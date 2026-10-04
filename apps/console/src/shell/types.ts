@@ -11,7 +11,9 @@ export type ShellAppProps = {
   readonly displayMode: ShellAppDisplayMode;
   onOpenAppMenu: () => void;
   onOpenHome: () => void;
-  /** Cancel local work when this App leaves the host; never send a strategy stop. */
+  /** False while an opted-in App is retained off-screen; standalone callers may omit it. */
+  readonly active?: boolean;
+  /** Fresh per activation; suspension/close cancels local work, never a strategy stop. */
   signal: AbortSignal;
 };
 
@@ -27,6 +29,8 @@ export type ShellAppDefinition = {
   displayMode: ShellAppDisplayMode;
   /** Host-owned header density; omitted means the existing two-tier header. */
   headerLayout?: 'standard' | 'merged';
+  /** Audited Apps only: preserve local state on navigation and suspend background work. */
+  keepAlive?: boolean;
   path: `/apps/${string}`;
   load?: () => Promise<{ default: ComponentType<ShellAppProps> }>;
 };

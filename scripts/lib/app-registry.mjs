@@ -40,6 +40,10 @@ export function generateAppRegistrySource(manifests) {
     lines.push(`    status: ${quote(frontend.status)},`);
     lines.push(`    displayMode: ${quote(frontend.displayMode)},`);
     if (frontend.headerLayout) lines.push(`    headerLayout: ${quote(frontend.headerLayout)},`);
+    if (frontend.keepAlive !== undefined) {
+      if (typeof frontend.keepAlive !== 'boolean') throw new Error(`Invalid App keepAlive policy: ${app.appKey}`);
+      lines.push(`    keepAlive: ${frontend.keepAlive},`);
+    }
     lines.push(`    load: ${loaderName(app.appKey)},`);
     lines.push(`    access: ${quote(app.access.defaultMode === 'public' ? 'public' : 'identity')},`);
     lines.push('  },');

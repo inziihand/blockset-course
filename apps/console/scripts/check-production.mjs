@@ -4,6 +4,7 @@ import { join } from 'node:path';
 const root = new URL('../dist/', import.meta.url);
 const forbidden = [
   'STRATEXEC_OFFLINE_FIXTURE', 'fixture-alpha', 'fixture-beta', 'fixtureLoadFailure', '離線測試宿主',
+  'keepAliveFixture', 'keep-alive-alpha', 'keep-alive-beta',
   // Server-side authorization policy must never enter a Vite browser bundle.
   'STRATEXEC_BOOTSTRAP_ADMIN_EMAILS',
 ];
