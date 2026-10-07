@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Box } from 'lucide-react';
 import AppShell from '../src/shell/AppShell';
+import { BRAND_NAME } from '../src/shell/Brand';
 import { getAppDefinition, getLaunchableApps, isLaunchableDefinition } from '../src/shell/appRegistry';
 import { AuthContext, fallbackAuthContext } from '../src/shared/auth/authContext';
 import { initializeTheme, ThemeProvider, THEME_STORAGE_KEY } from '../src/shared/theme/ThemeProvider';
@@ -64,7 +65,9 @@ describe('App-free platform', () => {
     const { user, drawer } = await openDrawer();
     expect((drawer as HTMLDialogElement).open).toBe(true);
     expect(within(drawer).getByText('尚未加入應用程式')).toBeTruthy();
-    expect(within(drawer).getByText('探索・學習・實作 · v0.1.0')).toBeTruthy();
+    expect(within(drawer).getByText(BRAND_NAME)).toBeTruthy();
+    expect(within(drawer).getByText('探索・學習・實作')).toBeTruthy();
+    expect(within(drawer).queryByText(/v0\.1\.0/)).toBeNull();
     expect(within(drawer).getByText('Firebase Auth 尚未設定')).toBeTruthy();
     await user.click(within(drawer).getByRole('button', { name: '返回 StratExec 首頁' }));
     expect((drawer as HTMLDialogElement).open).toBe(false);

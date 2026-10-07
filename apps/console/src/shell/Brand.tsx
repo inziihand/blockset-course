@@ -1,5 +1,6 @@
 import { Box } from 'lucide-react';
 
+export const BRAND_NAME = 'BlockSet';
 export const BRAND_SUBTITLE = '探索・學習・實作';
 
 export function BrandMark({ size = 22 }: { size?: number }) {
@@ -7,5 +8,5 @@ export function BrandMark({ size = 22 }: { size?: number }) {
 }
 
 export function Wordmark() {
-  return <span className="wordmark">course.<strong>BlockSet</strong></span>;
+  return <span className="wordmark"><strong>{BRAND_NAME}</strong></span>;
 }
