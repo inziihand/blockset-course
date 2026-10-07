@@ -4,7 +4,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { packApp } from '../../../scripts/lib/app-package.mjs';
+import { packFixtureApp } from '../../../scripts/test/package-fixture.mjs';
 import { createPackageJobService } from '../src/package-job-service.mjs';
 
 const workspaceRoot = new URL('../../../', import.meta.url);
@@ -41,12 +41,12 @@ async function prepareTarget(base) {
 test('quarantines an upload and blocks unsigned apply by default', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-package-agent-blocked-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages') });
     const target = await prepareTarget(directory);
     const jobs = createPackageJobService({ rootPath: target, stateRoot: join(directory, 'state') });
     const inspected = await jobs.inspect({
       content: await readFile(packed.zipPath),
-      fileName: 'demo-0.1.0.zip',
+      fileName: 'package-fixture-0.1.0.zip',
       actor: { uid: 'admin-1', email: 'admin@example.com' },
     });
     assert.equal(inspected.status, 'blocked');
@@ -54,7 +54,7 @@ test('quarantines an upload and blocks unsigned apply by default', async () => {
     assert.match(inspected.blockers.join(' '), /Development-unsigned package apply is disabled/);
     assert.equal('artifactPath' in inspected, false);
     assert.equal((await jobs.listJobs()).length, 1);
-    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'demo')), false);
+    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'package-fixture')), false);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -63,7 +63,7 @@ test('quarantines an upload and blocks unsigned apply by default', async () => {
 test('applies a confirmed job serially and records the durable result', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-package-agent-apply-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages') });
     const target = await prepareTarget(directory);
     let validations = 0;
     const activations = [];
@@ -76,7 +76,7 @@ test('applies a confirmed job serially and records the durable result', async ()
     });
     const inspected = await jobs.inspect({
       content: await readFile(packed.zipPath),
-      fileName: 'demo-0.1.0.zip',
+      fileName: 'package-fixture-0.1.0.zip',
       actor: { uid: 'admin-1', email: 'admin@example.com' },
     });
     assert.equal(inspected.status, 'ready');
@@ -90,18 +90,18 @@ test('applies a confirmed job serially and records the durable result', async ()
     await assert.rejects(
       () => restrictiveJobs.apply({
         jobId: inspected.jobId,
-        confirmation: 'demo@0.1.0',
+        confirmation: 'package-fixture@0.1.0',
         actor: { uid: 'admin-1', email: 'admin@example.com' },
       }),
       (error) => error.status === 403 && /current Package Agent policy/.test(error.message),
     );
     await assert.rejects(
-      () => jobs.apply({ jobId: inspected.jobId, confirmation: 'demo', actor: { uid: 'admin-1' } }),
+      () => jobs.apply({ jobId: inspected.jobId, confirmation: 'package-fixture', actor: { uid: 'admin-1' } }),
       /exact confirmation/,
     );
     const applied = await jobs.apply({
       jobId: inspected.jobId,
-      confirmation: 'demo@0.1.0',
+      confirmation: 'package-fixture@0.1.0',
       actor: { uid: 'admin-1', email: 'admin@example.com' },
       token: 'firebase-token',
     });
@@ -112,7 +112,7 @@ test('applies a confirmed job serially and records the durable result', async ()
     assert.equal(activations[0].token, 'firebase-token');
     assert.deepEqual(activations[0].activation.allowedAccessModes, ['public']);
     assert.equal(applied.sourceRegistration.status, 'succeeded');
-    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'demo', 'DemoApp.tsx')), true);
+    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'package-fixture', 'FixtureApp.tsx')), true);
     const history = await jobs.listJobs();
     assert.equal(history[0].status, 'succeeded');
     assert.equal('artifactPath' in history[0], false);
@@ -130,7 +130,7 @@ test('allows a trusted signed package without enabling development-unsigned appl
       keyId: 'release-2026-01',
       privateKeyPem: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
     };
-    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages'), signing });
+    const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages'), signing });
     const target = await prepareTarget(directory);
     await writeFile(
       join(target, 'infrastructure', 'app-publisher-trust.json'),
@@ -177,7 +177,7 @@ test('allows a trusted signed package without enabling development-unsigned appl
     });
     const inspected = await jobs.inspect({
       content: await readFile(packed.zipPath),
-      fileName: 'demo-0.1.0.zip',
+      fileName: 'package-fixture-0.1.0.zip',
       actor: { uid: 'admin-1', email: 'admin@example.com' },
     });
     assert.equal(inspected.status, 'ready');
@@ -192,7 +192,7 @@ test('allows a trusted signed package without enabling development-unsigned appl
     assert.equal(deploymentPlan.package.signatureStatus, 'trusted-signed');
     const applied = await jobs.apply({
       jobId: inspected.jobId,
-      confirmation: 'demo@0.1.0',
+      confirmation: 'package-fixture@0.1.0',
       actor: { uid: 'admin-1', email: 'admin@example.com' },
     });
     assert.equal(applied.status, 'succeeded');
@@ -204,7 +204,7 @@ test('allows a trusted signed package without enabling development-unsigned appl
 test('invalidates an inspected job when owned repository files change before apply', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-package-agent-drift-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages') });
     const target = await prepareTarget(directory);
     const jobs = createPackageJobService({
       rootPath: target,
@@ -214,16 +214,16 @@ test('invalidates an inspected job when owned repository files change before app
     });
     const inspected = await jobs.inspect({
       content: await readFile(packed.zipPath),
-      fileName: 'demo-0.1.0.zip',
+      fileName: 'package-fixture-0.1.0.zip',
       actor: { uid: 'admin-1', email: 'admin@example.com' },
     });
-    const appSource = join(target, 'apps', 'console', 'src', 'apps', 'demo');
+    const appSource = join(target, 'apps', 'console', 'src', 'apps', 'package-fixture');
     await mkdir(appSource, { recursive: true });
-    await writeFile(join(appSource, 'DemoApp.tsx'), '// changed after inspection\n');
+    await writeFile(join(appSource, 'FixtureApp.tsx'), '// changed after inspection\n');
     await assert.rejects(
       () => jobs.apply({
         jobId: inspected.jobId,
-        confirmation: 'demo@0.1.0',
+        confirmation: 'package-fixture@0.1.0',
         actor: { uid: 'admin-1', email: 'admin@example.com' },
       }),
       (error) => error.status === 409 && /inspect the ZIP again/.test(error.message),

@@ -65,7 +65,7 @@ npm run app:install -- .stratexec/app-packages/example-1.0.0.zip apply example@1
 4. 重新產生 `services.json` 與 `generatedAppRegistry.ts`，執行 App／Service 契約檢查、Console production build，以及 App-owned Node 原始碼的無副作用語法檢查。
 5. 全部成功才更新 `app-packages.lock.json`；任一步失敗會把 source 與衍生檔回復到安裝前狀態。
 
-受保護的核心 App、共用來源別名（例如窄版 Demo）及 `package.installable: false` 的 manifest 不可被 ZIP 取代。安裝器不執行 App-owned workspace 的 `build`／lifecycle scripts、不執行資料 migration、不自動執行 `npm install`，也不部署雲端；只呼叫母版已知的 validator 與 Console build。新增前端套件若需要母版尚未審查的第三方 dependency，會在 Console build 階段失敗並回復；應先獨立審查平台 dependency。
+受保護的核心 App、共用來源別名及 `package.installable: false` 的 manifest 不可被 ZIP 取代。安裝器不執行 App-owned workspace 的 `build`／lifecycle scripts、不執行資料 migration、不自動執行 `npm install`，也不部署雲端；只呼叫平台已知的 validator 與 Console build。新增前端套件若需要平台尚未審查的第三方 dependency，會在 Console build 階段失敗並回復；應先獨立審查平台 dependency。
 
 ## 第四批：信任、部署契約與 plan fingerprint
 

@@ -1,6 +1,6 @@
 # Firebase Authentication 與管理權限
 
-母版預設安裝 Firebase JavaScript SDK，並提供 Google 登入的 Shell 基礎能力。沒有設定 Firebase 時，平台與離線元件 Demo 仍可正常啟動，Drawer 會明示「Firebase Auth 尚未設定」。
+平台預設安裝 Firebase JavaScript SDK，並提供 Google 登入的 Shell 基礎能力。沒有設定 Firebase 時，平台仍可啟動，Drawer 會明示「Firebase Auth 尚未設定」。
 
 ## 設定方式
 

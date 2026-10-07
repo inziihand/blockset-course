@@ -57,7 +57,7 @@ npm run setup
 
 再次執行時可沿用既有 `.local.json`，並安全重建／重啟本地 runtime。第一次安裝不詢問也不執行 Cloud Run／Hosting 正式部署。正式部署目前仍使用 Windows `.\scripts\deploy.ps1`；該入口才會檢查 billing，並在動作前分別確認可能計費資源及公開 ingress。完整流程見 [客戶安裝與後端模組化](docs/INSTALLATION_ARCHITECTURE.md)。
 
-目前保留原 React 專案的 Shell／Drawer／App Registry 模式、桌面與手機導覽、淺色／深色／暖紙／跟隨系統主題，並新增 URL 導覽、lazy App 容器、錯誤隔離、共用 UI／API transport，以及管理員限定的「會員與權限」App。管理員可在平台介面安裝、停用、重新啟用或邏輯移除非核心 App，並動態選擇整體 App 為未登入可用、所有登入會員或需要個別授權；App manifest 只提供首次安裝預設與可接受範圍。App 可另外宣告少量能力型 entitlement，供管理員解鎖會員功能；移除會立即關閉導覽與路由，但保留資料與相依 runtime 供審查後處理。母版不綁定單一 Firebase 專案；每個客戶／環境使用自己的本機 installation overlay、GCP/Firebase project 與 `.env.local`。平台 Identity API 驗證 Firebase ID Token，會員與 App 授權由 Firestore 的伺服器端資料管理；瀏覽器規則預設全拒絕。母版只預載共用內容的通用／窄版純前端 Demo；股票行情 Demo 已從母版抽離，後續以外部 ZIP 驗證 backend-aware App 的可移植安裝。沒有搬入源版會員資料、舊憑證、DeriStrat 或交易連線。詳見 [登入與權限規格](docs/AUTHENTICATION_AUTHORIZATION.md)、[安裝與資料分層](docs/INSTALLATION_ARCHITECTURE.md)、[Console 說明](apps/console/README.md)、[Backend-aware App 規格](docs/BACKEND_APP_CONTRACT.md) 及 [App 契約](docs/FRONTEND_APP_GUIDE.md)。
+目前保留原 React 專案的 Shell／Drawer／App Registry 模式、桌面與手機導覽、淺色／深色／暖紙／跟隨系統主題，並新增 URL 導覽、lazy App 容器、錯誤隔離、共用 UI／API transport，以及管理員限定的「會員與權限」App。管理員可在平台介面安裝、停用、重新啟用或邏輯移除非核心 App，並動態選擇整體 App 為未登入可用、所有登入會員或需要個別授權；App manifest 只提供首次安裝預設與可接受範圍。App 可另外宣告少量能力型 entitlement，供管理員解鎖會員功能；移除會立即關閉導覽與路由，但保留資料與相依 runtime 供審查後處理。母版不綁定單一 Firebase 專案；每個客戶／環境使用自己的本機 installation overlay、GCP/Firebase project 與 `.env.local`。平台 Identity API 驗證 Firebase ID Token，會員與 App 授權由 Firestore 的伺服器端資料管理；瀏覽器規則預設全拒絕。課程版目前只預載核心「會員與權限」App；其他 App 待管理員透過 ZIP 安裝。沒有搬入源版會員資料、舊憑證、DeriStrat 或交易連線。詳見 [登入與權限規格](docs/AUTHENTICATION_AUTHORIZATION.md)、[安裝與資料分層](docs/INSTALLATION_ARCHITECTURE.md)、[Console 說明](apps/console/README.md)、[Backend-aware App 規格](docs/BACKEND_APP_CONTRACT.md) 及 [App 契約](docs/FRONTEND_APP_GUIDE.md)。
 
 ## 產品目標
 
@@ -102,7 +102,7 @@ npm run setup
 
 ```text
 stratexec-platform/
-├─ apps/console/               # React 平台外殼、會員權限與離線元件 Demo
+├─ apps/console/               # React 平台外殼與會員權限
 ├─ backend/                    # 單一 Python 專案；Identity API 與未來交易核心
 ├─ tools/app-package-agent/    # loopback-only App ZIP 管理工作代理
 ├─ tools/deployment-agent/     # 部署 approval／lease／job／稽核安全控制平面

@@ -1,3 +1,4 @@
+import { packFixtureApp } from './package-fixture.mjs';
 import assert from 'node:assert/strict';
 import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -39,33 +40,33 @@ async function prepareTarget(base) {
 test('dry-runs and atomically installs a verified App package into an isolated target', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-install-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages') });
     const target = await prepareTarget(directory);
     const plan = await planAppPackageInstall({ zipPath: packed.zipPath, rootPath: target });
     assert.equal(plan.status, 'new');
     assert.equal(plan.blockers.length, 0);
     assert.ok(plan.changes.some((change) => change.action === 'add'));
-    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'demo')), false);
+    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'package-fixture')), false);
 
     const installed = await installAppPackage({
       zipPath: packed.zipPath,
       rootPath: target,
       apply: true,
-      confirmation: 'demo@0.1.0',
+      confirmation: 'package-fixture@0.1.0',
     });
     assert.equal(installed.applied, true);
-    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'demo', 'DemoApp.tsx')), true);
+    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'package-fixture', 'FixtureApp.tsx')), true);
     const generated = await readFile(join(target, 'apps', 'console', 'src', 'shell', 'generatedAppRegistry.ts'), 'utf8');
-    assert.match(generated, /key: "demo"/);
+    assert.match(generated, /key: "package-fixture"/);
     const lock = JSON.parse(await readFile(join(target, 'infrastructure', 'app-packages.lock.json'), 'utf8'));
-    assert.equal(lock.packages.demo.version, '0.1.0');
+    assert.equal(lock.packages['package-fixture'].version, '0.1.0');
 
     const repeated = await installAppPackage({ zipPath: packed.zipPath, rootPath: target, apply: false });
     assert.equal(repeated.status, 'no-op');
     assert.equal(repeated.applied, false);
 
     await writeFile(
-      join(target, 'apps', 'console', 'src', 'apps', 'demo', 'DemoApp.tsx'),
+      join(target, 'apps', 'console', 'src', 'apps', 'package-fixture', 'FixtureApp.tsx'),
       '// locally customized after installation\n',
     );
     const drifted = await planAppPackageInstall({ zipPath: packed.zipPath, rootPath: target });
@@ -78,13 +79,13 @@ test('dry-runs and atomically installs a verified App package into an isolated t
 test('adopts identical unmanaged App source into the package lock', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-adopt-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages') });
     const target = await prepareTarget(directory);
     await installAppPackage({
       zipPath: packed.zipPath,
       rootPath: target,
       apply: true,
-      confirmation: 'demo@0.1.0',
+      confirmation: 'package-fixture@0.1.0',
     });
     await writeFile(
       join(target, 'infrastructure', 'app-packages.lock.json'),
@@ -95,15 +96,15 @@ test('adopts identical unmanaged App source into the package lock', async () => 
       zipPath: packed.zipPath,
       rootPath: target,
       apply: true,
-      confirmation: 'demo@0.1.0',
+      confirmation: 'package-fixture@0.1.0',
       adoptExisting: true,
     });
 
     assert.equal(adopted.status, 'no-op');
     assert.equal(adopted.applied, true);
     const lock = JSON.parse(await readFile(join(target, 'infrastructure', 'app-packages.lock.json'), 'utf8'));
-    assert.equal(lock.packages.demo.version, '0.1.0');
-    assert.equal(lock.packages.demo.packageSha256, adopted.packageSha256);
+    assert.equal(lock.packages['package-fixture'].version, '0.1.0');
+    assert.equal(lock.packages['package-fixture'].packageSha256, adopted.packageSha256);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -112,7 +113,7 @@ test('adopts identical unmanaged App source into the package lock', async () => 
 test('binds plan fingerprints to installation settings and repository control state', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-plan-context-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages') });
     const target = await prepareTarget(directory);
     const initial = await planAppPackageInstall({
       zipPath: packed.zipPath,
@@ -148,20 +149,20 @@ test('binds plan fingerprints to installation settings and repository control st
 test('rolls source and derived files back when post-install validation fails', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-rollback-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages') });
     const target = await prepareTarget(directory);
     await assert.rejects(
       () => installAppPackage({
         zipPath: packed.zipPath,
         rootPath: target,
         apply: true,
-        confirmation: 'demo@0.1.0',
+        confirmation: 'package-fixture@0.1.0',
         postApply: async () => { throw new Error('simulated validation failure'); },
       }),
       /simulated validation failure/,
     );
-    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'demo')), false);
-    assert.equal(await exists(join(target, 'infrastructure', 'apps', 'demo.json')), false);
+    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'package-fixture')), false);
+    assert.equal(await exists(join(target, 'infrastructure', 'apps', 'package-fixture.json')), false);
     assert.equal(await exists(join(target, 'apps', 'console', 'src', 'shell', 'generatedAppRegistry.ts')), false);
     const lock = JSON.parse(await readFile(join(target, 'infrastructure', 'app-packages.lock.json'), 'utf8'));
     assert.deepEqual(lock.packages, {});
@@ -173,7 +174,7 @@ test('rolls source and derived files back when post-install validation fails', a
 test('does not delete an untouched target when the backup phase fails', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-backup-failure-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages') });
     const target = await prepareTarget(directory);
     const servicesPath = join(target, 'infrastructure', 'services.json');
     const lockPath = join(target, 'infrastructure', 'app-packages.lock.json');
@@ -187,7 +188,7 @@ test('does not delete an untouched target when the backup phase fails', async ()
         zipPath: packed.zipPath,
         rootPath: target,
         apply: true,
-        confirmation: 'demo@0.1.0',
+        confirmation: 'package-fixture@0.1.0',
         transactionOperations: {
           rename: async (source, destination) => {
             if (!failed && source === lockPath) {
@@ -203,7 +204,7 @@ test('does not delete an untouched target when the backup phase fails', async ()
 
     assert.equal(await readFile(servicesPath, 'utf8'), originalServices);
     assert.equal(await readFile(lockPath, 'utf8'), originalLock);
-    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'demo')), false);
+    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'package-fixture')), false);
     const transactions = join(target, '.stratexec', 'app-installations');
     assert.deepEqual(await import('node:fs/promises').then(({ readdir }) => readdir(transactions)), []);
   } finally {
@@ -214,13 +215,13 @@ test('does not delete an untouched target when the backup phase fails', async ()
 test('requires exact confirmation and refuses packaging a platform-owned core App', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-confirm-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: join(directory, 'packages') });
+    const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages') });
     const target = await prepareTarget(directory);
     await assert.rejects(
-      () => installAppPackage({ zipPath: packed.zipPath, rootPath: target, apply: true, confirmation: 'demo' }),
-      /exact confirmation: demo@0.1.0/,
+      () => installAppPackage({ zipPath: packed.zipPath, rootPath: target, apply: true, confirmation: 'package-fixture' }),
+      /exact confirmation: package-fixture@0.1.0/,
     );
-    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'demo')), false);
+    assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'package-fixture')), false);
     await assert.rejects(
       () => packApp({ appKey: 'access-control', outputDirectory: join(directory, 'packages') }),
       /Installable frontend App not found/,

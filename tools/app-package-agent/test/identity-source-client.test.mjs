@@ -8,7 +8,7 @@ test('forwards a transient administrator token to source App activation', async 
     baseUrl: 'http://127.0.0.1:8180',
     fetchImpl: async (url, init) => {
       request = { url, init };
-      return new Response(JSON.stringify({ appKey: 'options-strategy-lab', status: 'installed' }), {
+      return new Response(JSON.stringify({ appKey: 'fixture-lab', status: 'installed' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -16,10 +16,10 @@ test('forwards a transient administrator token to source App activation', async 
   });
 
   const activation = { displayName: '選擇權策略分析', allowedAccessModes: ['grant_required'] };
-  const result = await client.activate({ appKey: 'options-strategy-lab', token: 'firebase-token', activation });
+  const result = await client.activate({ appKey: 'fixture-lab', token: 'firebase-token', activation });
 
   assert.equal(result.status, 'installed');
-  assert.equal(request.url, 'http://127.0.0.1:8180/api/identity/v1/admin/app-installations/options-strategy-lab/source-activation');
+  assert.equal(request.url, 'http://127.0.0.1:8180/api/identity/v1/admin/app-installations/fixture-lab/source-activation');
   assert.equal(request.init.headers.Authorization, 'Bearer firebase-token');
   assert.deepEqual(JSON.parse(request.init.body), activation);
 });

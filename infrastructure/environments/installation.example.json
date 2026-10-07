@@ -11,7 +11,7 @@
     "supportEmail": "support@example.com",
     "authorizedDomains": ["localhost", "127.0.0.1"]
   },
-  "enabledApps": ["demo", "demo-compact", "access-control"],
+  "enabledApps": ["access-control"],
   "servicePlacements": [
     {
       "serviceKey": "identity-api",

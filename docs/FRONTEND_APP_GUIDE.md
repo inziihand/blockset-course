@@ -135,7 +135,7 @@ export default function ExampleApp() {
 
 ### 受控 Keep-alive
 
-- manifest 的 `frontend.keepAlive` 是選填 boolean，會產生 Registry 的 `keepAlive`；只保留使用者已開啟且明確啟用的 App，不預載所有 App。模板的 Demo、Demo Compact 與會員管理 App 維持原本解除掛載行為。
+- manifest 的 `frontend.keepAlive` 是選填 boolean，會產生 Registry 的 `keepAlive`；只保留使用者已開啟且明確啟用的 App，不預載所有 App。會員管理 App 維持解除掛載行為。
 - 保留時不重建 React／DOM 工作區，草稿、游標及元件內狀態可延續；切走後使用 `hidden`／`inert`，活動狀態變為 `false`，舊 `signal` 取消。返回時提供新的 `signal`，不是恢復已取消的訊號。
 - 背景工作必須使用 `shared/lifecycle/AppActivity.tsx` 的 `useAppActive`、`useAppEffect` 或 `useAppLayoutEffect`：暫停時清理 timer、polling、listener、observer 與訂閱，啟用時重新連接；可卸載的工作與需保留的編輯器實體應分開。Host 無法替 App 暫停所有普通 `useEffect`。
 - 讀取 Hook 可用 `active ? path : null` 停止讀取，並傳遞本次活動期的 `signal`；無法取消的 Promise 仍須檢查活動期／帳號，丟棄晚到結果。重新啟用不得自動重送存檔、刪除或交易寫入。
@@ -193,12 +193,10 @@ function ExampleApp({ signal }: ShellAppProps) {
 
 ## 測試與交付
 
-### 可操作的 Demo
+### 課程版預載 App
 
-- 一般首頁／選單可開啟 `/apps/demo`（通用）及 `/apps/demo-compact`（窄版）。兩筆註冊共用 `src/apps/demo/DemoApp.tsx`；模式按鈕是正常平台路由導覽，不另存一份顯示模式。
-- 展示共用欄位、確認視窗、通知與本機偏好；兩個入口刻意共用 `{app:'demo'}` 的 `display-name`。調整視窗不丟草稿；切換 App 會解除掛載，只有已套用並成功儲存的名稱保留。
-- 三筆範例清單、空資料及錯誤由注入的 `demoFetch` 在本機延遲 400 ms 回傳，沒有真正網路請求；使用共用 transport／`useApiRead` 驗證離開取消，不冒充後端能力。
-- 示範入口可包含在一般 build；會拋出 React 錯誤的測試 fixtures 仍只存在獨立測試宿主。
+- 課程版只預載 `/apps/access-control` 核心管理 App。一般 App 透過 ZIP 安裝後才加入 Registry。
+- 會拋出 React 錯誤的測試 fixtures 仍只存在獨立測試宿主。
 
 ### 驗收命令
 
@@ -213,10 +211,10 @@ npm exec --workspace=@stratexec/console -- playwright install chromium webkit
 npm run test:e2e
 ```
 
-- `npm run dev`：5175，一般平台及 Demo 的兩種模式入口。
+- `npm run dev`：5175，一般平台與已安裝的 App。
 - `npm run dev:test`：5176，兩個離線測試 App；只供開發驗收。
 - 測試宿主加上 `?keepAliveFixture=1` 可切換為兩個純離線 Keep-alive fixtures，驗證草稿 DOM、timer 暫停、Portal 與關閉確認；不改變一般 Registry，也不進入 production bundle。
-- E2E 同時啟動 5176 測試宿主及 5177 一般平台，分別驗證故障 fixtures 與真正的 Demo Registry。埠已占用會拒絕，不接手不明服務。
+- E2E 可同時啟動 5176 測試宿主及 5177 一般平台。埠已占用會拒絕，不接手不明服務。
 - 測試宿主由同一入口在 `DEV && MODE==='platform-test'` 載入；production build 會移除。建置自動檢查沒有 fixture marker／路徑／宿主文案。
 - E2E 設定包括 Chromium 桌面／手機及 WebKit 手機；實際執行結果見驗收紀錄，不能以手機 viewport 代替實體裝置驗收。
 - 若下載 Chromium 受限，可明確設定 `PLAYWRIGHT_CHROMIUM_CHANNEL=chrome` 使用已安裝 Chrome；CI 預設使用 Playwright 版本，不套用此本機例外。

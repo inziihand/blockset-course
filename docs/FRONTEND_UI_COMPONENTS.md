@@ -22,13 +22,13 @@
 | NotificationProvider／useNotifications | 平台 | stable | 平台通知區與手動關閉 |
 | AppHeaderActions | 平台 | preview | 將活動 App 的工作區操作掛入 Host 標題列；暫停／卸載時移除 Portal，啟用時重新掛入 |
 | AppInfoBar | 平台 | preview | 活動 App 的資訊列 Portal；暫停時清理內容與 variant |
-| FolderTabs | 平台 | stable | Demo 與 TAIFEX 控制台採用；窄版不得超出內容容器 |
+| FolderTabs | 平台 | stable | 會員與權限 App 採用；窄版不得超出內容容器 |
 | SegmentedControl | 平台 | preview | 受控單選檢視切換 |
 | ChoiceGroup | 平台 | stable | TAIFEX 商品單選篩選；使用按鈕 pressed 語意 |
 | StatusBanner | 平台 | preview | info／success／warning／error／neutral；動作由 App 提供 |
 | MenuPopover | 平台 | preview | 受控單選選單；支援方向鍵與焦點返回 |
 | DatePicker | 平台 | preview | ISO 日期值、min／max；不含時區與交易日規則 |
-| DataTable、Gauge、DemoDataWorkspace | App | app-owned | 資料欄位與視覺判斷依 App 情境決定 |
+| DataTable、Gauge | App | app-owned | 資料欄位與視覺判斷依 App 情境決定 |
 
 `preview` 表示介面契約已測試，可供 App 採用，但在第二個實際 App 驗證前仍可調整 API；不是後端功能、帳戶連線或交易能力的狀態。
 
@@ -64,7 +64,7 @@
 
 1. 在本文件登記名稱、所有權、成熟度及邊界。
 2. 在 `tests/ui*.test.tsx` 驗證受控狀態、鍵盤與 ARIA；App 組合行為另放 App 測試。
-3. 在 Demo App 提供離線範例，讓它作為視覺型錄；Demo 是使用者，不是共用元件來源。
+3. 在獨立測試 fixture 或待安裝 App 驗證實際使用方式；共用元件不得依賴特定 App。
 4. 驗證 320／390／768／1440 px、compact／responsive、明暗主題及頁面無水平溢出。
 5. 若 props 需要業務名詞或 App 特例，停止提升並留在 App 層。
 

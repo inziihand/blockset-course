@@ -4,7 +4,7 @@ import test from 'node:test';
 import { generateAppRegistrySource } from '../lib/app-registry.mjs';
 
 const schema = JSON.parse(await readFile(new URL('../../infrastructure/app-manifest.schema.json', import.meta.url), 'utf8'));
-const manifest = JSON.parse(await readFile(new URL('../../infrastructure/apps/demo.json', import.meta.url), 'utf8'));
+const manifest = JSON.parse(await readFile(new URL('../../infrastructure/apps/access-control.json', import.meta.url), 'utf8'));
 const frontendSchema = schema.properties.frontend;
 
 test('keep-alive is optional and defaults to the original unmount policy', () => {

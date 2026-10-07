@@ -566,7 +566,7 @@ def test_source_installed_frontend_app_is_registered_without_runtime_evidence() 
     service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
     actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
 
-    installed = service.activate_source_app(actor, "options-strategy-lab", SourceAppActivation(
+    installed = service.activate_source_app(actor, "fixture-lab", SourceAppActivation(
         display_name="選擇權策略分析",
         category=AppCategory.APPLICATION,
         default_access_mode=AppAccessMode.GRANT_REQUIRED,
@@ -576,18 +576,18 @@ def test_source_installed_frontend_app_is_registered_without_runtime_evidence() 
     assert installed.status is AppInstallationStatus.INSTALLED
     assert installed.required_services == []
     assert installed.runtime_revision is None
-    assert repository.policies["options-strategy-lab"].access_mode is AppAccessMode.GRANT_REQUIRED
-    assert repository.policies["options-strategy-lab"].allowed_access_modes == [
+    assert repository.policies["fixture-lab"].access_mode is AppAccessMode.GRANT_REQUIRED
+    assert repository.policies["fixture-lab"].allowed_access_modes == [
         AppAccessMode.GRANT_REQUIRED,
         AppAccessMode.ADMINS_ONLY,
     ]
-    assert "options-strategy-lab" in service.list_installed_app_keys()
+    assert "fixture-lab" in service.list_installed_app_keys()
 
 
 def test_source_activation_falls_back_to_declared_default_when_a_mode_is_removed() -> None:
     repository = FakeRepository()
-    repository.policies["options-strategy-lab"] = AppPolicy(
-        app_key="options-strategy-lab",
+    repository.policies["fixture-lab"] = AppPolicy(
+        app_key="fixture-lab",
         display_name="選擇權策略分析",
         access_mode=AppAccessMode.PUBLIC,
         allowed_access_modes=[AppAccessMode.PUBLIC],
@@ -596,7 +596,7 @@ def test_source_activation_falls_back_to_declared_default_when_a_mode_is_removed
     service = IdentityService(FakeVerifier(principal()), repository, FakeClaims())
     actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
 
-    service.activate_source_app(actor, "options-strategy-lab", SourceAppActivation(
+    service.activate_source_app(actor, "fixture-lab", SourceAppActivation(
         display_name="選擇權策略分析",
         category=AppCategory.APPLICATION,
         default_access_mode=AppAccessMode.ADMINS_ONLY,
@@ -604,7 +604,7 @@ def test_source_activation_falls_back_to_declared_default_when_a_mode_is_removed
         admin_allowed=True,
     ))
 
-    policy = repository.policies["options-strategy-lab"]
+    policy = repository.policies["fixture-lab"]
     assert policy.access_mode is AppAccessMode.ADMINS_ONLY
     assert policy.allowed_access_modes == [AppAccessMode.ADMINS_ONLY, AppAccessMode.GRANT_REQUIRED]
     assert policy.admin_allowed is True
@@ -616,7 +616,7 @@ def test_source_activation_rejects_an_inaccessible_administrators_only_default()
     actor = Member(uid="admin-1", email="admin@example.com", role=MemberRole.ADMIN)
 
     with pytest.raises(ValueError, match="must remain available to administrators"):
-        service.activate_source_app(actor, "options-strategy-lab", SourceAppActivation(
+        service.activate_source_app(actor, "fixture-lab", SourceAppActivation(
             display_name="選擇權策略分析",
             category=AppCategory.APPLICATION,
             default_access_mode=AppAccessMode.ADMINS_ONLY,

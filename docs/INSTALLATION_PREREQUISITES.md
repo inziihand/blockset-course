@@ -7,7 +7,7 @@
 | 目的 | 需要 Google Cloud | 可能產生費用 | 結果 |
 | --- | --- | --- | --- |
 | 完整本地安裝（預設） | 是 | Firebase／Firestore 依實際用量 | 本機前端與 Identity API，使用真實 Firebase 登入及資料 |
-| 查看離線 Demo（進階） | 否 | 否 | 只啟動本機前端；Google 登入停用 |
+| 查看本機平台外殼（進階） | 否 | 否 | 只啟動本機前端；Google 登入停用 |
 | 日後正式部署 | 是 | 是 | 另行部署 Cloud Run／Firebase Hosting 等資源 |
 
 安裝器會先做唯讀 preflight；只有在使用者對必要的 Firebase Auth／Firestore 初始化問題回答 Yes 後，才建立完整本地測試所需的 managed service 設定。Cloud Run／Hosting 正式部署不在第一次安裝中執行。
@@ -39,7 +39,7 @@ repository 的 npm 套件不必事前手動安裝；安裝精靈偵測到缺少�
 
 ### 4. Google Cloud CLI
 
-執行安裝 dry-run 或正式雲端安裝需要 [Google Cloud CLI](https://cloud.google.com/sdk/docs/install-sdk)。單純查看離線 Demo 不需要。
+執行安裝 dry-run 或正式雲端安裝需要 [Google Cloud CLI](https://cloud.google.com/sdk/docs/install-sdk)。單純查看本機平台外殼不需要。
 
 ```powershell
 gcloud --version
@@ -100,7 +100,7 @@ npm run setup
 
 部署入口才會確認可能計費資源與公開入口，兩項都預設為 No。
 
-## 只啟動離線 Demo
+## 只啟動本機平台外殼
 
 不需要 Google Cloud 帳號：
 
@@ -109,7 +109,7 @@ npm ci
 npm run dev
 ```
 
-預設網址為 <http://127.0.0.1:5175/>。未提供 Firebase Web 設定時，Google 登入會停用，但離線 Demo 仍可使用。
+預設網址為 <http://127.0.0.1:5175/>。未提供 Firebase Web 設定時，Google 登入會停用；此時只能查看平台外殼。
 
 若 5175 已被其他程式占用，可直接選擇其他本機埠：
 
@@ -138,4 +138,4 @@ dry-run 仍可完成，但正式部署會停止。只有在理解帳務影響並
 
 ### Firebase Auth 尚未設定
 
-這表示本機前端已啟動，但根目錄 `.env.local` 尚未取得 Firebase Web App 設定。重新執行安裝精靈：若選定 project 已具備 Firebase Auth／Google Provider／Web App，精靈會唯讀取得公開 Web SDK 設定並產生 `.env.local`；缺少雲端設定時，只有在使用者對明確的 Y/N 問題回答 Yes 後才會建立。單純離線 Demo 可以忽略此訊息。Google 登入成功也不等於已有管理員權限，完整權限仍由 Identity API 驗證。
+這表示本機前端已啟動，但根目錄 `.env.local` 尚未取得 Firebase Web App 設定。重新執行安裝精靈：若選定 project 已具備 Firebase Auth／Google Provider／Web App，精靈會唯讀取得公開 Web SDK 設定並產生 `.env.local`；缺少雲端設定時，只有在使用者對明確的 Y/N 問題回答 Yes 後才會建立。單純查看平台外殼可以忽略此訊息。Google 登入成功也不等於已有管理員權限，完整權限仍由 Identity API 驗證。

@@ -1,3 +1,4 @@
+import { packFixtureApp } from './package-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
@@ -6,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import archiver from 'archiver';
-import { packApp, readZipEntries, verifyAppPackage } from '../lib/app-package.mjs';
+import { readZipEntries, verifyAppPackage } from '../lib/app-package.mjs';
 
 async function writeZip(path, entries) {
   await new Promise((resolve, reject) => {
@@ -24,15 +25,15 @@ async function writeZip(path, entries) {
 test('packs and verifies a clean installable frontend App', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-package-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: directory });
+    const packed = await packFixtureApp({ directory, outputDirectory: directory });
     assert.deepEqual(packed.report.requiredServices, []);
     assert.deepEqual(packed.report.providedServices, []);
     assert.deepEqual(packed.report.externalServiceDependencies, []);
     assert.equal(packed.report.signatureStatus, 'development-unsigned');
     assert.equal(packed.report.reportSchemaVersion, 2);
-    assert.equal(packed.report.deploymentManifest, 'infrastructure/app-deployments/demo.json');
+    assert.equal(packed.report.deploymentManifest, 'infrastructure/app-deployments/package-fixture.json');
     const verified = await verifyAppPackage({ zipPath: packed.zipPath });
-    assert.equal(verified.appKey, 'demo');
+    assert.equal(verified.appKey, 'package-fixture');
     assert.equal(verified.compatible, true);
     assert.equal(verified.signatureStatus, 'development-unsigned');
     assert.equal(verified.deployable, false);
@@ -65,7 +66,7 @@ test('verifies a trusted Ed25519 publisher signature and rejects forged, disable
         }],
       }],
     };
-    const packed = await packApp({ appKey: 'demo', outputDirectory: directory, signing });
+    const packed = await packFixtureApp({ directory, outputDirectory: directory, signing });
     assert.equal(packed.report.signatureStatus, 'signed-unverified');
     assert.equal(packed.report.publisherId, signing.publisherId);
     const verified = await verifyAppPackage({ zipPath: packed.zipPath, trustStore });
@@ -143,7 +144,7 @@ test('rejects traversal, duplicate, symlink, oversized, and excessive ZIP entrie
 test('rejects a package whose payload no longer matches its checksum inventory', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-package-tamper-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: directory });
+    const packed = await packFixtureApp({ directory, outputDirectory: directory });
     const entries = readZipEntries(await readFile(packed.zipPath));
     const payloadName = [...entries.keys()].find((name) => name.startsWith('payload/'));
     entries.set(payloadName, Buffer.from('tampered', 'utf8'));
@@ -158,7 +159,7 @@ test('rejects a package whose payload no longer matches its checksum inventory',
 test('rejects executable deployment fields even when package checksums are internally consistent', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stratexec-app-deployment-command-'));
   try {
-    const packed = await packApp({ appKey: 'demo', outputDirectory: directory });
+    const packed = await packFixtureApp({ directory, outputDirectory: directory });
     const entries = readZipEntries(await readFile(packed.zipPath));
     const manifest = JSON.parse(entries.get('package.json').toString('utf8'));
     const deployment = JSON.parse(entries.get(manifest.deploymentManifest).toString('utf8'));

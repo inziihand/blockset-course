@@ -367,7 +367,7 @@ function New-InteractiveInstallationConfig {
             supportEmail = $supportEmail
             authorizedDomains = @('localhost', '127.0.0.1')
         }
-        enabledApps = @('demo', 'demo-compact', 'access-control')
+        enabledApps = @('access-control')
         servicePlacements = @(
             [ordered]@{
                 serviceKey = $identityServiceKey

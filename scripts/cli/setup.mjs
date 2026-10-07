@@ -206,7 +206,7 @@ async function findOrCreateInstallationConfig(repoRoot) {
       supportEmail: context.account,
       authorizedDomains: ['localhost', '127.0.0.1'],
     },
-    enabledApps: ['demo', 'demo-compact', 'access-control'],
+    enabledApps: ['access-control'],
     servicePlacements: [{
       serviceKey: identityServiceKey,
       selectedTarget: 'cloud-run-service',
