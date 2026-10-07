@@ -5,5 +5,5 @@ export function BrandMark({ size = 22 }: { size?: number }) {
 }
 
 export function Wordmark() {
-  return <span className="wordmark">Strat<span>Exec</span></span>;
+  return <span className="wordmark">course.<strong>BlockSet</strong></span>;
 }
