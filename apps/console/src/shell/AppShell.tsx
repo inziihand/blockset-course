@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Menu, Settings, UserRound, X } from 'lucide-react';
 import AppLauncherPanel from './AppLauncherPanel';
-import { BrandMark, Wordmark } from './Brand';
+import { BRAND_SUBTITLE, BrandMark, Wordmark } from './Brand';
 import OffCanvasDrawer from './OffCanvasDrawer';
 import ThemePicker from './ThemePicker';
 import { appRegistry, canAccessDefinition, getAppDefinition, getLaunchableApps, isLaunchableDefinition, validateAppRegistry } from './appRegistry';
@@ -213,7 +213,7 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
                     ? <div className="merged-brand-copy"><Wordmark /><h1>{definition.title}</h1></div>
                     : <div className="app-title-copy"><h1>{definition.title}</h1><p>{definition.subtitle}</p></div>}
                 </>
-              ) : <div><h1>{pathname === '/' ? <Wordmark /> : '找不到頁面'}</h1><p>{pathname === '/' ? '策略執行平台' : '請返回平台首頁'}</p></div>}
+              ) : <div><h1>{pathname === '/' ? <Wordmark /> : '找不到頁面'}</h1><p>{pathname === '/' ? BRAND_SUBTITLE : '請返回平台首頁'}</p></div>}
             </div>
             {definition ? <div className="app-header-controls">
               <div id={APP_HEADER_ACTIONS_HOST_ID} className="platform-app-header-actions" role="group" aria-label="App 操作" />

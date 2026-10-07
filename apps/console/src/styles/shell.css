@@ -28,8 +28,8 @@ h1, h2, p { margin: 0; }
 svg { flex-shrink: 0; }
 .skip-link { position: fixed; top: -80px; left: 76px; z-index: 30; padding: 12px; background: var(--color-surface-solid); color: var(--color-accent); }
 .skip-link:focus { top: 12px; }
-.wordmark { letter-spacing: -.035em; font-weight: 500; }
-.wordmark > strong { color: var(--color-accent); font-weight: 750; }
+.wordmark { color: var(--color-text-body); letter-spacing: -.035em; font-weight: 500; }
+.wordmark > strong { color: var(--color-accent-hover); font-weight: 750; }
 .app-shell {
   width: min(1480px, 100%);
   min-height: min(860px, calc(100dvh - 56px));

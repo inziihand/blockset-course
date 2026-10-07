@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Settings, X } from 'lucide-react';
 import { isLaunchableDefinition } from './appRegistry';
-import { BrandMark, Wordmark } from './Brand';
+import { BRAND_SUBTITLE, BrandMark, Wordmark } from './Brand';
 import ThemePicker from './ThemePicker';
 import type { ShellAppDefinition, ShellAppKey } from './types';
 import DrawerAuthPanel from './DrawerAuthPanel';
@@ -38,7 +38,7 @@ export default function OffCanvasDrawer({ apps, open, activeApp, onClose, onOpen
         <header className="drawer-header">
           <button type="button" className="drawer-home-button" aria-label="返回 StratExec 首頁" onClick={() => { onOpenHome(); onClose(); }}>
             <BrandMark />
-            <span><b><Wordmark /></b><small>策略執行平台 · {versionLabel}</small></span>
+            <span><b><Wordmark /></b><small>{BRAND_SUBTITLE} · {versionLabel}</small></span>
           </button>
           <button type="button" className="icon-button" aria-label="關閉側邊選單" onClick={onClose}><X size={18} aria-hidden="true" /></button>
         </header>
