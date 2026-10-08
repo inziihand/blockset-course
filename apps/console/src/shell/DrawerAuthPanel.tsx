@@ -50,6 +50,7 @@ export default function DrawerAuthPanel() {
         <RefreshCw size={16} aria-hidden="true" />重新同步權限
       </button>}
     </> : <>
+      <div className="drawer-auth-heading"><strong>登入 BlockSet</strong><span className="wordmark-course">course</span></div>
       <button type="button" className="drawer-auth-button" disabled={status !== 'ready' || pending}
         onClick={() => void perform(signInWithGoogle)}>
         <span className="drawer-google-mark" aria-hidden="true">G</span><LogIn size={16} aria-hidden="true" />
