@@ -60,7 +60,8 @@ for (const file of await collectFiles(root)) {
   const relativePath = relative(root, file).replaceAll('\\', '/');
   for (const rule of forbiddenPatterns) {
     // This course checkout intentionally uses its product name in the public wordmark.
-    if (rule.label === 'developer installation name' && relativePath === 'apps/console/src/shell/Brand.tsx') continue;
+    if (rule.label === 'developer installation name'
+      && ['apps/console/src/shell/Brand.tsx', 'apps/console/index.html'].includes(relativePath)) continue;
     if (rule.pattern.test(source)) violations.push(`${relative(root, file)}: ${rule.label}`);
   }
 }

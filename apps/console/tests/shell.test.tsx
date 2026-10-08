@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Box } from 'lucide-react';
 import AppShell from '../src/shell/AppShell';
-import { BRAND_NAME } from '../src/shell/Brand';
+import { BRAND_COURSE_TITLE, BRAND_NAME, BRAND_SUBTITLE } from '../src/shell/Brand';
 import { getAppDefinition, getLaunchableApps, isLaunchableDefinition } from '../src/shell/appRegistry';
 import { AuthContext, fallbackAuthContext } from '../src/shared/auth/authContext';
 import { initializeTheme, ThemeProvider, THEME_STORAGE_KEY } from '../src/shared/theme/ThemeProvider';
@@ -22,6 +22,7 @@ describe('App-free platform', () => {
     expect(getLaunchableApps([])).toHaveLength(0);
     expect(getAppDefinition('optionsLab', [])).toBeUndefined();
     expect(screen.getByRole('heading', { name: '你的策略工作空間' })).toBeTruthy();
+    expect(document.title).toBe(`${BRAND_COURSE_TITLE}｜${BRAND_SUBTITLE}`);
     expect(screen.getByText('0 個應用程式')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /下單|股票行情|DeriStrat/ })).toBeNull();
     expect(screen.getByRole('button', { name: '開啟登入與帳戶選單' })).toBeTruthy();
@@ -66,6 +67,7 @@ describe('App-free platform', () => {
     expect((drawer as HTMLDialogElement).open).toBe(true);
     expect(within(drawer).getByText('尚未加入應用程式')).toBeTruthy();
     expect(within(drawer).getByText(BRAND_NAME)).toBeTruthy();
+    expect(within(drawer).getByText('course').classList.contains('wordmark-course')).toBe(true);
     expect(within(drawer).getByText('探索・學習・實作')).toBeTruthy();
     expect(within(drawer).queryByText(/v0\.1\.0/)).toBeNull();
     expect(within(drawer).getByText('Firebase Auth 尚未設定')).toBeTruthy();

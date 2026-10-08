@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Menu, Settings, UserRound, X } from 'lucide-react';
 import AppLauncherPanel from './AppLauncherPanel';
-import { BRAND_SUBTITLE, BrandMark, Wordmark } from './Brand';
+import { BRAND_COURSE_TITLE, BRAND_SUBTITLE, BrandMark, Wordmark } from './Brand';
 import OffCanvasDrawer from './OffCanvasDrawer';
 import ThemePicker from './ThemePicker';
 import { appRegistry, canAccessDefinition, getAppDefinition, getLaunchableApps, isLaunchableDefinition, validateAppRegistry } from './appRegistry';
@@ -98,7 +98,9 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const openHome = useCallback(() => navigate('/'), []);
   useEffect(() => {
-    document.title = `${definition?.title ?? (pathname === '/' ? '策略執行平台' : '找不到頁面')} — StratExec`;
+    document.title = pathname === '/'
+      ? `${BRAND_COURSE_TITLE}｜${BRAND_SUBTITLE}`
+      : `${definition?.title ?? '找不到頁面'}｜${BRAND_COURSE_TITLE}`;
     mainRef.current?.focus({ preventScroll: true });
   }, [pathname, definition?.title]);
   useEffect(() => {
