@@ -708,7 +708,7 @@ try {
             }
         }
 
-        $localAdmins = Get-RequestedAdmins
+        $localAdmins = @(Get-RequestedAdmins)
         if ($localAdmins.Count -eq 0) {
             if (-not (Read-YesNo '使用目前 gcloud Google 帳號作為本機首位管理員嗎？')) {
                 Write-Host '本機安裝尚未完成；未初始化管理員與 App 清冊。' -ForegroundColor Yellow
