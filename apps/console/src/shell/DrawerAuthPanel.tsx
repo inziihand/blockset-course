@@ -50,7 +50,6 @@ export default function DrawerAuthPanel() {
         <RefreshCw size={16} aria-hidden="true" />重新同步權限
       </button>}
     </> : <>
-      <div className="drawer-auth-copy"><b>登入 StratExec</b><small>使用 Firebase Authentication 的 Google 登入。</small></div>
       <button type="button" className="drawer-auth-button" disabled={status !== 'ready' || pending}
         onClick={() => void perform(signInWithGoogle)}>
         <span className="drawer-google-mark" aria-hidden="true">G</span><LogIn size={16} aria-hidden="true" />
