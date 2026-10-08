@@ -753,7 +753,7 @@ try {
         throw "Selected deployment drivers have no executable hook: $(@($missingExecutors.serviceKey) -join ', ')."
     }
 
-    $admins = Get-RequestedAdmins
+    $admins = @(Get-RequestedAdmins)
     if ($admins.Count -eq 0) {
         if (-not (Read-YesNo '使用目前 gcloud Google 帳號作為首位管理員嗎？')) {
             Write-Host '已取消選擇首位管理員；沒有修改任何雲端資源。' -ForegroundColor Yellow
