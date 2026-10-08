@@ -72,8 +72,22 @@ foreach ($placement in $installation.servicePlacements) {
     if ($serviceState.revision -and $serviceState.revision -ne $revision) {
         throw "$($placement.serviceKey) revision differs from the installer checkpoint."
     }
-    $health = Invoke-RestMethod -Method Get -Uri "$url$($service.deployment.listen.healthPath)"
-    if ($health.status -ne 'ok') { throw "$($placement.serviceKey) health check failed." }
+    $health = $null
+    $healthEvidence = 'ok'
+    try { $health = Invoke-RestMethod -Method Get -Uri "$url$($service.deployment.listen.healthPath)" }
+    catch {
+        if (@($service.capabilities) -notcontains 'identity:session') { throw }
+        Write-Warning 'Direct Cloud Run health is unavailable; checking Identity through Hosting.'
+    }
+    if ($health.status -ne 'ok') {
+        if (@($service.capabilities) -notcontains 'identity:session') { throw "$($placement.serviceKey) health check failed." }
+        $catalogPath = ([string] @($service.routes)[0]) -replace '/\*\*$', '/apps'
+        $hostedCatalog = Invoke-RestMethod -Method Get -Uri "$hostingUrl$catalogPath"
+        if (@($hostedCatalog.appKeys) -notcontains 'access-control') {
+            throw 'Identity API Hosting catalog did not return the core access-control App.'
+        }
+        $healthEvidence = 'ok-via-hosting'
+    }
     if ($service.deployment.trafficControl -and
         $service.deployment.trafficControl.requiresSingleInstance -eq $true) {
         $maxScale = [string] $description.spec.template.metadata.annotations.'autoscaling.knative.dev/maxScale'
@@ -89,7 +103,7 @@ foreach ($placement in $installation.servicePlacements) {
         serviceName = [string] $placement.serviceName
         revision = $revision
         imageDigest = $digest
-        health = 'ok'
+        health = $healthEvidence
     }
     foreach ($request in @($service.deployment.verification.unauthenticatedRequests)) {
         $status = Assert-Unauthorized "$hostingUrl$([string] $request.path)" `

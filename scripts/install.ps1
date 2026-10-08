@@ -395,7 +395,7 @@ $localFirebase = Join-Path $repoRoot 'node_modules\.bin\firebase.cmd'
 $firebaseExecutable = if (Test-Path -LiteralPath $localFirebase) { $localFirebase } else { 'firebase' }
 $stateDirectory = Join-Path $repoRoot ".stratexec\installations\$($installation.installationKey)"
 $statePath = Join-Path $stateDirectory 'state.json'
-$generatedFirebase = Join-Path $stateDirectory 'firebase.json'
+$generatedFirebase = Join-Path $repoRoot 'firebase.deploy.local.json'
 $artifactRepository = 'stratexec'
 
 if ($PrepareOnly) {
@@ -613,6 +613,7 @@ try {
     $identity = Get-ServicePlacement $identityServiceKey
     $identityPlacement = $identity.Placement
     $identityService = $identity.Service
+    $identityCatalogPath = ([string] @($identityService.routes)[0]) -replace '/\*\*$', '/apps'
 
     $activeAccount = Get-GcloudRequiredValue -Arguments @(
         'auth', 'list', '--filter=status:ACTIVE', '--format=value(account)'
@@ -841,8 +842,17 @@ try {
             $serviceStates[$entryKey] = $serviceState
         }
         $identityState = $serviceStates[$identityServiceKey]
-        $identityHealth = Invoke-RestMethod -Method Get -Uri "$([string] $identityState.url)$($identityService.deployment.listen.healthPath)"
-        if ($identityHealth.status -ne 'ok') { throw 'Identity API health check failed after removing bootstrap access.' }
+        $identityHealth = $null
+        try {
+            $identityHealth = Invoke-RestMethod -Method Get -Uri "$([string] $identityState.url)$($identityService.deployment.listen.healthPath)"
+        }
+        catch { Write-Warning 'Direct Cloud Run health is unavailable; checking Identity through Hosting.' }
+        if ($identityHealth.status -ne 'ok') {
+            $hostedCatalog = Invoke-RestMethod -Method Get -Uri "$([string] $state.hostingUrl)$identityCatalogPath"
+            if (@($hostedCatalog.appKeys) -notcontains 'access-control') {
+                throw 'Identity API Hosting catalog failed after removing bootstrap access.'
+            }
+        }
         Invoke-External 'npm' @('run', 'build')
         Invoke-External 'node' @('scripts/render-hosting-config.mjs', [string] $resolvedConfig, $generatedFirebase)
         Invoke-External $firebaseExecutable @(
@@ -1018,6 +1028,13 @@ $serviceEvidence
                 throw "$($entry.serviceKey) Hosting verification expected HTTP $($request.expectedStatus), received $($response.StatusCode)."
             }
         }
+    }
+    $hostedCatalog = Invoke-RestMethod -Method Get -Uri "$hostingUrl$identityCatalogPath"
+    if (@($hostedCatalog.appKeys) -notcontains 'access-control') {
+        throw 'Identity API Hosting catalog did not return the core access-control App.'
+    }
+    if ($serviceStates[$identityServiceKey].health -eq 'pending-hosting') {
+        $serviceStates[$identityServiceKey].health = 'ok-via-hosting'
     }
     Write-InstallState @{
         schemaVersion = 3

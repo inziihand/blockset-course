@@ -41,4 +41,5 @@ Thumbs.db
 .idea/
 .firebase/
 .stratexec/
+firebase.deploy.local.json
 infrastructure/environments/*.local.json

@@ -150,8 +150,23 @@ $revision = Invoke-ExternalValue 'gcloud' @(
     "--project=$projectId", "--region=$region", '--format=value(status.latestReadyRevisionName)'
 )
 if (-not $url -or -not $revision) { throw "$ServiceKey did not return a ready Cloud Run URL and revision." }
-$health = Invoke-RestMethod -Method Get -Uri "$url$($service.deployment.listen.healthPath)"
-if ($health.status -ne 'ok') { throw "$ServiceKey health check failed." }
+$healthStatus = 'ok'
+try {
+    $health = Invoke-RestMethod -Method Get -Uri "$url$($service.deployment.listen.healthPath)"
+    if ($health.status -ne 'ok') { throw "$ServiceKey health check failed." }
+}
+catch {
+    if (@($service.capabilities) -notcontains 'identity:session') { throw }
+    $descriptionJson = & gcloud run services describe ([string] $placement.serviceName) `
+        "--project=$projectId" "--region=$region" '--format=json'
+    if ($LASTEXITCODE -ne 0) { throw }
+    $description = ($descriptionJson -join [Environment]::NewLine) | ConvertFrom-Json
+    $ready = $description.status.conditions | Where-Object { $_.type -eq 'Ready' -and $_.status -eq 'True' } |
+        Select-Object -First 1
+    if (-not $ready -or $description.status.latestReadyRevisionName -ne $revision) { throw }
+    Write-Warning 'Direct Cloud Run health is unavailable; Identity API must pass the Hosting route check.'
+    $healthStatus = 'pending-hosting'
+}
 
 $result = [ordered]@{
     serviceKey = $ServiceKey
@@ -161,6 +176,6 @@ $result = [ordered]@{
     image = $image
     url = $url
     revision = $revision
-    health = 'ok'
+    health = $healthStatus
 }
 $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ResultPath -Encoding utf8
