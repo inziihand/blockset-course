@@ -232,7 +232,7 @@ try {
         $allowedModeValues = @($declaredAllowedModes | ForEach-Object { @{ stringValue = [string] $_ } })
 
         if (-not $policyExists) {
-            $entitlementValues = @($manifest.access.entitlements | ForEach-Object {
+            $entitlementValues = @($manifest.access.entitlements | Where-Object { $null -ne $_ } | ForEach-Object {
                 $fields = @{
                     key = @{ stringValue = [string] $_.key }
                     displayName = @{ stringValue = [string] $_.displayName }
@@ -257,7 +257,7 @@ try {
                 -ContentType 'application/json' -Body $policyDocument | Out-Null
         }
         else {
-            $entitlementValues = @($manifest.access.entitlements | ForEach-Object {
+            $entitlementValues = @($manifest.access.entitlements | Where-Object { $null -ne $_ } | ForEach-Object {
                 $fields = @{
                     key = @{ stringValue = [string] $_.key }
                     displayName = @{ stringValue = [string] $_.displayName }
