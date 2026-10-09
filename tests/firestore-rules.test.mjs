@@ -17,6 +17,12 @@ before(async () => {
   });
   await environment.withSecurityRulesDisabled(async (context) => {
     const database = context.firestore();
+    await setDoc(doc(database, 'members', 'site-admin'), {
+      uid: 'site-admin', email: 'site-admin@example.com', role: 'admin', status: 'active', plan: 'free',
+    });
+    await setDoc(doc(database, 'members', 'site-admin-disabled'), {
+      uid: 'site-admin-disabled', email: 'disabled@example.com', role: 'admin', status: 'disabled', plan: 'free',
+    });
     await setDoc(doc(database, 'members', 'member-a'), {
       uid: 'member-a', email: 'member@example.com', role: 'member', status: 'active', plan: 'free',
     });
@@ -66,6 +72,29 @@ test('unauthenticated access is denied', async () => {
   const guest = environment.unauthenticatedContext().firestore();
   await assertFails(getDoc(doc(guest, 'members', 'member-a')));
   assert.ok(true);
+});
+
+test('only an active platform admin can publish validated public site settings', async () => {
+  const guest = environment.unauthenticatedContext().firestore();
+  const member = environment.authenticatedContext('member-a').firestore();
+  const disabled = environment.authenticatedContext('site-admin-disabled').firestore();
+  const admin = environment.authenticatedContext('site-admin').firestore();
+  const target = (database) => doc(database, 'siteSettings', 'public');
+  const settings = {
+    title: 'BlockSet', subtitle: '探索・學習・實作', logoDataUrl: null,
+    defaultTheme: 'paper', cornerStyle: 'square',
+    updatedByUid: 'site-admin', updatedAt: serverTimestamp(),
+  };
+
+  await assertSucceeds(getDoc(target(guest)));
+  await assertFails(setDoc(target(member), { ...settings, updatedByUid: 'member-a' }));
+  await assertFails(setDoc(target(disabled), { ...settings, updatedByUid: 'site-admin-disabled' }));
+  await assertSucceeds(setDoc(target(admin), settings));
+  await assertSucceeds(getDoc(target(guest)));
+  await assertFails(getDocs(collection(guest, 'siteSettings')));
+  await assertFails(setDoc(target(admin), { ...settings, title: '' }));
+  await assertFails(setDoc(target(admin), { ...settings, logoDataUrl: 'https://example.com/logo.png' }));
+  await assertFails(deleteDoc(target(admin)));
 });
 
 const strategyDocument = (ownerUid, name = '測試策略') => ({

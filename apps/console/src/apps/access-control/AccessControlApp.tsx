@@ -29,8 +29,7 @@ const tabs = [
   { value: 'members', label: '會員' },
   { value: 'apps', label: 'App 權限' },
   { value: 'management', label: 'App 管理' },
-  ...(import.meta.env.DEV && import.meta.env.MODE === 'development'
-    ? [{ value: 'site', label: '網站管理' } as const] : []),
+  { value: 'site', label: '網站管理' },
 ] as const;
 const accessModeLabels: Record<AppAccessMode, string> = {
   public: '未登入亦可用',

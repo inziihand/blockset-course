@@ -10,22 +10,29 @@ type SiteSettingsContextValue = {
 const fallback: SiteSettingsContextValue = {
   settings: defaultSiteSettings,
   available: false,
-  save: async () => { throw new Error('網站管理僅供 DEV 本機使用。'); },
+  save: async () => { throw new Error('網站設定服務尚未就緒。'); },
 };
 const SiteSettingsContext = createContext<SiteSettingsContextValue>(fallback);
 
 export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState(defaultSiteSettings);
-  const available = import.meta.env.DEV && import.meta.env.MODE === 'development';
+  const localMode = import.meta.env.DEV && import.meta.env.MODE === 'development';
+  const [available, setAvailable] = useState(localMode);
   const refresh = useCallback(async () => {
-    if (!available) return;
     try {
-      const response = await fetch(SITE_SETTINGS_PATH, { cache: 'no-store' });
-      if (!response.ok) return;
-      const data: unknown = await response.json();
-      if (isSiteSettings(data)) setSettings(data);
-    } catch { /* Keep the built-in appearance if the local server is unavailable. */ }
-  }, [available]);
+      let data: unknown;
+      if (localMode) {
+        const response = await fetch(SITE_SETTINGS_PATH, { cache: 'no-store' });
+        if (!response.ok) throw new Error('本機網站設定無法讀取。');
+        data = await response.json();
+      } else {
+        data = await (await import('./siteSettingsStore')).loadPublishedSiteSettings();
+      }
+      if (!isSiteSettings(data)) throw new Error('網站設定格式不正確。');
+      setSettings(data);
+      setAvailable(true);
+    } catch { setAvailable(false); }
+  }, [localMode]);
 
   useEffect(() => {
     void refresh();
@@ -49,22 +56,27 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   }, [available, settings.logoDataUrl, settings.title, settings.subtitle]);
 
   const save = useCallback(async (next: SiteSettings, token: string) => {
-    if (!available) throw new Error('網站管理僅供 DEV 本機使用。');
+    if (!available) throw new Error('網站設定服務尚未就緒。');
     if (!isSiteSettings(next)) throw new Error('網站設定內容不符合格式。');
-    const response = await fetch(SITE_SETTINGS_PATH, {
-      method: 'PUT',
-      cache: 'no-store',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(next),
-    });
-    const data: unknown = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(
-      data && typeof data === 'object' && 'detail' in data && typeof data.detail === 'string'
-        ? data.detail : `網站設定儲存失敗（${response.status}）。`,
-    );
+    let data: unknown;
+    if (localMode) {
+      const response = await fetch(SITE_SETTINGS_PATH, {
+        method: 'PUT',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(next),
+      });
+      data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(
+        data && typeof data === 'object' && 'detail' in data && typeof data.detail === 'string'
+          ? data.detail : `網站設定儲存失敗（${response.status}）。`,
+      );
+    } else {
+      data = await (await import('./siteSettingsStore')).publishSiteSettings(next);
+    }
     if (!isSiteSettings(data)) throw new Error('網站設定回應格式錯誤。');
     setSettings(data);
-  }, [available]);
+  }, [available, localMode]);
 
   const value = useMemo(() => ({ settings, available, save }), [settings, available, save]);
   return <SiteSettingsContext.Provider value={value}>{children}</SiteSettingsContext.Provider>;

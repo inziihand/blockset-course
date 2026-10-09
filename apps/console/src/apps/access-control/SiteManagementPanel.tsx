@@ -12,6 +12,7 @@ const themes: { value: SiteTheme; label: string }[] = [
 ];
 
 export function SiteManagementPanel({ getIdToken }: { getIdToken?: () => Promise<string> }) {
+  const localMode = import.meta.env.DEV && import.meta.env.MODE === 'development';
   const { settings, available, save } = useSiteSettings();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<SiteSettings>(settings);
@@ -58,9 +59,9 @@ export function SiteManagementPanel({ getIdToken }: { getIdToken?: () => Promise
   return <div className="access-site-management">
     <header>
       <h3>網站管理</h3>
-      <p>調整 DEV 網站識別與預設外觀。設定儲存在本機，不會部署至 GCP。</p>
+      <p>調整網站識別與預設外觀。設定儲存在{localMode ? '本機' : '此網站的 Firebase 專案'}。</p>
     </header>
-    {!available && <p className="access-control-error" role="status">此功能僅在 DEV 本機開發伺服器提供。</p>}
+    {!available && <p className="access-control-error" role="status">網站設定尚未就緒，請稍後重新載入。</p>}
     <div className="access-site-grid">
       <section className="access-site-card" aria-labelledby="access-site-brand-title">
         <h4 id="access-site-brand-title">網站識別</h4>
@@ -109,6 +110,6 @@ export function SiteManagementPanel({ getIdToken }: { getIdToken?: () => Promise
       </Button>
     </div>
     {error && <p className="access-control-error" role="alert">{error}</p>}
-    {saved && <p className="access-site-saved" role="status">已儲存並套用至 DEV 本機網站。</p>}
+    {saved && <p className="access-site-saved" role="status">已儲存並套用網站設定。</p>}
   </div>;
 }

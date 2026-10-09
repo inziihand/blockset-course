@@ -6,6 +6,46 @@ rules_version = '2';
 // their own data to browsers; no generic App storage is opened here.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isActiveSiteAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.role == 'admin'
+        && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function isValidSiteSettings(data) {
+      return data.keys().hasOnly([
+          'title', 'subtitle', 'logoDataUrl', 'defaultTheme', 'cornerStyle',
+          'updatedByUid', 'updatedAt'
+        ])
+        && data.keys().hasAll([
+          'title', 'subtitle', 'logoDataUrl', 'defaultTheme', 'cornerStyle',
+          'updatedByUid', 'updatedAt'
+        ])
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 60
+        && data.subtitle is string
+        && data.subtitle.size() <= 120
+        && (data.logoDataUrl == null || (data.logoDataUrl is string
+          && data.logoDataUrl.size() <= 350000
+          && data.logoDataUrl.matches('^data:image/(png|webp);base64,[A-Za-z0-9+/]+={0,2}$')))
+        && data.defaultTheme in ['system', 'light', 'dark', 'paper']
+        && data.cornerStyle in ['round', 'square']
+        && data.updatedByUid == request.auth.uid
+        && data.updatedAt == request.time;
+    }
+
+    // Public site identity is readable without login. Only an active platform
+    // admin may publish it; member roles stay owned by the Identity API.
+    match /siteSettings/{settingId} {
+      allow get: if settingId == 'public';
+      allow list, delete: if false;
+      allow create, update: if settingId == 'public'
+        && isActiveSiteAdmin()
+        && isValidSiteSettings(request.resource.data);
+    }
+
     function isActiveOwner(userId) {
       return request.auth != null
         && request.auth.uid == userId
