@@ -122,6 +122,17 @@ test('guided dry run prepares local Google sign-in without free-form input', () 
   assert.doesNotMatch(localAuthSource, /disable.*certificate|ssl.*verify.*false/i);
 });
 
+test('Windows installation reuses existing Firebase Web Apps without requiring a StratExec label', () => {
+  assert.match(source, /firebaseWebAppDisplayName = \$installationKey/);
+  assert.match(localAuthSource, /firebaseWebAppId/);
+  assert.match(localAuthSource, /\$apps\.Count -eq 1/);
+  assert.match(localAuthSource, /needs-web-app-selection/);
+  assert.match(localAuthSource, /PromptForChoice/);
+  assert.match(bootstrapSource, /\$apps\.Count -eq 1/);
+  assert.match(bootstrapSource, /Multiple Firebase Web Apps exist/);
+  assert.doesNotMatch(source, /firebaseWebAppDisplayName = 'stratexec-platform'/);
+});
+
 test('gcloud TLS and login failures are reported without weakening verification', () => {
   assert.match(source, /CERTIFICATE_VERIFY_FAILED\|SSLCertVerificationError/);
   assert.match(source, /安裝器不會停用 TLS 驗證/);

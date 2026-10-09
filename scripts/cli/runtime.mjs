@@ -390,7 +390,7 @@ export async function startLocal(repoRoot, options = {}) {
       }),
       ready: (managedProcess, port) => waitForManagedHttp(
         `http://127.0.0.1:${port}/`, managedProcess.pid,
-        { validate: async (response) => (await response.text()).includes('StratExec') },
+        { validate: async (response) => (await response.text()).includes('id="root"') },
       ),
     });
     if (!frontend) {

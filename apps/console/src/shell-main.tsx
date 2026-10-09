@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import AppShell from './shell/AppShell';
 import { initializeTheme, ThemeProvider } from './shared/theme/ThemeProvider';
+import { SiteSettingsProvider } from './shared/site/SiteSettingsProvider';
 import { AuthProvider } from './shared/auth';
 import './styles/tokens.css';
 import './styles/shell.css';
@@ -20,12 +21,14 @@ async function bootstrap() {
     : undefined;
   createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <SiteSettingsProvider>
     <ThemeProvider>
       <AuthProvider>
         {fixtureMode && <aside className="test-host-banner">離線測試宿主 · 不連接券商 · 非正式 App</aside>}
         <AppShell apps={apps} />
       </AuthProvider>
     </ThemeProvider>
+    </SiteSettingsProvider>
   </StrictMode>,
   );
 }

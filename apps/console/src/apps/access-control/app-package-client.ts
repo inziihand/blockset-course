@@ -39,6 +39,15 @@ export type AppPackageJob = {
     registeredAt?: string;
     error?: string;
   };
+  hostingPublication?: {
+    status: 'publishing' | 'published' | 'failed' | 'recovery-required';
+    installationKey: string;
+    site?: string;
+    version?: string;
+    hostingUrl?: string;
+    publishedAt?: string;
+    error?: string;
+  };
 };
 
 export type AppPackageInspectOptions = {
@@ -51,6 +60,7 @@ export type AppPackageApi = {
   inspectPackage(file: File, options: AppPackageInspectOptions, signal?: AbortSignal): Promise<AppPackageJob>;
   applyJob(jobId: string, confirmation: string, signal?: AbortSignal): Promise<AppPackageJob>;
   activateSource(jobId: string, signal?: AbortSignal): Promise<AppPackageJob>;
+  installAndPublish?(jobId: string, confirmation: string, installationKey: string, signal?: AbortSignal): Promise<AppPackageJob>;
 };
 
 type GetToken = (forceRefresh?: boolean) => Promise<string>;
@@ -117,6 +127,13 @@ export function createAppPackageApi(getToken: GetToken, request: Request = fetch
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
+      }, signal);
+    },
+    installAndPublish(jobId, confirmation, installationKey, signal) {
+      return send<AppPackageJob>(`jobs/${encodeURIComponent(jobId)}/frontend-release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation, installationKey }),
       }, signal);
     },
   };

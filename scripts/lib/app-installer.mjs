@@ -6,6 +6,7 @@ import { generateAppRegistrySource } from './app-registry.mjs';
 import { readZipEntries, verifyAppPackage } from './app-package.mjs';
 import { loadAppManifests } from './deployment-plan.mjs';
 import { loadMergedServiceRegistry, renderServiceRegistry } from './service-catalog.mjs';
+import { shouldOmitAppSourceEntry } from './app-source-filter.mjs';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const slash = (value) => value.split(sep).join('/');
@@ -101,6 +102,7 @@ async function collectFiles(rootPath, root) {
   const files = [];
   async function walk(directory, relativeDirectory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (shouldOmitAppSourceEntry(entry.name, entry.isDirectory())) continue;
       const relativePath = slash(posix.join(relativeDirectory, entry.name));
       const absolutePath = resolve(directory, entry.name);
       if (entry.isSymbolicLink()) throw new Error(`Existing App source contains a symbolic link: ${relativePath}`);
@@ -323,6 +325,25 @@ export async function installAppPackage({
     throw new Error(`Apply requires exact confirmation: ${expectedConfirmation}`);
   }
 
+  if (plan.status === 'no-op' && plan.adoptedExisting) {
+    if (postApply) await postApply({ rootPath: resolvedRoot, plan: publicPlan });
+    plan.lock.packages[plan.appKey] = {
+      version: plan.version,
+      packageSha256: plan.packageSha256,
+      installedAt: new Date().toISOString(),
+      files: Object.fromEntries([...plan.payload].map(([path, content]) => [path, sha256(content)])),
+    };
+    const lockPath = absoluteInRoot(resolvedRoot, 'infrastructure/app-packages.lock.json');
+    const temporaryLockPath = `${lockPath}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporaryLockPath, json(plan.lock), 'utf8');
+      await rename(temporaryLockPath, lockPath);
+    } finally {
+      await rm(temporaryLockPath, { force: true });
+    }
+    return { ...publicPlan, applied: true };
+  }
+
   const transactionBase = absoluteInRoot(resolvedRoot, '.stratexec/app-installations');
   await mkdir(transactionBase, { recursive: true });
   const transactionRoot = resolve(transactionBase, `${plan.appKey}-${randomUUID()}`);
@@ -340,7 +361,24 @@ export async function installAppPackage({
   const transactionRoots = collapseRoots([...plan.roots, ...derivedRoots]);
   const backedUp = new Set();
   const changedTargets = new Set();
+  const retainedLocalPaths = [];
   const movePath = transactionOperations.rename ?? rename;
+  async function retainLocalEntries(relativeDirectory) {
+    const backupDirectory = absoluteInRoot(backupRoot, relativeDirectory);
+    for (const entry of await readdir(backupDirectory, { withFileTypes: true })) {
+      const path = slash(posix.join(relativeDirectory, entry.name));
+      if (shouldOmitAppSourceEntry(entry.name, entry.isDirectory())) {
+        const source = absoluteInRoot(backupRoot, path);
+        const target = absoluteInRoot(resolvedRoot, path);
+        if (await exists(target)) throw new Error(`App package cannot replace excluded local artifact: ${path}`);
+        await mkdir(dirname(target), { recursive: true });
+        await movePath(source, target);
+        retainedLocalPaths.push({ source, target, path });
+      } else if (entry.isDirectory()) {
+        await retainLocalEntries(path);
+      }
+    }
+  }
   let preserveTransaction = false;
   try {
     for (const root of transactionRoots) {
@@ -359,6 +397,9 @@ export async function installAppPackage({
       await movePath(staged, target);
       changedTargets.add(root.path);
     }
+    for (const root of transactionRoots) {
+      if (root.kind === 'directory' && backedUp.has(root.path)) await retainLocalEntries(root.path);
+    }
     for (const root of derivedRoots) changedTargets.add(root.path);
     await regenerateDerivedFiles(resolvedRoot);
     if (postApply) await postApply({ rootPath: resolvedRoot, plan: publicPlan });
@@ -375,6 +416,19 @@ export async function installAppPackage({
     );
   } catch (error) {
     const rollbackErrors = [];
+    for (const retained of [...retainedLocalPaths].reverse()) {
+      try {
+        await mkdir(dirname(retained.source), { recursive: true });
+        await movePath(retained.target, retained.source);
+      } catch (rollbackError) {
+        rollbackErrors.push(new Error(`Failed to restore local artifact ${retained.path}: ${rollbackError.message}`, { cause: rollbackError }));
+      }
+    }
+    if (rollbackErrors.length > 0) {
+      preserveTransaction = true;
+      throw new AggregateError([error, ...rollbackErrors],
+        `App rollback could not restore local artifacts. Recovery files are preserved at ${transactionRoot}.`);
+    }
     for (const root of [...transactionRoots].reverse()) {
       const target = absoluteInRoot(resolvedRoot, root.path);
       try {

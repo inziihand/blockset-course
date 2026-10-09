@@ -6,6 +6,52 @@ rules_version = '2';
 // their own data to browsers; no generic App storage is opened here.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isActiveOwner(userId) {
+      return request.auth != null
+        && request.auth.uid == userId
+        && exists(/databases/$(database)/documents/members/$(userId))
+        && get(/databases/$(database)/documents/members/$(userId)).data.status == 'active';
+    }
+
+    function isValidPrivateStrategy(data, userId) {
+      return data.keys().hasOnly([
+          'name', 'kind', 'access', 'ownerUid', 'strategy', 'createdAt', 'updatedAt'
+        ])
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 120
+        && data.kind == 'user'
+        && data.access == 'private'
+        && data.ownerUid == userId
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.strategy is map
+        && data.strategy.keys().hasOnly([
+          'schemaVersion', 'strikeSettings', 'rows', 'underlyingQty', 'params', 'entryCost', 'chart'
+        ])
+        && data.strategy.schemaVersion == 3
+        && data.strategy.strikeSettings is map
+        && data.strategy.strikeSettings.keys().hasOnly(['initialSpot', 'strikeStep'])
+        && data.strategy.rows is map
+        && data.strategy.rows.keys().hasOnly(['strikes', 'callQty', 'putQty'])
+        && data.strategy.rows.strikes is list
+        && data.strategy.rows.callQty is list
+        && data.strategy.rows.putQty is list
+        && data.strategy.rows.strikes.size() == 12
+        && data.strategy.rows.callQty.size() == 12
+        && data.strategy.rows.putQty.size() == 12
+        && data.strategy.underlyingQty is int
+        && data.strategy.params is map
+        && data.strategy.params.keys().hasOnly(['spot', 'iv', 'days', 'carryRate'])
+        && data.strategy.entryCost is number
+        && data.strategy.chart is map
+        && data.strategy.chart.keys().hasOnly(['modes', 'scaleMode'])
+        && data.strategy.chart.modes is list
+        && data.strategy.chart.modes.size() >= 1
+        && data.strategy.chart.modes.size() <= 7
+        && data.strategy.chart.scaleMode in ['auto', 'raw', 'normalized'];
+    }
+
     // Canonical member profile and access state. Read and write through the
     // same-origin Identity API so field-level policy and audit stay server-side.
     match /members/{userId} {
@@ -14,6 +60,21 @@ service cloud.firestore {
       match /appGrants/{appKey} {
         allow read, write: if false;
       }
+    }
+
+    // Private strategies are scoped to the active member's Firebase Auth UID.
+    match /apps/options-strategy-lab/members/{userId}/strategies/{strategyId} {
+      allow read: if isActiveOwner(userId);
+      allow create: if isActiveOwner(userId)
+        && isValidPrivateStrategy(request.resource.data, userId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isActiveOwner(userId)
+        && resource.data.ownerUid == userId
+        && isValidPrivateStrategy(request.resource.data, userId)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isActiveOwner(userId) && resource.data.ownerUid == userId;
     }
 
     // Each App owns an explicit schema/rule block. The platform default is deny.

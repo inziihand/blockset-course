@@ -79,6 +79,29 @@ function Get-AppId {
     return [string] $WebApp.name
 }
 
+function Save-WebAppBinding {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][string] $AppId
+    )
+
+    $config | Add-Member -NotePropertyName firebaseWebAppId -NotePropertyValue $AppId -Force
+    $temporaryPath = "$Path.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        [System.IO.File]::WriteAllText(
+            $temporaryPath,
+            "$(($config | ConvertTo-Json -Depth 20))$([Environment]::NewLine)",
+            [System.Text.UTF8Encoding]::new($false)
+        )
+        Move-Item -LiteralPath $temporaryPath -Destination $Path -Force
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryPath) {
+            Remove-Item -LiteralPath $temporaryPath -Force
+        }
+    }
+}
+
 function Get-GcloudHeaders {
     param([Parameter(Mandatory = $true)][string] $ProjectId)
 
@@ -127,13 +150,14 @@ function Write-ManagedDotEnv {
     param(
         [Parameter(Mandatory = $true)][string] $Path,
         [Parameter(Mandatory = $true)] $Sdk,
-        [Parameter(Mandatory = $true)][string] $InstallationKey
+        [Parameter(Mandatory = $true)][string] $InstallationKey,
+        [Parameter(Mandatory = $true)][string] $AuthDomain
     )
 
     $managed = [ordered]@{
         VITE_STRATEXEC_INSTALLATION_KEY = $InstallationKey
         VITE_FIREBASE_API_KEY = [string] $Sdk.apiKey
-        VITE_FIREBASE_AUTH_DOMAIN = [string] $Sdk.authDomain
+        VITE_FIREBASE_AUTH_DOMAIN = $AuthDomain
         VITE_FIREBASE_PROJECT_ID = [string] $Sdk.projectId
         VITE_FIREBASE_STORAGE_BUCKET = [string] $Sdk.storageBucket
         VITE_FIREBASE_MESSAGING_SENDER_ID = [string] $Sdk.messagingSenderId
@@ -173,6 +197,7 @@ function Get-FirebaseState {
     param(
         [Parameter(Mandatory = $true)][string] $ProjectId,
         [Parameter(Mandatory = $true)][string] $WebAppName,
+        [string] $WebAppId,
         [Parameter(Mandatory = $true)][string[]] $RequiredDomains
     )
 
@@ -206,9 +231,25 @@ function Get-FirebaseState {
         }
         $appsPayload = Get-FirebasePayload $appsResult.Value
         $apps = if ($appsPayload.apps) { @($appsPayload.apps) } else { @($appsPayload) }
-        $webApp = $apps | Where-Object { $_.displayName -eq $WebAppName } | Select-Object -First 1
-        if (-not $webApp -and $apps.Count -eq 1 -and $apps[0].displayName -eq 'Default Web App') {
-            $webApp = $apps[0]
+        if ($WebAppId) {
+            $webApp = $apps | Where-Object { (Get-AppId $_) -eq $WebAppId } | Select-Object -First 1
+            if (-not $webApp) {
+                throw "Configured Firebase Web App ID $WebAppId was not found in project $ProjectId; no replacement App will be created."
+            }
+        }
+        else {
+            $namedApps = @($apps | Where-Object { $_.displayName -eq $WebAppName })
+            if ($namedApps.Count -eq 1) { $webApp = $namedApps[0] }
+            if (-not $webApp -and $apps.Count -eq 1) { $webApp = $apps[0] }
+            if (-not $webApp -and $apps.Count -gt 1) {
+                return [pscustomobject]@{
+                    Status = 'needs-web-app-selection'
+                    Missing = @()
+                    WebApp = $null
+                    WebApps = $apps
+                    Error = ''
+                }
+            }
         }
         if (-not $webApp) { $missing += 'web-app' }
     }
@@ -278,6 +319,7 @@ if ($config.schemaVersion -ne 1) { throw 'Only installation schemaVersion 1 is s
 
 $projectId = [string] $config.gcpProjectId
 $webAppName = [string] $config.firebaseWebAppDisplayName
+$webAppId = [string] $config.firebaseWebAppId
 $installationKey = [string] $config.installationKey
 $requiredDomains = @($config.auth.authorizedDomains)
 if ($projectId -notmatch '^[a-z][a-z0-9-]{4,28}[a-z0-9]$') { throw 'Invalid gcpProjectId.' }
@@ -289,9 +331,25 @@ if ($env:NODE_OPTIONS -notmatch '(^|\s)--use-system-ca($|\s)') {
 }
 
 try {
-    $state = Get-FirebaseState -ProjectId $projectId -WebAppName $webAppName -RequiredDomains $requiredDomains
+    $state = Get-FirebaseState -ProjectId $projectId -WebAppName $webAppName -WebAppId $webAppId -RequiredDomains $requiredDomains
     if ($state.Status -eq 'firebase-cli-access-required') {
         return $state
+    }
+
+    if ($state.Status -eq 'needs-web-app-selection') {
+        $choices = [System.Collections.Generic.List[System.Management.Automation.Host.ChoiceDescription]]::new()
+        $choices.Add([System.Management.Automation.Host.ChoiceDescription]::new('&0 取消'))
+        for ($index = 0; $index -lt $state.WebApps.Count; $index += 1) {
+            $app = $state.WebApps[$index]
+            $choices.Add([System.Management.Automation.Host.ChoiceDescription]::new(
+                "&$($index + 1) $($app.displayName) [$(Get-AppId $app)]"
+            ))
+        }
+        $selection = $Host.UI.PromptForChoice('Firebase Web App', '請選擇要沿用的既有 Web App。', $choices.ToArray(), 0)
+        if ($selection -eq 0) { return $state }
+        $webAppId = Get-AppId $state.WebApps[$selection - 1]
+        Save-WebAppBinding -Path ([string] $resolvedConfig) -AppId $webAppId
+        $state = Get-FirebaseState -ProjectId $projectId -WebAppName $webAppName -WebAppId $webAppId -RequiredDomains $requiredDomains
     }
 
     $cloudChanged = $false
@@ -305,7 +363,16 @@ try {
             'services', 'enable', 'firebase.googleapis.com', 'identitytoolkit.googleapis.com',
             '--project', $projectId, '--quiet'
         )
+        if ($state.Missing -contains 'firebase-project') {
+            $state = Get-FirebaseState -ProjectId $projectId -WebAppName $webAppName -WebAppId $webAppId -RequiredDomains $requiredDomains
+            if ($state.Status -eq 'needs-web-app-selection') {
+                throw 'Firebase is enabled but multiple Web Apps exist. Re-run setup and select an existing App.'
+            }
+        }
         if ($state.Missing -contains 'web-app') {
+            if ($webAppId) {
+                throw 'A Firebase Web App ID was configured but the App was not found; no replacement App will be created.'
+            }
             $createResult = Invoke-ExternalJsonResult $firebaseExecutable @(
                 'apps:create', 'WEB', $webAppName, '--project', $projectId, '--json'
             )
@@ -322,7 +389,7 @@ try {
         Set-AuthorizedDomains -ProjectId $projectId -RequiredDomains $requiredDomains
         $cloudChanged = $true
         for ($attempt = 1; $attempt -le 5; $attempt += 1) {
-            $state = Get-FirebaseState -ProjectId $projectId -WebAppName $webAppName -RequiredDomains $requiredDomains
+            $state = Get-FirebaseState -ProjectId $projectId -WebAppName $webAppName -WebAppId $webAppId -RequiredDomains $requiredDomains
             if ($state.Status -eq 'ready') { break }
             if ($attempt -lt 5) { Start-Sleep -Seconds 2 }
         }
@@ -342,7 +409,12 @@ try {
     foreach ($key in @('apiKey', 'authDomain', 'projectId', 'appId')) {
         if (-not $sdk.$key) { throw "Firebase SDK configuration is missing $key." }
     }
-    Write-ManagedDotEnv -Path $OutputPath -Sdk $sdk -InstallationKey $installationKey
+    $authDomain = [string] $config.auth.authDomain
+    if (-not $authDomain) { $authDomain = [string] $sdk.authDomain }
+    if ($authDomain -ne [string] $sdk.authDomain -and $requiredDomains -notcontains $authDomain) {
+        throw "Custom authDomain $authDomain must be listed in authorizedDomains."
+    }
+    Write-ManagedDotEnv -Path $OutputPath -Sdk $sdk -InstallationKey $installationKey -AuthDomain $authDomain
     return [pscustomobject]@{
         Status = 'ready'
         Missing = @()

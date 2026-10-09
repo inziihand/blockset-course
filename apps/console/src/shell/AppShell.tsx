@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Menu, Settings, UserRound, X } from 'lucide-react';
 import AppLauncherPanel from './AppLauncherPanel';
-import { BRAND_SUBTITLE, BrandMark, Wordmark } from './Brand';
+import { BrandMark, Wordmark } from './Brand';
 import OffCanvasDrawer from './OffCanvasDrawer';
 import ThemePicker from './ThemePicker';
 import { appRegistry, canAccessDefinition, getAppDefinition, getLaunchableApps, isLaunchableDefinition, validateAppRegistry } from './appRegistry';
@@ -21,12 +21,14 @@ import {
 } from '../shared/api/appLifecycle';
 import { APP_HEADER_ACTIONS_HOST_ID } from '../shared/ui/AppHeaderActions';
 import { APP_INFO_BAR_HOST_ID } from '../shared/ui/AppInfoBar';
+import { useSiteSettings } from '../shared/site/SiteSettingsProvider';
 
 export default function AppShell(props: { apps?: readonly ShellAppDefinition[] }) {
   return <NotificationProvider><PlatformShell {...props} /></NotificationProvider>;
 }
 
 function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinition[] }) {
+  const { settings: siteSettings } = useSiteSettings();
   useMemo(() => validateAppRegistry(apps), [apps]);
   const { user, member, identityStatus, identityError, retryIdentitySync } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -98,9 +100,11 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const openHome = useCallback(() => navigate('/'), []);
   useEffect(() => {
-    document.title = `${definition?.title ?? (pathname === '/' ? '策略執行平台' : '找不到頁面')} — StratExec`;
+    document.title = pathname === '/'
+      ? `${siteSettings.title} course｜${siteSettings.subtitle}`
+      : `${definition?.title ?? '找不到頁面'}｜${siteSettings.title} course`;
     mainRef.current?.focus({ preventScroll: true });
-  }, [pathname, definition?.title]);
+  }, [pathname, definition?.title, siteSettings.title, siteSettings.subtitle]);
   useEffect(() => {
     if (!usesServerCatalog) {
       setInstalledAppCatalog(null);
@@ -211,9 +215,9 @@ function PlatformShell({ apps = appRegistry }: { apps?: readonly ShellAppDefinit
                   {ActiveAppIcon ? <ActiveAppIcon className="app-title-icon" size={23} strokeWidth={1.8} aria-hidden="true" /> : null}
                   {mergedHeader
                     ? <div className="merged-brand-copy"><Wordmark /><h1>{definition.title}</h1></div>
-                    : <div className="app-title-copy"><h1>{definition.title}</h1><p>{definition.subtitle}</p></div>}
+                    : <div className="app-title-copy"><h1>{definition.title}</h1>{definition.subtitle && <p>{definition.subtitle}</p>}</div>}
                 </>
-              ) : <div><h1>{pathname === '/' ? <Wordmark /> : '找不到頁面'}</h1><p>{pathname === '/' ? BRAND_SUBTITLE : '請返回平台首頁'}</p></div>}
+              ) : <div><h1>{pathname === '/' ? <Wordmark /> : '找不到頁面'}</h1><p>{pathname === '/' ? siteSettings.subtitle : '請返回平台首頁'}</p></div>}
             </div>
             {definition ? <div className="app-header-controls">
               <div id={APP_HEADER_ACTIONS_HOST_ID} className="platform-app-header-actions" role="group" aria-label="App 操作" />

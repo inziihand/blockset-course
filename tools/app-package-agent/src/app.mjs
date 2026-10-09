@@ -73,6 +73,14 @@ export function createPackageAgentApp({ jobs, authorizeAdmin = createIdentityAdm
         const job = await jobs.apply({ jobId: applyMatch[1], confirmation: payload.confirmation, actor, token });
         return response(200, job);
       }
+      const frontendReleaseMatch = requestUrl.pathname.match(/^\/api\/app-packages\/v1\/jobs\/([^/]+)\/frontend-release$/);
+      if (method === 'POST' && frontendReleaseMatch) {
+        const payload = parseJsonBody(body);
+        return response(200, await jobs.installAndPublish({
+          jobId: frontendReleaseMatch[1], confirmation: payload.confirmation,
+          installationKey: payload.installationKey, actor, token,
+        }));
+      }
       const sourceActivationMatch = requestUrl.pathname.match(/^\/api\/app-packages\/v1\/jobs\/([^/]+)\/source-activation$/);
       if (method === 'POST' && sourceActivationMatch) {
         return response(200, await jobs.activateSource({ jobId: sourceActivationMatch[1], actor, token }));

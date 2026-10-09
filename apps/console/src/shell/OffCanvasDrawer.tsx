@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Settings, X } from 'lucide-react';
 import { isLaunchableDefinition } from './appRegistry';
-import { BRAND_SUBTITLE, BrandMark, Wordmark } from './Brand';
+import { BrandMark, Wordmark } from './Brand';
+import { useSiteSettings } from '../shared/site/SiteSettingsProvider';
 import ThemePicker from './ThemePicker';
 import type { ShellAppDefinition, ShellAppKey } from './types';
 import DrawerAuthPanel from './DrawerAuthPanel';
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export default function OffCanvasDrawer({ apps, open, activeApp, onClose, onOpenHome, onSelectApp }: Props) {
+  const { settings } = useSiteSettings();
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export default function OffCanvasDrawer({ apps, open, activeApp, onClose, onOpen
         <header className="drawer-header">
           <button type="button" className="drawer-home-button" aria-label="返回 StratExec 首頁" onClick={() => { onOpenHome(); onClose(); }}>
             <BrandMark />
-            <span><b><Wordmark /></b><small>{BRAND_SUBTITLE}</small></span>
+            <span><b><Wordmark /></b><small>{settings.subtitle}</small></span>
           </button>
           <button type="button" className="icon-button" aria-label="關閉側邊選單" onClick={onClose}><X size={18} aria-hidden="true" /></button>
         </header>
@@ -54,7 +56,7 @@ export default function OffCanvasDrawer({ apps, open, activeApp, onClose, onOpen
                   onClick={() => { onSelectApp(app.key); onClose(); }}
                 >
                   <Icon size={18} aria-hidden="true" />
-                  <span><b>{app.title}</b><small>{app.subtitle}</small></span>
+                  <span><b>{app.title}</b>{app.subtitle && <small>{app.subtitle}</small>}</span>
                   {!isLaunchableDefinition(app) && <small>尚未開放</small>}
                 </button>
               );

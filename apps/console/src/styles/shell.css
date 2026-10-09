@@ -26,10 +26,15 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 button:focus-visible, a:focus-visible, .theme-options label:has(input:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: 4px; }
 h1, h2, p { margin: 0; }
 svg { flex-shrink: 0; }
+.brand-mark-image { display: block; object-fit: contain; flex-shrink: 0; }
+[data-corner-style="square"] { --radius-card: 0px; }
+[data-corner-style="square"] :where(*) { border-radius: 0 !important; }
 .skip-link { position: fixed; top: -80px; left: 76px; z-index: 30; padding: 12px; background: var(--color-surface-solid); color: var(--color-accent); }
 .skip-link:focus { top: 12px; }
-.wordmark { color: var(--color-text-body); letter-spacing: -.035em; font-weight: 500; }
+.wordmark { display: inline-flex; align-items: center; gap: .42em; color: var(--color-text-body); letter-spacing: -.035em; font-weight: 500; white-space: nowrap; }
 .wordmark > strong { color: var(--color-accent-hover); font-weight: 750; }
+.wordmark-course { display: inline-flex; align-items: center; padding: .18em .52em; border-radius: 999px; background: #a64e1c; color: #fff; font-size: .58em; font-weight: 750; letter-spacing: .03em; line-height: 1.2; }
+[data-theme="dark"] .wordmark-course { background: #eda05c; color: #231608; }
 .app-shell {
   width: min(1480px, 100%);
   min-height: min(860px, calc(100dvh - 56px));

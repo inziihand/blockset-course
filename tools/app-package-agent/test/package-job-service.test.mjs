@@ -108,10 +108,8 @@ test('applies a confirmed job serially and records the durable result', async ()
     assert.equal(applied.status, 'succeeded');
     assert.equal(applied.result.applied, true);
     assert.equal(validations, 1);
-    assert.equal(activations.length, 1);
-    assert.equal(activations[0].token, 'firebase-token');
-    assert.deepEqual(activations[0].activation.allowedAccessModes, ['public']);
-    assert.equal(applied.sourceRegistration.status, 'succeeded');
+    assert.equal(activations.length, 0);
+    assert.equal(applied.sourceRegistration.status, 'pending');
     assert.equal(await exists(join(target, 'apps', 'console', 'src', 'apps', 'package-fixture', 'FixtureApp.tsx')), true);
     const history = await jobs.listJobs();
     assert.equal(history[0].status, 'succeeded');
@@ -233,4 +231,74 @@ test('invalidates an inspected job when owned repository files change before app
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+async function signedFrontendJob(directory, { activationError = null } = {}) {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const signing = {
+    publisherId: 'stratexec.test', keyId: 'release-2026-01',
+    privateKeyPem: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+  };
+  const packed = await packFixtureApp({ directory, outputDirectory: join(directory, 'packages'), signing });
+  const target = await prepareTarget(directory);
+  await writeFile(join(target, 'infrastructure', 'app-publisher-trust.json'), JSON.stringify({
+    schemaVersion: 1, publishers: [{ publisherId: signing.publisherId, displayName: 'Test',
+      status: 'active', keys: [{ keyId: signing.keyId, algorithm: 'ed25519', status: 'trusted',
+        publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }).toString() }] }],
+  }));
+  await mkdir(join(target, 'infrastructure', 'environments'), { recursive: true });
+  await writeFile(join(target, 'infrastructure', 'environments', 'fixture-installation.json'), JSON.stringify({
+    schemaVersion: 1, installationKey: 'fixture-installation', gcpProjectId: 'fixture-project',
+    enabledApps: [], servicePlacements: [],
+  }));
+  const events = [];
+  const jobs = createPackageJobService({
+    rootPath: target, stateRoot: join(directory, 'state'),
+    validateInstall: async () => { events.push('build'); },
+    sourceActivator: { activate: async () => {
+      events.push('activate');
+      if (activationError) throw activationError;
+    } },
+    frontendPublisher: {
+      publish: async () => { events.push('publish'); return {
+        site: 'fixture-project', priorVersion: 'sites/fixture-project/versions/old',
+      }; },
+      rollback: async () => { events.push('rollback'); },
+    },
+  });
+  const inspected = await jobs.inspect({
+    content: await readFile(packed.zipPath), fileName: 'package-fixture-0.1.0.zip',
+    actor: { uid: 'admin-1', email: 'admin@example.com' },
+  });
+  return { target, jobs, inspected, events };
+}
+
+test('publishes a trusted frontend App before activating it in Identity', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stratexec-package-agent-release-'));
+  try {
+    const { jobs, inspected, events } = await signedFrontendJob(directory);
+    const result = await jobs.installAndPublish({
+      jobId: inspected.jobId, confirmation: inspected.confirmation,
+      installationKey: 'fixture-installation', actor: { uid: 'admin-1' }, token: 'admin-token',
+    });
+    assert.equal(result.status, 'succeeded');
+    assert.equal(result.hostingPublication.status, 'published');
+    assert.deepEqual(events, ['build', 'publish', 'activate']);
+    assert.equal(await exists(join(directory, 'state', 'release.lock')), false);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('rolls back Hosting when Identity activation fails after a frontend release', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stratexec-package-agent-release-rollback-'));
+  try {
+    const { jobs, inspected, events } = await signedFrontendJob(directory, { activationError: new Error('identity unavailable') });
+    await assert.rejects(() => jobs.installAndPublish({
+      jobId: inspected.jobId, confirmation: inspected.confirmation,
+      installationKey: 'fixture-installation', actor: { uid: 'admin-1' }, token: 'admin-token',
+    }), /發布與平台狀態無法確認一致/);
+    assert.deepEqual(events, ['build', 'publish', 'activate', 'rollback']);
+    const [history] = await jobs.listJobs();
+    assert.equal(history.hostingPublication.status, 'recovery-required');
+    assert.equal(await exists(join(directory, 'state', 'release.lock')), true);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

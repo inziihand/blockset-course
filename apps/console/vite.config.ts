@@ -2,10 +2,11 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
+import { siteSettingsDevPlugin } from './server/siteSettingsDev';
 
 const environmentRoot = fileURLToPath(new URL('../..', import.meta.url));
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const environment = {
     ...loadEnv(mode, environmentRoot, ''),
     ...process.env,
@@ -17,7 +18,11 @@ export default defineConfig(({ mode }) => {
     ?? `http://127.0.0.1:${environment.STRATEXEC_DEPLOYMENT_AGENT_PORT ?? '8183'}`;
 
   return ({
-  plugins: [react()],
+  plugins: [
+    react(),
+    ...(command === 'serve' && mode === 'development'
+      ? [siteSettingsDevPlugin(environmentRoot, identityOrigin)] : []),
+  ],
   // Keep one environment contract at the monorepo root. Only VITE_* values
   // are exposed to browser code; server-only admin settings remain private.
   envDir: '../..',

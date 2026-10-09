@@ -6,6 +6,8 @@
 
 本母版的安裝流程不得依賴 AI Agent。預設精靈只要求使用者操作編號選單或 Y/N：目標 project 從 gcloud 可存取清單選取；顯示名稱、安裝代號、region、support email 與首位管理員由 project metadata／目前 Google 帳號推導。名稱、project ID、email、路徑、`.env.local` 與覆寫確認字串都不應要求一般使用者手動輸入。AI Agent 可以協助診斷，但不是安裝或部署的必要元件；帳務與公開服務等高影響動作仍以預設為 No 的獨立 Y/N 在動作前確認。
 
+`StratExec` 是共用平台與內部程式命名，不是客戶網站必須採用的品牌。網站標題、Logo、副標題由產品設定管理；installation 的 `displayName` 與 `auth.oauthBrandDisplayName` 是初始顯示設定，均不要求等於 `StratExec`。Firebase Web App 的 `firebaseWebAppDisplayName` 是 Firebase 控制台內的資源標籤，也不決定網站標題。Google 登入顯示的網域則取決於 Firebase Auth 網域設定，不能靠改網站標題替換。
+
 「本地安裝完成」與「正式部署完成」是兩個結果契約。本地安裝只有在 Firebase Auth、Firestore、Identity API、管理員 bootstrap 設定及本機 Console 健康檢查通過後才能回報成功；正式部署則另須完成 Hosting、Cloud runtime、管理員角色、App route 與部署後驗收。跨平台 `npm run setup` 負責前者，`install.ps1` 是 Windows 相容入口，`deploy.ps1` 負責後者；程式存在或 dry-run 成功不表示任何客戶環境已正式部署。
 
 ## 固定原則
@@ -35,6 +37,8 @@ customer-a project             customer-b project
 ## 安裝描述
 
 `infrastructure/apps/<app-key>.json` 描述 App 的安裝依賴；公開母版只追蹤 `infrastructure/environments/installation.example.json`。使用者將它複製成被 Git 忽略的 `*.local.json`，或保存於 repository 外的私人 deployment overlay。installation 只描述非機密且可審查的客戶值：project ID、region、Firebase Web App 名稱、登入提供者、啟用 App 與 planned service placement。安裝器先納入 `platform` manifest，再解析 `enabledApps` 所需的服務聯集。它不保存使用者、管理員名單、OAuth secret、服務帳號 key、券商憑證或部署 revision。`planned` 不等於已部署。
+
+新設定以 installation key 作為 Firebase Web App 的預設資源標籤；現有 overlay 不會被改名。安裝時先依可選的 `firebaseWebAppId` 對應既有 App，再依 `firebaseWebAppDisplayName` 對應；若 project 只有一個 Web App，直接沿用，不因標籤不同另建。若有多個 App 且無法確定對應，互動式本機安裝會以編號讓操作者選擇，並把選定的 App ID 存入私人 overlay；非互動式 bootstrap 則停止並要求明確指定 ID。只有 project 尚無 Web App 時才建立新的 App。網站品牌文字不參與 Web App 的選擇或部署通過條件。
 
 建立新客戶（一般使用者入口）：
 

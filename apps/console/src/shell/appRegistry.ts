@@ -14,6 +14,15 @@ export function isLaunchableDefinition(
 
 export const getLaunchableApps = (apps = appRegistry) => apps.filter(isLaunchableDefinition);
 
+/** Preserve the server's complete App order while keeping unknown local previews stable at the end. */
+export function orderAppsByKeys(apps: readonly ShellAppDefinition[], appKeys: readonly string[]) {
+  const ranks = new Map(appKeys.map((key, index) => [key, index]));
+  return [...apps].sort((left, right) => (
+    (ranks.get(left.key) ?? Number.MAX_SAFE_INTEGER)
+    - (ranks.get(right.key) ?? Number.MAX_SAFE_INTEGER)
+  ));
+}
+
 export function canAccessDefinition(
   app: ShellAppDefinition,
   member: IdentityMember | null,

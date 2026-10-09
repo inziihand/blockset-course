@@ -4,10 +4,12 @@ import {
   type ReactNode,
 } from 'react';
 import { THEME_STORAGE_KEY } from '../preferences';
+import { useSiteSettings } from '../site/SiteSettingsProvider';
 export { THEME_STORAGE_KEY } from '../preferences';
 
-export type ThemePreference = 'system' | 'light' | 'dark' | 'paper';
-export type ResolvedTheme = Exclude<ThemePreference, 'system'>;
+export type ThemePreference = 'site' | 'system' | 'light' | 'dark' | 'paper';
+export type ResolvedTheme = 'light' | 'dark' | 'paper';
+const EXPLICIT_THEME_KEY = 'stratexec:theme-explicit';
 
 type ThemeContextValue = {
   preference: ThemePreference;
@@ -18,14 +20,16 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function parsePreference(value: string | null): ThemePreference {
-  return value === 'light' || value === 'dark' || value === 'paper' ? value : 'system';
+  return value === 'site' || value === 'system' || value === 'light' || value === 'dark' || value === 'paper' ? value : 'system';
 }
 
 function getStoredPreference(): ThemePreference {
   try {
-    return parsePreference(window.localStorage.getItem(THEME_STORAGE_KEY));
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === null || (stored === 'system' && window.localStorage.getItem(EXPLICIT_THEME_KEY) !== '1')) return 'site';
+    return parsePreference(stored);
   } catch {
-    return 'system';
+    return 'site';
   }
 }
 
@@ -40,20 +44,22 @@ function applyTheme(preference: ThemePreference, resolvedTheme: ResolvedTheme) {
 
 export function initializeTheme() {
   const preference = getStoredPreference();
-  applyTheme(preference, preference === 'system' ? getSystemTheme() : preference);
+  applyTheme(preference, preference === 'system' || preference === 'site' ? getSystemTheme() : preference);
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const { settings } = useSiteSettings();
   const [preference, setPreference] = useState<ThemePreference>(getStoredPreference);
   const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme);
-  const resolvedTheme = preference === 'system' ? systemTheme : preference;
+  const activePreference = preference === 'site' ? settings.defaultTheme : preference;
+  const resolvedTheme = activePreference === 'system' ? systemTheme : activePreference;
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (event: MediaQueryListEvent) => setSystemTheme(event.matches ? 'dark' : 'light');
     media.addEventListener('change', handleChange);
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === THEME_STORAGE_KEY || event.key === null) setPreference(getStoredPreference());
+      if (event.key === THEME_STORAGE_KEY || event.key === EXPLICIT_THEME_KEY || event.key === null) setPreference(getStoredPreference());
     };
     window.addEventListener('storage', handleStorage);
     return () => {
@@ -64,15 +70,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => applyTheme(preference, resolvedTheme), [preference, resolvedTheme]);
 
-  useEffect(() => {
+  const choosePreference = (next: ThemePreference) => {
+    setPreference(next);
     try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, preference);
-    } catch {
-      // Theme switching remains available when browser storage is restricted.
-    }
-  }, [preference]);
+      window.localStorage.setItem(THEME_STORAGE_KEY, next);
+      window.localStorage.setItem(EXPLICIT_THEME_KEY, '1');
+    } catch { /* Theme switching remains available when browser storage is restricted. */ }
+  };
 
-  const value = useMemo(() => ({ preference, resolvedTheme, setPreference }), [preference, resolvedTheme]);
+  const value = useMemo(() => ({ preference, resolvedTheme, setPreference: choosePreference }), [preference, resolvedTheme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 

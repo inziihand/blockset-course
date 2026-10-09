@@ -6,6 +6,18 @@ export type ShellAppStatus = 'enabled' | 'preview' | 'planned';
 /** Whole-window presentation policy, independent of device type or trading capabilities. */
 export type ShellAppDisplayMode = 'compact' | 'responsive';
 
+/** Metadata compiled with a frontend App; only Apps without dedicated services may use it. */
+export type BundledSourceActivation = {
+  displayName: string;
+  category: 'sample' | 'application';
+  removable: boolean;
+  protected: false;
+  defaultAccessMode: 'public' | 'all_members' | 'grant_required' | 'admins_only' | 'disabled';
+  allowedAccessModes: Array<'public' | 'all_members' | 'grant_required' | 'admins_only' | 'disabled'>;
+  entitlements: Array<{ key: string; displayName: string; description?: string | null }>;
+  adminAllowed: boolean;
+};
+
 export type ShellAppProps = {
   /** Declared in the Registry; the Shell applies it to the complete App window. */
   readonly displayMode: ShellAppDisplayMode;
@@ -19,6 +31,8 @@ export type ShellAppProps = {
 
 export type ShellAppDefinition = {
   key: ShellAppKey;
+  /** Version present in the current compiled Console bundle. */
+  version?: string;
   title: string;
   subtitle: string;
   description: string;
@@ -33,4 +47,6 @@ export type ShellAppDefinition = {
   keepAlive?: boolean;
   path: `/apps/${string}`;
   load?: () => Promise<{ default: ComponentType<ShellAppProps> }>;
+  /** Allows an admin to register an App already included in this exact Console build. */
+  sourceActivation?: BundledSourceActivation;
 };

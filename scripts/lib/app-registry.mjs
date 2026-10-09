@@ -32,6 +32,7 @@ export function generateAppRegistrySource(manifests) {
     const frontend = app.frontend;
     lines.push('  {');
     lines.push(`    key: ${quote(app.appKey)},`);
+    lines.push(`    version: ${quote(app.version)},`);
     lines.push(`    path: ${quote(`/apps/${app.appKey}`)},`);
     lines.push(`    title: ${quote(frontend.title)},`);
     lines.push(`    subtitle: ${quote(frontend.subtitle)},`);
@@ -46,6 +47,19 @@ export function generateAppRegistrySource(manifests) {
     }
     lines.push(`    load: ${loaderName(app.appKey)},`);
     lines.push(`    access: ${quote(app.access.defaultMode === 'public' ? 'public' : 'identity')},`);
+    if (app.requiredServices.length === 0 && app.lifecycle.category !== 'core'
+      && !app.access.protected && app.package?.installable === true) {
+      lines.push(`    sourceActivation: ${quote({
+        displayName: app.displayName,
+        category: app.lifecycle.category,
+        removable: app.lifecycle.removable,
+        protected: false,
+        defaultAccessMode: app.access.defaultMode,
+        allowedAccessModes: app.access.allowedModes,
+        entitlements: app.access.entitlements ?? [],
+        adminAllowed: app.access.adminAllowed,
+      })},`);
+    }
     lines.push('  },');
   }
   lines.push('];', '');

@@ -1,12 +1,14 @@
 import { isLaunchableDefinition } from './appRegistry';
 import { BrandMark } from './Brand';
+import { useSiteSettings } from '../shared/site/SiteSettingsProvider';
 import type { ShellAppDefinition, ShellAppKey } from './types';
 
 export default function AppLauncherPanel({ apps, onSelectApp }: { apps: readonly ShellAppDefinition[]; onSelectApp: (key: ShellAppKey) => void }) {
+  const { settings } = useSiteSettings();
   return (
     <section className="launcher-panel card" aria-labelledby="launcher-title">
       <div className="launcher-mark"><BrandMark size={30} /></div>
-      <p className="eyebrow">STRATEXEC PLATFORM</p>
+      <p className="eyebrow">{settings.title.toUpperCase()} PLATFORM</p>
       <h2 id="launcher-title">你的策略工作空間</h2>
       {apps.length === 0 ? (
         <>

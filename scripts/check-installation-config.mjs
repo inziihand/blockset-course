@@ -27,8 +27,12 @@ for (const file of files) {
     throw new Error(`${label}: invalid gcpProjectId.`);
   }
   if (!/^[a-z]+-[a-z]+[0-9]$/.test(config.region)) throw new Error(`${label}: invalid region.`);
-  if (!/^[a-z][a-z0-9-]{1,38}[a-z0-9]$/.test(config.firebaseWebAppDisplayName)) {
+  if (typeof config.firebaseWebAppDisplayName !== 'string' || !config.firebaseWebAppDisplayName.trim()) {
     throw new Error(`${label}: invalid Firebase Web App display name.`);
+  }
+  if (config.firebaseWebAppId !== undefined &&
+    (typeof config.firebaseWebAppId !== 'string' || !config.firebaseWebAppId.trim())) {
+    throw new Error(`${label}: invalid Firebase Web App ID.`);
   }
   if (JSON.stringify(config.auth?.providers) !== JSON.stringify(['google'])) {
     throw new Error(`${label}: only the reviewed Google provider is supported.`);

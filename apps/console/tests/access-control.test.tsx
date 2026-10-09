@@ -315,8 +315,90 @@ describe('會員與權限 App', () => {
       packageJob.jobId, 'course-app@1.0.0', undefined,
     ));
     expect(await screen.findByText(/來源套件已完成驗證與套用/)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: '同步平台資料' }));
-    await waitFor(() => expect(activateSource).toHaveBeenCalledWith(packageJob.jobId, undefined));
+    expect(screen.getByText(/目前網站版本尚未包含此 App 版本/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: '同步平台資料' }).hasAttribute('disabled')).toBe(true);
+    expect(activateSource).not.toHaveBeenCalled();
+  });
+
+  test('activates an App already compiled into this website without requiring a ZIP', async () => {
+    const user = userEvent.setup();
+    const activated: AppInstallation = {
+      appKey: 'options-strategy-lab', displayName: '選擇權策略分析', status: 'installed',
+      category: 'application', removable: true, protected: false, requiredServices: [],
+      updatedAt: '2026-10-09T00:00:00Z',
+    };
+    const activateBundledApp = vi.fn(async () => activated);
+    const api: AccessControlApi = {
+      listMembers: vi.fn(async () => ({ members: [member], nextCursor: null })),
+      listPolicies: vi.fn(async () => policies),
+      listInstallations: vi.fn(async () => installations),
+      reorderInstallations: vi.fn(async () => installations),
+      updateMember: vi.fn(async () => member),
+      setGrant: vi.fn(async () => member),
+      setPolicy: vi.fn(async () => policies[0]),
+      updateInstallation: vi.fn(async () => installations[0]),
+      activateBundledApp,
+    };
+    render(<AccessControlWorkspace actor={admin} api={api} />);
+    await user.click(await screen.findByRole('tab', { name: 'App 管理' }));
+    await user.click(screen.getByRole('button', { name: '啟用現有 App' }));
+    await waitFor(() => expect(activateBundledApp).toHaveBeenCalledWith(
+      'options-strategy-lab', expect.objectContaining({ defaultAccessMode: 'admins_only' }), undefined,
+    ));
+    expect(await screen.findByText('選擇權策略分析')).toBeTruthy();
+  });
+
+  test('sends bundled activation through the authenticated Identity API', async () => {
+    const request = vi.fn(async () => new Response(JSON.stringify({
+      appKey: 'options-strategy-lab', status: 'installed',
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const api = createAccessControlApi(vi.fn(async () => 'firebase-id-token'), request);
+    await api.activateBundledApp?.('options-strategy-lab', {
+      displayName: '選擇權策略分析', category: 'application', removable: true, protected: false,
+      defaultAccessMode: 'admins_only', allowedAccessModes: ['admins_only'], entitlements: [], adminAllowed: true,
+    });
+    expect(request).toHaveBeenCalledWith(
+      '/api/identity/v1/admin/app-installations/options-strategy-lab/source-activation',
+      expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ Authorization: 'Bearer firebase-id-token' }) }),
+    );
+  });
+
+  test('allows source sync when a completed App matches the current website bundle', async () => {
+    const user = userEvent.setup();
+    const job: AppPackageJob = {
+      schemaVersion: 1, jobId: '11111111-1111-4111-8111-111111111111',
+      fileName: 'options-strategy-lab-0.8.0.zip', status: 'succeeded', appKey: 'options-strategy-lab', version: '0.8.0',
+      installStatus: 'new', packageSha256: 'a'.repeat(64), planFingerprint: 'b'.repeat(64),
+      planContext: {
+        platformContractDigest: 'c'.repeat(64), serviceRegistryDigest: 'd'.repeat(64),
+        packageLockDigest: 'e'.repeat(64), installationContextDigest: 'f'.repeat(64),
+      },
+      signatureStatus: 'development-unsigned', applyAllowed: false,
+      confirmation: 'options-strategy-lab@0.8.0', blockers: [], changes: [],
+      options: { adoptExisting: false, allowDowngrade: false },
+      createdAt: '2026-09-18T00:00:00Z', updatedAt: '2026-09-18T00:00:00Z',
+      createdBy: { uid: 'admin-1', email: 'admin@example.com' },
+      sourceRegistration: { required: true, status: 'succeeded' },
+    };
+    const activateSource = vi.fn(async () => job);
+    const packageApi: AppPackageApi = {
+      listJobs: vi.fn(async () => [job]), inspectPackage: vi.fn(), applyJob: vi.fn(), activateSource,
+    };
+    const api: AccessControlApi = {
+      listMembers: vi.fn(async () => ({ members: [member], nextCursor: null })),
+      listPolicies: vi.fn(async () => policies),
+      listInstallations: vi.fn(async () => installations),
+      reorderInstallations: vi.fn(async () => installations),
+      updateMember: vi.fn(async () => member),
+      setGrant: vi.fn(async () => member),
+      setPolicy: vi.fn(async (_appKey, patch) => ({ ...policies[0], ...patch })),
+      updateInstallation: vi.fn(async () => installations[0]),
+    };
+
+    render(<AccessControlWorkspace actor={admin} api={api} packageApi={packageApi} />);
+    await user.click(await screen.findByRole('tab', { name: 'App 管理' }));
+    await user.click(await screen.findByRole('button', { name: '同步平台資料' }));
+    await waitFor(() => expect(activateSource).toHaveBeenCalledWith(job.jobId, undefined));
   });
 
   test('sends ZIP bytes and apply confirmation to the same-origin Package Agent', async () => {
@@ -338,6 +420,15 @@ describe('會員與權限 App', () => {
           'Content-Type': 'application/zip',
           'X-StratExec-Package-Name': '__.zip',
         }),
+      }),
+    );
+
+    await api.installAndPublish?.('11111111-1111-4111-8111-111111111111', 'options-strategy-lab@0.8.0', 'fixture-installation');
+    expect(request).toHaveBeenCalledWith(
+      '/api/app-packages/v1/jobs/11111111-1111-4111-8111-111111111111/frontend-release',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ confirmation: 'options-strategy-lab@0.8.0', installationKey: 'fixture-installation' }),
       }),
     );
   });

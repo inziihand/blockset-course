@@ -7,12 +7,11 @@ import { fileURLToPath } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
 import { loadAppManifests } from './deployment-plan.mjs';
 import { loadMergedServiceRegistry } from './service-catalog.mjs';
+import { shouldOmitAppSourceEntry } from './app-source-filter.mjs';
 
 const MAX_ENTRIES = 10_000;
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 256 * 1024 * 1024;
-const OMIT_DIRECTORIES = new Set(['node_modules', 'dist', 'build', 'coverage', '__pycache__', '.pytest_cache']);
-const OMIT_FILES = new Set(['.env', '.env.local']);
 const FIXED_ARCHIVE_DATE = new Date('1980-01-01T00:00:00.000Z');
 const SIGNATURE_CONTEXT = Buffer.from('stratexec-app-signature-v1\0', 'utf8');
 const DEPLOYMENT_TARGETS = new Set([
@@ -273,8 +272,7 @@ async function collectDirectory(rootPath, relativePath, files) {
   const absolute = resolve(rootPath, relativePath);
   const entries = await readdir(absolute, { withFileTypes: true });
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-    if (entry.isDirectory() && OMIT_DIRECTORIES.has(entry.name)) continue;
-    if (OMIT_FILES.has(entry.name) || (entry.name.startsWith('.env.') && entry.name !== '.env.example')) continue;
+    if (shouldOmitAppSourceEntry(entry.name, entry.isDirectory())) continue;
     const childRelative = slash(`${relativePath}/${entry.name}`);
     const childAbsolute = resolve(rootPath, childRelative);
     const stats = await lstat(childAbsolute);

@@ -91,6 +91,30 @@
         }
       }
     },
+    "/api/app-packages/v1/jobs/{jobId}/frontend-release": {
+      "post": {
+        "operationId": "installAndPublishFrontendApp",
+        "description": "Local administrator action for a trusted-signed frontend-only ZIP. Applies source, builds Console, verifies a Firebase Hosting preview, promotes live, then activates Identity. It is not a hosted ZIP installation API.",
+        "security": [{ "firebaseIdToken": [] }],
+        "parameters": [{ "name": "jobId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false, "required": ["confirmation", "installationKey"],
+            "properties": {
+              "confirmation": { "type": "string", "description": "Exact app-key@version value returned by inspect" },
+              "installationKey": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,38}[a-z0-9]$" }
+            }
+          } } }
+        },
+        "responses": {
+          "200": { "description": "Hosting published and Identity activated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppPackageJob" } } } },
+          "403": { "description": "Active verified administrator required" },
+          "409": { "description": "Package, release, or rollback failed safely" },
+          "503": { "description": "Release state requires administrator reconciliation" }
+        }
+      }
+    },
     "/api/app-packages/v1/jobs/{jobId}/source-activation": {
       "post": {
         "operationId": "activateSourceInstalledApp",
@@ -265,6 +289,19 @@
               "required": { "type": "boolean" },
               "status": { "enum": ["not-required", "pending", "succeeded"] },
               "registeredAt": { "type": "string", "format": "date-time" },
+              "error": { "type": "string" }
+            }
+          },
+          "hostingPublication": {
+            "type": "object",
+            "required": ["status", "installationKey"],
+            "properties": {
+              "status": { "enum": ["publishing", "published", "failed", "recovery-required"] },
+              "installationKey": { "type": "string" },
+              "site": { "type": "string" },
+              "version": { "type": "string" },
+              "hostingUrl": { "type": "string", "format": "uri" },
+              "publishedAt": { "type": "string", "format": "date-time" },
               "error": { "type": "string" }
             }
           },

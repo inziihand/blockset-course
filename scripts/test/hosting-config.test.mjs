@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createHostingConfig } from '../lib/hosting-config.mjs';
 
 const installation = {
+  gcpProjectId: 'example-project',
   servicePlacements: [
     { serviceKey: 'identity-api', selectedTarget: 'cloud-run-service', region: 'asia-east1', serviceName: 'identity' },
     { serviceKey: 'sample-api', selectedTarget: 'cloud-run-service', region: 'asia-east1', serviceName: 'sample' },
@@ -17,6 +18,7 @@ const registry = {
 
 test('routes ready Cloud Run services before the SPA fallback', () => {
   const result = createHostingConfig(installation, registry);
+  assert.equal(result.hosting.site, 'example-project');
   assert.deepEqual(result.hosting.rewrites, [
     {
       source: '/api/identity/v1/**',

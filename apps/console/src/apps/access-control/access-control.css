@@ -1,4 +1,25 @@
 .access-control-app { display: grid; gap: 12px; min-width: 0; }
+.access-site-management { display: grid; gap: 16px; }
+.access-site-management > header h3, .access-site-card h4 { margin: 0; color: var(--color-text-strong); }
+.access-site-management > header p, .access-site-card > p, .access-site-card > small { margin: 4px 0 0; color: var(--color-text-muted); font-size: 12px; }
+.access-site-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.access-site-card { min-width: 0; display: grid; align-content: start; gap: 12px; padding: 16px; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-surface-card-strong); }
+.access-site-logo-preview { display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 12px; border: 1px solid var(--color-border-default); border-radius: 10px; background: var(--color-surface-muted); }
+.access-site-logo-preview > img { width: 30px; height: 30px; object-fit: contain; }
+.access-site-logo-preview > span { display: grid; gap: 3px; }
+.access-site-logo-preview strong { color: var(--color-accent-hover); font-size: 18px; }
+.access-site-logo-preview strong em { padding: 2px 5px; border-radius: 999px; background: #a64e1c; color: white; font-size: 10px; font-style: normal; }
+.access-site-logo-preview small { color: var(--color-text-muted); }
+.access-site-logo-actions, .access-site-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.access-site-logo-actions button { display: inline-flex; align-items: center; gap: 6px; }
+.access-site-card fieldset { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--color-border-default); border-radius: 9px; }
+.access-site-card legend { padding: 0 5px; font-weight: 700; }
+.access-site-options { display: flex; flex-wrap: wrap; gap: 7px 15px; }
+.access-site-options label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.access-site-options input { accent-color: var(--color-accent); }
+.access-site-actions { justify-content: flex-end; }
+.access-site-actions button { display: inline-flex; align-items: center; gap: 5px; }
+.access-site-saved { margin: 0; color: var(--color-success); }
 .access-control-app [role='tabpanel'] { min-width: 0; }
 .access-members-layout { display: grid; grid-template-columns: minmax(220px, .75fr) minmax(0, 1.8fr); gap: 12px; }
 .access-members-sidebar, .access-member-detail, .access-policy-table { border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-surface-card-strong); overflow: hidden; }
@@ -69,6 +90,12 @@
 .access-verified-required { max-width: 150px; color: var(--color-warning); font-size: 11px; line-height: 1.35; text-align: right; }
 .access-remove-confirmation { display: grid; gap: 12px; }
 .access-remove-confirmation p { margin: 0; }
+.access-bundled-apps { display: grid; gap: 9px; margin-bottom: 14px; padding: 16px; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-surface-card-strong); }
+.access-bundled-apps h3, .access-bundled-apps p { margin: 0; }
+.access-bundled-apps h3 { font-size: 16px; }
+.access-bundled-apps p, .access-bundled-app small { color: var(--color-text-muted); font-size: 12px; }
+.access-bundled-app { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--color-border-default); border-radius: 8px; }
+.access-bundled-app span { min-width: 0; display: grid; overflow-wrap: anywhere; }
 .access-package-installer { display: grid; gap: 14px; margin-bottom: 14px; padding: 16px; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-surface-card-strong); }
 .access-package-installer > header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
 .access-package-installer h3, .access-package-installer p { margin: 0; }
@@ -205,6 +232,7 @@
   .access-grant-features.is-empty { display: none; }
 }
 @media (max-width: 720px) {
+  .access-site-grid { grid-template-columns: 1fr; }
   .access-members-layout { grid-template-columns: 1fr; }
   .access-member-fields { grid-template-columns: 1fr; }
   .access-grant-list > .access-grant-entry { grid-template-columns: 1fr; align-items: stretch; gap: 5px; }
@@ -217,6 +245,7 @@
   .access-app-runtime, .access-app-actions { grid-column: 2; }
   .access-app-actions { justify-content: flex-start; flex-wrap: wrap; }
   .access-package-installer > header { align-items: stretch; flex-direction: column; }
+  .access-bundled-app { align-items: stretch; flex-direction: column; }
   .access-package-controls, .access-package-apply { grid-template-columns: 1fr; }
   .access-package-toolbar { align-items: stretch; flex-direction: column; }
   .access-package-inspect { width: 100%; }

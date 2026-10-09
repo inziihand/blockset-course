@@ -1,4 +1,5 @@
 import type { IdentityAppGrant, IdentityMember } from '../../shared/auth/identityClient';
+import type { BundledSourceActivation } from '../../shell/types';
 
 export type AppAccessMode = 'public' | 'all_members' | 'grant_required' | 'admins_only' | 'disabled';
 export type AppEntitlement = { key: string; displayName: string; description?: string | null };
@@ -56,6 +57,7 @@ export type AccessControlApi = {
   setGrant(uid: string, appKey: string, patch: AppGrantPatch, signal?: AbortSignal): Promise<IdentityMember>;
   setPolicy(appKey: string, patch: AppPolicyPatch, signal?: AbortSignal): Promise<AppPolicy>;
   updateInstallation(appKey: string, action: AppLifecycleAction, signal?: AbortSignal): Promise<AppInstallation>;
+  activateBundledApp?(appKey: string, activation: BundledSourceActivation, signal?: AbortSignal): Promise<AppInstallation>;
 };
 
 type GetToken = (forceRefresh?: boolean) => Promise<string>;
@@ -132,6 +134,11 @@ export function createAccessControlApi(getToken: GetToken, request: Request = fe
     updateInstallation(appKey, action, signal) {
       return send<AppInstallation>(`app-installations/${encodeURIComponent(appKey)}`, {
         method: 'PUT', body: JSON.stringify({ action }),
+      }, signal);
+    },
+    activateBundledApp(appKey, activation, signal) {
+      return send<AppInstallation>(`app-installations/${encodeURIComponent(appKey)}/source-activation`, {
+        method: 'POST', body: JSON.stringify(activation),
       }, signal);
     },
   };

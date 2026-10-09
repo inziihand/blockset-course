@@ -8,7 +8,7 @@ export const fixtureVersion = '0.1.0';
 
 const workspaceRoot = new URL('../../', import.meta.url);
 
-export async function packFixtureApp({ directory, outputDirectory, signing = null }) {
+export async function packFixtureApp({ directory, outputDirectory, signing = null, version = fixtureVersion }) {
   const fixtureRoot = join(directory, 'fixture-source');
   const appSource = `apps/console/src/apps/${fixtureAppKey}`;
   const deploymentManifest = `infrastructure/app-deployments/${fixtureAppKey}.json`;
@@ -23,7 +23,7 @@ export async function packFixtureApp({ directory, outputDirectory, signing = nul
   const app = {
     schemaVersion: 1,
     appKey: fixtureAppKey,
-    version: fixtureVersion,
+    version,
     platformCompatibility: { minimumVersion: '0.1.0', appContractVersion: 2 },
     kind: 'frontend-app',
     displayName: 'Package Fixture',
@@ -42,7 +42,7 @@ export async function packFixtureApp({ directory, outputDirectory, signing = nul
     },
   };
   const deployment = {
-    schemaVersion: 1, appKey: fixtureAppKey, appVersion: fixtureVersion,
+    schemaVersion: 1, appKey: fixtureAppKey, appVersion: version,
     services: [], dataMigrations: [], sourceRollback: { strategy: 'transaction-backup' },
   };
   const writeJson = (path, value) => writeFile(join(fixtureRoot, path), `${JSON.stringify(value, null, 2)}\n`);

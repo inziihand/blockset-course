@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { LogIn, LogOut, RefreshCw, ShieldCheck, UserRound } from 'lucide-react';
 import { useAuth } from '../shared/auth';
+import { useSiteSettings } from '../shared/site/SiteSettingsProvider';
 
 export default function DrawerAuthPanel() {
+  const { settings } = useSiteSettings();
   const {
     user, status, error: authError, member, identityStatus, identityError,
     signInWithGoogle, signOut, retryIdentitySync,
@@ -35,7 +37,7 @@ export default function DrawerAuthPanel() {
         {user.photoURL
           ? <img src={user.photoURL} alt="" referrerPolicy="no-referrer" />
           : <span className="drawer-account-avatar">{(user.displayName || user.email || 'U').slice(0, 1).toUpperCase()}</span>}
-        <span><b>{user.displayName || 'StratExec 使用者'}</b><small>{user.email || '已使用 Google 帳號登入'}</small></span>
+        <span><b>{user.displayName || `${settings.title} 使用者`}</b><small>{user.email || '已使用 Google 帳號登入'}</small></span>
       </div>
       <p className="drawer-auth-boundary"><ShieldCheck size={14} aria-hidden="true" />{
         identityStatus === 'syncing' ? '正在同步平台權限…'
@@ -50,7 +52,7 @@ export default function DrawerAuthPanel() {
         <RefreshCw size={16} aria-hidden="true" />重新同步權限
       </button>}
     </> : <>
-      <div className="drawer-auth-copy"><b>登入 StratExec</b><small>使用 Firebase Authentication 的 Google 登入。</small></div>
+      <div className="drawer-auth-copy"><b>登入 {settings.title}</b><small>使用 Firebase Authentication 的 Google 登入。</small></div>
       <button type="button" className="drawer-auth-button" disabled={status !== 'ready' || pending}
         onClick={() => void perform(signInWithGoogle)}>
         <span className="drawer-google-mark" aria-hidden="true">G</span><LogIn size={16} aria-hidden="true" />

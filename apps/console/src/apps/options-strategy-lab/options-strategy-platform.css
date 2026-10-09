@@ -1,0 +1,367 @@
+/*
+ * StratExec host integration.
+ *
+ * The migrated app keeps only business-specific controls and chart rendering in
+ * options-strategy-lab.css. This layer deliberately inherits the host palette,
+ * spacing, surfaces and responsive content container instead of recreating a
+ * second App Shell inside the platform.
+ */
+
+.options-strategy-lab-root.options-strategy-lab-root {
+  /* Use the active StratExec theme for shared semantic colors. */
+  --color-text-primary: inherit;
+  --color-text-strong: inherit;
+  --color-text-secondary: inherit;
+  --color-text-muted: inherit;
+  --color-text-body: inherit;
+  --color-page-base: inherit;
+  --color-page-gradient-middle: inherit;
+  --color-page-gradient-end: inherit;
+  --color-surface-solid: inherit;
+  --color-surface-app: inherit;
+  --color-surface-card: inherit;
+  --color-surface-card-strong: inherit;
+  --color-surface-control: inherit;
+  --color-surface-muted: inherit;
+  --color-surface-hover: inherit;
+  --color-surface-active: inherit;
+  --color-surface-brand: inherit;
+  --color-border-shell: inherit;
+  --color-border-default: inherit;
+  --color-border-subtle: inherit;
+  --color-border-hover: inherit;
+  --color-border-active: inherit;
+  --color-accent: inherit;
+  --color-accent-hover: inherit;
+  --color-focus: inherit;
+  --color-overlay: inherit;
+  --radius-card: inherit;
+  --shadow-card: inherit;
+  --shadow-menu: inherit;
+
+  /* App-only aliases are derived from the platform semantic palette. */
+  --color-text-heading: var(--color-text-strong);
+  --color-text-emphasis: var(--color-text-strong);
+  --color-text-control: var(--color-text-body);
+  --color-text-body-strong: var(--color-text-strong);
+  --color-text-legend: var(--color-text-body);
+  --color-text-body-alt: var(--color-text-body);
+  --color-text-reference: var(--color-text-secondary);
+  --color-text-link-muted: var(--color-accent);
+  --color-text-neutral: var(--color-text-secondary);
+  --color-text-control-muted: var(--color-text-secondary);
+  --color-text-neutral-alt: var(--color-text-secondary);
+  --color-text-meta-strong: var(--color-text-secondary);
+  --color-text-meta: var(--color-text-secondary);
+  --color-text-secondary-alt: var(--color-text-secondary);
+  --color-text-secondary-strong: var(--color-text-secondary);
+  --color-text-muted-blue: var(--color-text-muted);
+  --color-text-scale: var(--color-text-muted);
+  --color-text-icon: var(--color-text-muted);
+  --color-text-subtle-strong: var(--color-text-muted);
+  --color-text-placeholder: var(--color-text-muted);
+  --color-icon-muted: var(--color-text-muted);
+  --color-text-disabled: color-mix(in srgb, var(--color-text-muted) 62%, transparent);
+  --color-line-muted: var(--color-border-default);
+  --color-text-on-accent: #fff;
+
+  --color-surface-input: var(--color-surface-control);
+  --color-surface-panel: var(--color-surface-card);
+  --color-surface-control-alt: var(--color-surface-control);
+  --color-surface-control-muted: var(--color-surface-muted);
+  --color-surface-control-selected: var(--color-surface-active);
+  --color-surface-focus: var(--color-surface-active);
+  --color-surface-blue-faint: var(--color-surface-muted);
+  --color-surface-blue-soft: var(--color-surface-muted);
+  --color-surface-blue-muted: var(--color-surface-muted);
+  --color-surface-brand-alt: var(--color-surface-brand);
+  --color-surface-calendar: var(--color-surface-control);
+  --color-surface-row-index: var(--color-surface-muted);
+  --color-surface-popover: var(--color-surface-card-strong);
+  --color-surface-tooltip: var(--color-surface-card-strong);
+  --color-surface-disabled-alpha: color-mix(in srgb, var(--color-surface-muted) 45%, transparent);
+  --color-surface-info: var(--color-surface-brand);
+  --color-surface-info-alt: var(--color-surface-brand);
+  --color-surface-success: color-mix(in srgb, #07833e 9%, var(--color-surface-card));
+  --color-surface-danger: color-mix(in srgb, var(--color-error) 8%, var(--color-surface-card));
+  --color-surface-danger-hover: color-mix(in srgb, var(--color-error) 12%, var(--color-surface-card));
+
+  --color-border-app: var(--color-border-shell);
+  --color-border-panel: var(--color-border-default);
+  --color-border-input: var(--color-border-default);
+  --color-border-popover: var(--color-border-default);
+  --color-border-summary: var(--color-border-default);
+  --color-border-calendar: var(--color-border-default);
+  --color-border-calendar-grid: var(--color-border-subtle);
+  --color-border-track: var(--color-border-default);
+  --color-border-strong: var(--color-border-hover);
+  --color-border-brand-soft: var(--color-border-brand);
+  --color-border-success: color-mix(in srgb, #07833e 42%, var(--color-border-default));
+  --color-border-danger: color-mix(in srgb, var(--color-error) 42%, var(--color-border-default));
+
+  --color-accent-brand: var(--color-accent);
+  --color-accent-link: var(--color-accent);
+  --color-accent-strong: var(--color-accent-hover);
+  --color-positive: #07833e;
+  --color-positive-strong: #07833e;
+  --color-negative: var(--color-error);
+  --color-negative-strong: var(--color-error);
+  --color-danger: var(--color-error);
+  --color-info: var(--color-accent);
+  --color-info-strong: var(--color-accent-hover);
+  --color-slider: var(--color-accent);
+  --color-overlay-soft: color-mix(in srgb, var(--color-overlay) 64%, transparent);
+  --radius-control: 9px;
+  --shadow-color-035: color-mix(in srgb, var(--color-text-primary) 4%, transparent);
+  --shadow-color-06: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  --shadow-color-07: color-mix(in srgb, var(--color-text-primary) 7%, transparent);
+  --shadow-color-16: color-mix(in srgb, var(--color-text-primary) 16%, transparent);
+  --shadow-color-18: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
+  --shadow-color-20: color-mix(in srgb, var(--color-text-primary) 20%, transparent);
+  --shadow-color-22: color-mix(in srgb, var(--color-text-primary) 22%, transparent);
+  --shadow-accent-color-12: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --shadow-accent-color-22: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  --shadow-accent-soft: 0 5px 14px color-mix(in srgb, var(--color-accent) 20%, transparent);
+  --shadow-tooltip: var(--shadow-menu);
+  --shadow-info-color: color-mix(in srgb, var(--color-accent) 20%, transparent);
+
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: var(--app-content-spacing);
+  overflow: visible;
+  color: var(--color-text-primary);
+  background: transparent;
+}
+
+.options-strategy-lab-root.options-header-actions {
+  width: auto;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  grid-template-columns: none;
+  gap: 6px;
+  overflow: visible;
+  background: transparent;
+}
+
+/* The portal mount must stay inside the App root so scoped dialog/popover
+   styles keep applying, but it must not become an empty second grid row. */
+.options-strategy-lab-root > #options-strategy-lab-portals {
+  display: contents;
+}
+
+.options-strategy-lab-root .toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.options-strategy-lab-root .toolbar button,
+.options-strategy-lab-root .ghost-button,
+.options-strategy-lab-root .wide-button {
+  min-height: 40px;
+  border-color: var(--color-border-shell);
+  border-radius: 9px;
+  background: var(--color-surface-control);
+  color: var(--color-text-strong);
+  box-shadow: none;
+}
+
+.options-strategy-lab-root .panel-swap-icon-vertical {
+  display: none;
+}
+
+.options-strategy-lab-root .panel-swap-icon {
+  transition: transform 320ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.options-strategy-lab-root .panel-swap-button[aria-pressed="true"] .panel-swap-icon {
+  transform: rotate(180deg);
+}
+
+.options-strategy-lab-root .panel-swap-button.is-vertical .panel-swap-icon-horizontal {
+  display: none;
+}
+
+.options-strategy-lab-root .panel-swap-button.is-vertical .panel-swap-icon-vertical {
+  display: block;
+}
+
+.options-strategy-lab-root .workspace {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(320px, 0.72fr) minmax(0, 1.55fr);
+  align-items: stretch;
+  gap: var(--app-content-spacing);
+  overflow: visible;
+}
+
+.options-strategy-lab-root .workspace.panels-swapped {
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.72fr);
+}
+
+.options-strategy-lab-root .workspace.panels-swapped > .right-panel {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.options-strategy-lab-root .workspace.panels-swapped > .left-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.options-strategy-lab-root .workspace > .left-panel,
+.options-strategy-lab-root .workspace > .right-panel {
+  position: relative;
+  will-change: transform;
+}
+
+.options-strategy-lab-root .left-panel,
+.options-strategy-lab-root .right-panel {
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  gap: var(--app-content-spacing);
+  overflow: visible;
+}
+
+.options-strategy-lab-root .left-panel {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.options-strategy-lab-root .right-panel {
+  grid-template-rows: minmax(460px, 1fr) auto;
+}
+
+.options-strategy-lab-root .param-card,
+.options-strategy-lab-root .chart-card {
+  height: 100%;
+}
+
+.options-strategy-lab-root .card {
+  min-width: 0;
+  border-color: var(--color-border-shell);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.options-strategy-lab-root .matrix-card,
+.options-strategy-lab-root .param-card,
+.options-strategy-lab-root .summary-panel,
+.options-strategy-lab-root .compact-summary-panel {
+  height: auto;
+  min-height: 0;
+  flex: none;
+}
+
+.options-strategy-lab-root .matrix-body {
+  max-height: 390px;
+  overflow-y: auto;
+}
+
+.options-strategy-lab-root .chart-card {
+  min-height: 460px;
+}
+
+.options-strategy-lab-root .compact-summary-panel {
+  overflow: auto;
+}
+
+@container app-content (max-width: 980px) {
+  .options-strategy-lab-root .workspace {
+    grid-template-columns: minmax(280px, .82fr) minmax(0, 1.18fr);
+  }
+
+  .options-strategy-lab-root .workspace.panels-swapped {
+    grid-template-columns: minmax(0, 1.18fr) minmax(280px, .82fr);
+  }
+
+  .options-strategy-lab-root .summary-metrics {
+    grid-template-columns: repeat(4, minmax(86px, 1fr));
+  }
+}
+
+@container app-content (max-width: 760px) {
+  .options-strategy-lab-root .workspace,
+  .options-strategy-lab-root .workspace.panels-swapped {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .options-strategy-lab-root .matrix-body {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .options-strategy-lab-root .workspace.panels-swapped > .right-panel {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .options-strategy-lab-root .workspace.panels-swapped > .left-panel {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .options-strategy-lab-root .left-panel,
+  .options-strategy-lab-root .right-panel {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    height: auto;
+  }
+
+  .options-strategy-lab-root .param-card,
+  .options-strategy-lab-root .chart-card {
+    height: auto;
+  }
+
+  .options-strategy-lab-root .chart-card {
+    min-height: 420px;
+  }
+}
+
+@container app-content (max-width: 520px) {
+  .options-strategy-lab-root {
+    gap: 8px;
+  }
+
+  .options-strategy-lab-root .workspace,
+  .options-strategy-lab-root .left-panel,
+  .options-strategy-lab-root .right-panel {
+    gap: 8px;
+  }
+
+  .options-strategy-lab-root .summary-metrics {
+    grid-template-columns: repeat(2, minmax(86px, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .options-strategy-lab-root.options-header-actions .toolbar > .tool-menu > button {
+    min-width: 40px;
+    padding-inline: 10px;
+    font-size: 0;
+  }
+
+  .options-strategy-lab-root.options-header-actions .toolbar > .tool-menu > button > svg {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .options-strategy-lab-root .panel-swap-icon {
+    transition: none;
+  }
+}

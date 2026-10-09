@@ -42,6 +42,28 @@ export async function fetchInstalledAppKeys(request: Request = fetch): Promise<S
   return new Set((await fetchInstalledAppCatalog(request)).keys());
 }
 
+/** DEV administrator previews can include uninstalled Apps, so they need the complete saved order. */
+export async function fetchRegisteredAppOrder(
+  getIdToken: () => Promise<string>, request: Request = fetch,
+): Promise<string[]> {
+  const token = await getIdToken();
+  const response = await request('/api/identity/v1/admin/app-installations', {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(`App order returned ${response.status}.`);
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== 'object' || !('installations' in payload)
+    || !Array.isArray(payload.installations)) throw new Error('App order returned an invalid payload.');
+  const keys = payload.installations.map((item: unknown) => (
+    item && typeof item === 'object' && 'appKey' in item ? item.appKey : undefined
+  ));
+  if (keys.some((key: unknown) => typeof key !== 'string') || new Set(keys).size !== keys.length) {
+    throw new Error('App order returned an invalid payload.');
+  }
+  return keys as string[];
+}
+
 export function notifyAppLifecycleChanged() {
   window.dispatchEvent(new Event(APP_LIFECYCLE_CHANGED_EVENT));
 }

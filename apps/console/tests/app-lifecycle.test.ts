@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { fetchInstalledAppCatalog, fetchInstalledAppKeys } from '../src/shared/api/appLifecycle';
+import { fetchInstalledAppCatalog, fetchInstalledAppKeys, fetchRegisteredAppOrder } from '../src/shared/api/appLifecycle';
 
 describe('App lifecycle catalog', () => {
   test('loads the server-owned installed App set', async () => {
@@ -50,5 +50,19 @@ describe('App lifecycle catalog', () => {
     }), { status: 200 }));
 
     await expect(fetchInstalledAppCatalog(request)).rejects.toThrow('invalid payload');
+  });
+
+  test('loads complete administrator order including an uninstalled preview', async () => {
+    const request = vi.fn(async () => new Response(JSON.stringify({ installations: [
+      { appKey: 'deristrat-console', status: 'uninstalled' },
+      { appKey: 'taifex-console', status: 'installed' },
+    ] }), { status: 200 }));
+    expect(await fetchRegisteredAppOrder(async () => 'firebase-id-token', request)).toEqual([
+      'deristrat-console', 'taifex-console',
+    ]);
+    expect(request).toHaveBeenCalledWith('/api/identity/v1/admin/app-installations', expect.objectContaining({
+      headers: { Accept: 'application/json', Authorization: 'Bearer firebase-id-token' },
+      cache: 'no-store',
+    }));
   });
 });

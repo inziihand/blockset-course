@@ -68,6 +68,7 @@ export function createPackageJobService({
   now = () => new Date(),
   inventoryProvider,
   sourceActivator,
+  frontendPublisher,
   validateInstall = ({ rootPath: installedRoot, plan }) => validateInstalledApp({
     rootPath: installedRoot,
     appKey: plan.appKey,
@@ -79,6 +80,7 @@ export function createPackageJobService({
   const quarantineRoot = join(stateRoot, 'quarantine');
   const artifactsRoot = join(stateRoot, 'artifacts');
   const applyLockPath = join(stateRoot, 'apply.lock');
+  const releaseLockPath = join(stateRoot, 'release.lock');
   const inventoryRoot = resolve(repositoryRoot, '.stratexec', 'deployment-inventory');
   const jobPath = (jobId) => {
     if (!jobIdPattern.test(jobId)) throw new PackageJobError('Invalid package job id.', 404);
@@ -235,7 +237,7 @@ export function createPackageJobService({
       return { jobId: job.jobId, ...plan };
     },
 
-    async apply({ jobId, confirmation, actor, token }) {
+    async apply({ jobId, confirmation, actor, releaseJobId = null }) {
       let job = await readJob(jobId);
       if (job.status !== 'ready' || job.applyAllowed !== true) {
         throw new PackageJobError('Package job is not ready to apply.', 409);
@@ -247,6 +249,12 @@ export function createPackageJobService({
         throw new PackageJobError(`Apply requires exact confirmation: ${job.confirmation}`);
       }
       await mkdir(stateRoot, { recursive: true });
+      if (await pathExists(releaseLockPath)) {
+        const releaseLock = JSON.parse(await readFile(releaseLockPath, 'utf8'));
+        if (releaseLock.jobId !== jobId || releaseJobId !== jobId) {
+          throw new PackageJobError('Another frontend release is active.', 409);
+        }
+      }
       let lock;
       try {
         lock = await open(applyLockPath, 'wx');
@@ -284,30 +292,13 @@ export function createPackageJobService({
           expectedPlanFingerprint: job.planFingerprint,
           postApply: validateInstall,
         });
-        let sourceRegistration = job.sourceRegistration;
-        if (plan.app.requiredServices.length === 0 && sourceActivator) {
-          try {
-            await sourceActivator.activate({
-              appKey: plan.app.appKey,
-              token,
-              activation: sourceActivationFromManifest(plan.app),
-            });
-            sourceRegistration = { required: true, status: 'succeeded', registeredAt: now().toISOString() };
-          } catch (error) {
-            sourceRegistration = {
-              required: true,
-              status: 'pending',
-              error: error instanceof Error ? error.message : 'Identity API registration failed.',
-            };
-          }
-        }
         job = {
           ...job,
           status: result.applied ? 'succeeded' : 'no-op',
           applyAllowed: false,
           updatedAt: now().toISOString(),
           result,
-          sourceRegistration,
+          sourceRegistration: job.sourceRegistration,
         };
         await writeJob(jobPath(jobId), job);
         return publicJob(job);
@@ -325,6 +316,81 @@ export function createPackageJobService({
       } finally {
         await lock?.close();
         await rm(applyLockPath, { force: true });
+      }
+    },
+
+    async installAndPublish({ jobId, confirmation, installationKey, actor, token }) {
+      if (!frontendPublisher) throw new PackageJobError('Frontend Hosting publisher is unavailable.', 503);
+      if (!sourceActivator) throw new PackageJobError('Identity source activation is unavailable.', 503);
+      let job = await readJob(jobId);
+      if (!['ready', 'succeeded', 'no-op'].includes(job.status) || job.signatureStatus !== 'trusted-signed'
+        || (job.hostingPublication && job.hostingPublication.status !== 'failed')) {
+        throw new PackageJobError('Formal frontend release requires an unpublished trusted-signed package.', 409);
+      }
+      if (!job.sourceRegistration?.required) {
+        throw new PackageJobError('Only Apps without dedicated backend services can use frontend release.', 409);
+      }
+      if (confirmation !== job.confirmation) throw new PackageJobError(`Release requires exact confirmation: ${job.confirmation}`);
+      const installation = await loadInstallation(installationKey);
+      await mkdir(stateRoot, { recursive: true });
+      let lock;
+      try {
+        lock = await open(releaseLockPath, 'wx');
+        await lock.writeFile(json({ jobId, installationKey, actor, acquiredAt: now().toISOString() }), 'utf8');
+      } catch (error) {
+        if (error?.code === 'EEXIST') throw new PackageJobError('Another frontend release is active.', 409);
+        throw error;
+      }
+      let publication;
+      let activated = false;
+      let activationAttempted = false;
+      let recoveryRequired = false;
+      try {
+        if (job.status === 'ready') {
+          await this.apply({ jobId, confirmation, actor, releaseJobId: jobId });
+        } else {
+          await validateInstall({ rootPath: repositoryRoot, plan: { appKey: job.appKey } });
+        }
+        job = await readJob(jobId);
+        const manifestPath = join(repositoryRoot, 'infrastructure', 'apps', `${job.appKey}.json`);
+        const app = JSON.parse(await readFile(manifestPath, 'utf8'));
+        if (app.appKey !== job.appKey || app.version !== job.version || app.requiredServices.length !== 0) {
+          throw new PackageJobError('Installed App no longer matches the inspected frontend package.', 409);
+        }
+        job = { ...job, hostingPublication: { status: 'publishing', installationKey, updatedAt: now().toISOString() } };
+        await writeJob(jobPath(jobId), job);
+        publication = await frontendPublisher.publish({ installation, job });
+        activationAttempted = true;
+        await sourceActivator.activate({ appKey: job.appKey, token, activation: sourceActivationFromManifest(app) });
+        activated = true;
+        job = {
+          ...job, updatedAt: now().toISOString(),
+          sourceRegistration: { required: true, status: 'succeeded', registeredAt: now().toISOString(), registeredBy: actor },
+          hostingPublication: { status: 'published', installationKey, ...publication },
+        };
+        await writeJob(jobPath(jobId), job);
+        return publicJob(job);
+      } catch (error) {
+        let rollbackError = null;
+        if (publication && !activated) {
+          try { await frontendPublisher.rollback(publication); }
+          catch (caught) { rollbackError = caught; }
+        }
+        recoveryRequired = Boolean(error?.recoveryRequired || rollbackError || activated || activationAttempted);
+        job = await readJob(jobId);
+        job = {
+          ...job, updatedAt: now().toISOString(),
+          hostingPublication: {
+            status: recoveryRequired ? 'recovery-required' : 'failed', installationKey,
+            error: recoveryRequired ? '發布與平台狀態無法確認一致；需人工核對 Hosting 與 Identity。'
+              : error instanceof Error ? error.message : 'Frontend release failed.',
+          },
+        };
+        await writeJob(jobPath(jobId), job);
+        throw new PackageJobError(job.hostingPublication.error, recoveryRequired ? 503 : 409);
+      } finally {
+        await lock?.close();
+        if (!recoveryRequired) await rm(releaseLockPath, { force: true });
       }
     },
 

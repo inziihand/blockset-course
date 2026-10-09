@@ -127,7 +127,7 @@ for (const app of manifests) {
     const expectedRoute = `/apps/${app.appKey}`;
     if (!app.routes.includes(expectedRoute)) throw new Error(`Frontend App route must include ${expectedRoute}.`);
     const frontend = app.frontend;
-    if (!frontend || !frontend.entryModule || !frontend.title || !frontend.subtitle || !frontend.description
+    if (!frontend || !frontend.entryModule || !frontend.title || typeof frontend.subtitle !== 'string' || !frontend.description
       || !/^[A-Z][A-Za-z0-9]*$/.test(frontend.icon)
       || !['enabled', 'preview', 'planned'].includes(frontend.status)
       || !['compact', 'responsive'].includes(frontend.displayMode)

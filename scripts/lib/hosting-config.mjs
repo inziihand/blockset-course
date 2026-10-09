@@ -25,6 +25,7 @@ export function createHostingConfig(
   rewrites.push({ source: '**', destination: '/index.html' });
   return {
     hosting: {
+      ...(installation.gcpProjectId ? { site: installation.gcpProjectId } : {}),
       public: publicDirectory,
       ignore: ['firebase.json', '**/.*', '**/node_modules/**'],
       rewrites,

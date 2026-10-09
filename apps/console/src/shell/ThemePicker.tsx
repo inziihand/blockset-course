@@ -1,8 +1,9 @@
 import { useId } from 'react';
-import { BookOpen, Check, Monitor, Moon, Sun } from 'lucide-react';
+import { BookOpen, Check, Monitor, Moon, Sun, House } from 'lucide-react';
 import { useTheme, type ThemePreference } from '../shared/theme/ThemeProvider';
 
 const options = [
+  { key: 'site', label: '網站預設', Icon: House },
   { key: 'system', label: '跟隨系統', Icon: Monitor },
   { key: 'light', label: '淺色', Icon: Sun },
   { key: 'dark', label: '深色', Icon: Moon },

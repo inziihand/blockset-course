@@ -69,6 +69,7 @@ if ($config.schemaVersion -ne 1) { throw 'Only installation schemaVersion 1 is s
 $projectId = [string] $config.gcpProjectId
 $databaseRegion = [string] $config.region
 $webAppName = [string] $config.firebaseWebAppDisplayName
+$webAppId = [string] $config.firebaseWebAppId
 if ($projectId -notmatch '^[a-z][a-z0-9-]{4,28}[a-z0-9]$') { throw 'Invalid gcpProjectId.' }
 if ($databaseRegion -notmatch '^[a-z]+-[a-z]+[0-9]$') { throw 'Invalid Firestore region.' }
 
@@ -151,7 +152,21 @@ try {
 
     $appsResponse = Get-FirebaseResult (Invoke-ExternalJson $firebaseExecutable @('apps:list', 'WEB', '--project', $projectId, '--json'))
     $apps = if ($appsResponse.apps) { @($appsResponse.apps) } else { @($appsResponse) }
-    $webApp = $apps | Where-Object { $_.displayName -eq $webAppName } | Select-Object -First 1
+    if ($webAppId) {
+        $webApp = $apps | Where-Object {
+            $candidateId = if ($_.appId) { $_.appId } elseif ($_.app_id) { $_.app_id } else { $_.name }
+            $candidateId -eq $webAppId
+        } | Select-Object -First 1
+        if (-not $webApp) { throw "Configured Firebase Web App ID $webAppId was not found in project $projectId." }
+    }
+    else {
+        $namedApps = @($apps | Where-Object { $_.displayName -eq $webAppName })
+        if ($namedApps.Count -eq 1) { $webApp = $namedApps[0] }
+        if (-not $webApp -and $apps.Count -eq 1) { $webApp = $apps[0] }
+        if (-not $webApp -and $apps.Count -gt 1) {
+            throw 'Multiple Firebase Web Apps exist. Select one during local setup or set firebaseWebAppId in the installation config.'
+        }
+    }
     if (-not $webApp) {
         $created = Get-FirebaseResult (Invoke-ExternalJson $firebaseExecutable @('apps:create', 'WEB', $webAppName, '--project', $projectId, '--json'))
         $webApp = $created
@@ -342,11 +357,16 @@ try {
     foreach ($key in $requiredKeys) {
         if (-not $sdk.$key) { throw "Firebase SDK configuration is missing $key." }
     }
+    $authDomain = [string] $config.auth.authDomain
+    if (-not $authDomain) { $authDomain = [string] $sdk.authDomain }
+    if ($authDomain -ne [string] $sdk.authDomain -and @($config.auth.authorizedDomains) -notcontains $authDomain) {
+        throw "Custom authDomain $authDomain must be listed in authorizedDomains."
+    }
 
     $envLines = @(
         "VITE_STRATEXEC_INSTALLATION_KEY=$($config.installationKey)",
         "VITE_FIREBASE_API_KEY=$($sdk.apiKey)",
-        "VITE_FIREBASE_AUTH_DOMAIN=$($sdk.authDomain)",
+        "VITE_FIREBASE_AUTH_DOMAIN=$authDomain",
         "VITE_FIREBASE_PROJECT_ID=$($sdk.projectId)",
         "VITE_FIREBASE_STORAGE_BUCKET=$($sdk.storageBucket)",
         "VITE_FIREBASE_MESSAGING_SENDER_ID=$($sdk.messagingSenderId)",

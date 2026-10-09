@@ -33,6 +33,7 @@ test('creates inspect jobs and applies them through the authenticated API', asyn
         return { jobId: sampleJob.jobId, mode: 'read-only', decision: 'reviewable' };
       },
       apply: async (input) => { calls.push(['apply', input]); return { ...sampleJob, status: 'succeeded' }; },
+      installAndPublish: async (input) => { calls.push(['installAndPublish', input]); return { ...sampleJob, status: 'succeeded' }; },
       activateSource: async (input) => { calls.push(['activateSource', input]); return { ...sampleJob, status: 'succeeded' }; },
     },
     authorizeAdmin: async (token) => { assert.equal(token, 'firebase-token'); return actor; },
@@ -74,6 +75,15 @@ test('creates inspect jobs and applies them through the authenticated API', asyn
   });
   assert.equal(activated.status, 200);
   assert.equal(calls[3][0], 'activateSource');
+
+  const published = await app({
+    method: 'POST', url: `/api/app-packages/v1/jobs/${sampleJob.jobId}/frontend-release`,
+    headers: { authorization: 'Bearer firebase-token' },
+    body: Buffer.from(JSON.stringify({ confirmation: 'demo@1.0.0', installationKey: 'fixture-installation' })),
+  });
+  assert.equal(published.status, 200);
+  assert.equal(calls[4][1].installationKey, 'fixture-installation');
+  assert.equal(calls[4][1].token, 'firebase-token');
 });
 
 test('publishes an OpenAPI contract for package and read-only deployment-plan routes', async () => {
@@ -85,5 +95,6 @@ test('publishes an OpenAPI contract for package and read-only deployment-plan ro
   assert.ok(contract.paths['/api/app-packages/v1/jobs/{jobId}/apply'].post);
   assert.deepEqual(contract.paths['/api/app-packages/v1/jobs/{jobId}/apply'].post.security, [{ firebaseIdToken: [] }]);
   assert.ok(contract.paths['/api/app-packages/v1/jobs/{jobId}/source-activation'].post);
+  assert.ok(contract.paths['/api/app-packages/v1/jobs/{jobId}/frontend-release'].post);
   assert.deepEqual(contract.paths['/api/app-packages/v1/jobs/{jobId}/source-activation'].post.security, [{ firebaseIdToken: [] }]);
 });

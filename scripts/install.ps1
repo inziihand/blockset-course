@@ -316,7 +316,7 @@ function New-InteractiveInstallationConfig {
     }
 
     Write-Host ''
-    Write-Host 'StratExec 安裝設定精靈' -ForegroundColor Cyan
+    Write-Host '平台安裝設定精靈' -ForegroundColor Cyan
     Write-Host '本階段只建立被 Git 忽略的本機設定，接著執行唯讀 dry-run。'
     Write-Host '正在讀取目前 gcloud 帳號與可存取的既有 Google Cloud projects。'
     Write-Host ''
@@ -360,7 +360,7 @@ function New-InteractiveInstallationConfig {
         displayName = $displayName
         gcpProjectId = $projectId
         region = $region
-        firebaseWebAppDisplayName = 'stratexec-platform'
+        firebaseWebAppDisplayName = $installationKey
         auth = [ordered]@{
             providers = @('google')
             oauthBrandDisplayName = $displayName
@@ -589,6 +589,10 @@ if (-not (Test-Path -LiteralPath $localFirebase)) {
 }
 Assert-Command $firebaseExecutable
 
+$previousInstallNodeOptions = $env:NODE_OPTIONS
+if ($env:NODE_OPTIONS -notmatch '(^|\s)--use-system-ca($|\s)') {
+    $env:NODE_OPTIONS = (($env:NODE_OPTIONS, '--use-system-ca') | Where-Object { $_ }) -join ' '
+}
 Push-Location $repoRoot
 try {
     Invoke-External 'node' @('scripts/check-installation-config.mjs') -Quiet
@@ -1035,4 +1039,5 @@ $serviceEvidence
 }
 finally {
     Pop-Location
+    $env:NODE_OPTIONS = $previousInstallNodeOptions
 }

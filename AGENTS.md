@@ -10,6 +10,7 @@
 
 ## 設計界線
 
+- `StratExec` 是共用平台與內部程式識別碼，不是產品網站必須使用的名稱；課程站的網站標題、Logo、副標題與安裝顯示名稱由產品設定決定。不得因網站品牌不是 `StratExec` 而阻擋安裝或部署；Firebase Web App 標籤、App ID、Google 登入網域與網站品牌應分別核對。
 - 前端、API、Worker 同庫管理；Python 核心先維持一個套件。
 - 前端入口為 `apps/console/src/shell-main.tsx`，App 定義以 `infrastructure/apps/*.json > frontend` 為來源，執行 `npm run apps:registry` 產生 `src/shell/generatedAppRegistry.ts`；不得直接修改 generated file。每個 App 明確宣告 compact 或 responsive；compact 由平台將整個 App 視窗（`main.app-shell`，含頂列、標題、內容與頁尾）限制為最大 420 CSS px 並置中，不只縮內容。外部側欄／選單不受影響，不調整瀏覽器視窗；Firebase Auth 採根目錄可選環境設定，`STRATEXEC_BOOTSTRAP_ADMIN_EMAILS` 只供可信任後端使用，不得改為 `VITE_*` 或作前端授權。新增業務 App 需在當次工作範圍內，不搬入舊專案的 Firebase 設定或服務憑證。
 - 使用者要求「新增 App」、「新增一個 `<名稱>` App」或同義指令時，視為執行平台標準 App 鷹架：建立可開啟的空白 App、Registry／路由、App-local `DEPLOYMENT.md`、`infrastructure/apps/<app-key>.json` 與基本測試；完整規格遵循 `docs/APP_SCAFFOLDING.md`。除非使用者同時明確要求，空白 App 不得自行新增後端服務、雲端資源、外部資料連線或部署。

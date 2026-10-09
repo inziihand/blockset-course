@@ -147,10 +147,17 @@ test('Firebase Auth bootstrap separates OAuth redirects from local authorized do
   assert.ok(setupSource.indexOf("'apps:create'") < setupSource.indexOf("'deploy', '--only', 'auth'"));
 });
 
-test('Firebase Auth bootstrap resumes from the CLI auto-created default Web App', () => {
+test('Firebase setup reuses the configured ID, matching label or sole existing Web App without renaming the site', () => {
   const defaultApp = { appId: 'default-app', displayName: 'Default Web App' };
   const requestedApp = { appId: 'requested-app', displayName: 'Customer Web App' };
   assert.equal(selectWebApp([defaultApp], 'Customer Web App'), defaultApp);
   assert.equal(selectWebApp([defaultApp, requestedApp], 'Customer Web App'), requestedApp);
-  assert.equal(selectWebApp([{ appId: 'other', displayName: 'Other App' }], 'Customer Web App'), null);
+  assert.deepEqual(selectWebApp([{ appId: 'other', displayName: 'Other App' }], 'Customer Web App'),
+    { appId: 'other', displayName: 'Other App' });
+  assert.equal(selectWebApp([defaultApp, requestedApp], 'Customer Web App', 'default-app'), defaultApp);
+  assert.equal(selectWebApp([defaultApp, requestedApp], 'Customer Web App', 'missing-app'), null);
+  assert.equal(selectWebApp([defaultApp, { appId: 'other', displayName: 'Other App' }], 'Customer Web App'), null);
+  assert.equal(selectWebApp([requestedApp, { appId: 'duplicate', displayName: 'Customer Web App' }], 'Customer Web App'), null);
+  assert.match(setupSource, /firebaseWebAppDisplayName: installationKey/);
+  assert.doesNotMatch(setupSource, /firebaseWebAppDisplayName: 'stratexec-platform'/);
 });

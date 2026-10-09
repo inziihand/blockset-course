@@ -167,11 +167,17 @@ async function findOrCreateInstallationConfig(repoRoot) {
     console.log('偵測到多份可用的本機安裝設定：');
     complete.forEach((filePath, index) => console.log(`  ${index + 1}. ${filePath}`));
     console.log('  0. 建立新的安裝設定');
-    const selection = await askMenu('請選擇設定編號', 0, complete.length, 0);
+    const settingsPath = path.join(repoRoot, '.stratexec', 'local-runtime', 'settings.json');
+    let savedConfigPath = '';
+    if (await pathExists(settingsPath)) {
+      savedConfigPath = String((await readJson(settingsPath)).configPath ?? '');
+    }
+    const savedIndex = complete.findIndex((filePath) => path.resolve(filePath) === path.resolve(savedConfigPath));
+    const selection = await askMenu('請選擇設定編號', 0, complete.length, savedIndex + 1);
     if (selection > 0) return complete[selection - 1];
   }
 
-  console.log('\nStratExec 跨平台安裝設定精靈');
+  console.log('\n平台安裝設定精靈');
   console.log('正在讀取目前 gcloud 帳號與可存取的既有 Google Cloud projects。\n');
   const context = await gcloudContext();
   console.log(`gcloud 帳號：${context.account}`);
@@ -199,7 +205,7 @@ async function findOrCreateInstallationConfig(repoRoot) {
     displayName,
     gcpProjectId: projectId,
     region,
-    firebaseWebAppDisplayName: 'stratexec-platform',
+    firebaseWebAppDisplayName: installationKey,
     auth: {
       providers: ['google'],
       oauthBrandDisplayName: displayName,
@@ -342,9 +348,15 @@ export function authDeploymentConfig(displayName, supportEmail) {
   };
 }
 
-export function selectWebApp(apps, displayName) {
-  return apps.find((app) => app.displayName === displayName)
-    ?? (apps.length === 1 && apps[0].displayName === 'Default Web App' ? apps[0] : null);
+export function firebaseWebAppId(app) {
+  return app?.appId ?? app?.app_id ?? app?.name ?? '';
+}
+
+export function selectWebApp(apps, displayName, appId = '') {
+  if (appId) return apps.find((app) => firebaseWebAppId(app) === appId) ?? null;
+  const namedApps = apps.filter((app) => app.displayName === displayName);
+  if (namedApps.length === 1) return namedApps[0];
+  return apps.length === 1 ? apps[0] : null;
 }
 
 async function firebaseState(repoRoot, installation) {
@@ -367,7 +379,13 @@ async function firebaseState(repoRoot, installation) {
     }
     const payload = firebasePayload(appsResult.value);
     const apps = payload?.apps ?? payload ?? [];
-    webApp = selectWebApp(apps, installation.firebaseWebAppDisplayName);
+    webApp = selectWebApp(apps, installation.firebaseWebAppDisplayName, installation.firebaseWebAppId);
+    if (installation.firebaseWebAppId && !webApp) {
+      throw new Error(`設定的 Firebase Web App ID ${installation.firebaseWebAppId} 不在 project ${installation.gcpProjectId}；請核對安裝設定，不會建立替代 App。`);
+    }
+    if (!webApp && apps.length) {
+      return { status: 'needs-web-app-selection', missing: [], webApp: null, webApps: apps, error: '' };
+    }
     if (!webApp) missing.push('web-app');
   }
   missing.push(...await identityReadiness(installation.gcpProjectId, installation.auth.authorizedDomains ?? []));
@@ -381,7 +399,16 @@ async function applyAuthConfiguration(repoRoot, installation, state) {
     runFirebase(repoRoot, ['projects:addfirebase', projectId, '--non-interactive']);
   }
   gcloud(['services', 'enable', ...REQUIRED_LOCAL_APIS, '--project', projectId, '--quiet']);
+  if (state.missing.includes('firebase-project')) {
+    state = await firebaseState(repoRoot, installation);
+    if (state.status === 'needs-web-app-selection') {
+      throw new Error('Firebase 已啟用，但有多個 Web App；請重新執行安裝並選擇既有 App。');
+    }
+  }
   if (state.missing.includes('web-app')) {
+    if (installation.firebaseWebAppId) {
+      throw new Error('已指定 Firebase Web App ID，但 project 中找不到該 App；不會建立替代 App。');
+    }
     runFirebase(repoRoot, [
       'apps:create', 'WEB', installation.firebaseWebAppDisplayName,
       '--project', projectId, '--json',
@@ -409,10 +436,14 @@ async function applyAuthConfiguration(repoRoot, installation, state) {
 
 async function writeManagedEnv(repoRoot, installation, sdk) {
   const envPath = path.join(repoRoot, '.env.local');
+  const authDomain = installation.auth?.authDomain?.trim() || sdk.authDomain;
+  if (authDomain !== sdk.authDomain && !installation.auth?.authorizedDomains?.includes(authDomain)) {
+    throw new Error(`自訂登入網域 ${authDomain} 必須列在 authorizedDomains。`);
+  }
   const managed = new Map([
     ['VITE_STRATEXEC_INSTALLATION_KEY', installation.installationKey],
     ['VITE_FIREBASE_API_KEY', sdk.apiKey],
-    ['VITE_FIREBASE_AUTH_DOMAIN', sdk.authDomain],
+    ['VITE_FIREBASE_AUTH_DOMAIN', authDomain],
     ['VITE_FIREBASE_PROJECT_ID', sdk.projectId],
     ['VITE_FIREBASE_STORAGE_BUCKET', sdk.storageBucket ?? ''],
     ['VITE_FIREBASE_MESSAGING_SENDER_ID', sdk.messagingSenderId ?? ''],
@@ -432,7 +463,7 @@ async function writeManagedEnv(repoRoot, installation, sdk) {
   return envPath;
 }
 
-async function configureLocalAuth(repoRoot, installation) {
+async function configureLocalAuth(repoRoot, configPath, installation) {
   let state = await firebaseState(repoRoot, installation);
   if (state.status === 'firebase-cli-access-required') {
     if (await askYesNo('Firebase CLI 尚未登入或無法讀取 projects。現在開啟 Google 登入嗎？')) {
@@ -440,13 +471,24 @@ async function configureLocalAuth(repoRoot, installation) {
       state = await firebaseState(repoRoot, installation);
     }
   }
+  if (state.status === 'needs-web-app-selection') {
+    console.log('這個 project 有多個 Firebase Web App，請選擇要沿用的 App：');
+    state.webApps.forEach((app, index) => {
+      console.log(`  ${index + 1}. ${app.displayName || '未命名'} [${firebaseWebAppId(app)}]`);
+    });
+    const selection = await askMenu('請選擇 Web App 編號（0 取消）', 0, state.webApps.length, 0);
+    if (!selection) return null;
+    installation.firebaseWebAppId = firebaseWebAppId(state.webApps[selection - 1]);
+    await writeJsonAtomic(configPath, installation);
+    state = await firebaseState(repoRoot, installation);
+  }
   if (state.status === 'needs-cloud-configuration') {
     console.warn(`本機 Google 登入尚缺：${state.missing.join(', ')}`);
     if (!await askYesNo('要設定 Firebase Authentication、Google Provider 與 Web App 嗎？', false)) return null;
     state = await applyAuthConfiguration(repoRoot, installation, state);
   }
   if (state.status !== 'ready') return null;
-  const appId = state.webApp?.appId ?? state.webApp?.app_id ?? state.webApp?.name;
+  const appId = firebaseWebAppId(state.webApp);
   if (!appId) throw new Error('無法解析 Firebase Web App appId。');
   const sdkResult = runFirebaseJson(repoRoot, [
     'apps:sdkconfig', 'WEB', appId, '--project', installation.gcpProjectId, '--json',
@@ -654,7 +696,7 @@ export async function runSetup(repoRoot) {
   const deploymentPlan = await runRepositoryChecks(repoRoot, configPath);
   const activeAccount = await printPreflight(installation, deploymentPlan);
 
-  const envPath = await configureLocalAuth(repoRoot, installation);
+  const envPath = await configureLocalAuth(repoRoot, configPath, installation);
   if (!envPath) {
     console.warn('本機安裝尚未完成；重新執行 npm run setup 可從此步繼續。');
     return;

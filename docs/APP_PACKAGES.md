@@ -111,6 +111,10 @@ Agent 永遠只綁定 loopback；單獨開發啟動預設為 `127.0.0.1:8182`，
 
 這是 repository control agent，不是 runtime Service：不登錄客戶 service placement、不產生 Hosting rewrite，也禁止使用 Cloud Run 的 `PORT` 啟動。前端只送檔案與確認值，不能接觸 repository 路徑、Git、建置憑證或 artifact 磁碟位置。API 契約為 `contracts/app-packages/openapi.json`。
 
+目前網站版本已包含、尚未登錄的純前端 App，會在 App 管理顯示「啟用現有 App」。管理員可直接啟用，不需重新打包 ZIP。ZIP 來源套用只安裝與建置，不會先登錄 Identity；管理介面會檢查目前 Console bundle 是否含相同 App 版本，未發布的來源不得以「同步平台資料」假裝已可使用。
+
+本機 Agent 的「安裝並發布」只接受可信簽章、沒有獨立後端服務的 ZIP。完成來源 transaction 與 Console build 後，Agent 會在指定 Firebase Hosting 專案建立短期預覽、核對 HTML 與主程式資產，再切換正式版並啟用 Identity；失敗時嘗試回復前一 Hosting 版本。目標安裝設定、本機 Firebase 專案及 auth domain 必須一致。正式站尚無可接收 ZIP 的遠端建置服務，因此正式網址的上傳欄位目前仍無法直接完成此流程。
+
 ## 第六批：Deployment Agent 安全控制平面
 
 `tools/deployment-agent` 與 loopback Package Agent 分開。它只接受機器產生的 normalized plan reference，不接收 shell、Docker 或 `gcloud` 字串；Identity API 會再次驗證 active verified admin，以及 `GET /api/identity/v1/admin/deployment-access/{appKey}` 回傳的 App 安裝管理權。

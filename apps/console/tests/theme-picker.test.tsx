@@ -6,10 +6,10 @@ import { ThemeProvider, THEME_STORAGE_KEY } from '../src/shared/theme/ThemeProvi
 import { media } from './setup';
 
 describe('Theme picker presentation variants', () => {
-  it('keeps the default four-card picker separate from the quick list', () => {
+  it('keeps the default five-card picker separate from the quick list', () => {
     const { container } = render(<ThemeProvider><ThemePicker /></ThemeProvider>);
     expect(screen.getAllByRole('radio').map((input) => input.getAttribute('value'))).toEqual([
-      'system', 'light', 'dark', 'paper',
+      'site', 'system', 'light', 'dark', 'paper',
     ]);
     expect(screen.getByText('外觀', { exact: true })).toBeTruthy();
     expect(container.querySelector('.theme-picker--list')).toBeNull();
@@ -39,7 +39,7 @@ describe('Theme picker presentation variants', () => {
     expect(list.querySelectorAll('.lucide-check')).toHaveLength(1);
   });
 
-  it('describes the resolved appearance while the system option stays selected', () => {
+  it('describes the resolved appearance while the website default option stays selected', () => {
     const { container } = render(<ThemeProvider><ThemePicker variant="list" /></ThemeProvider>);
     expect(screen.getByText('目前為 淺色 外觀', { exact: true })).toBeTruthy();
     act(() => {
@@ -47,9 +47,9 @@ describe('Theme picker presentation variants', () => {
       media.dispatchEvent(Object.assign(new Event('change'), { matches: true }));
     });
     expect(screen.getByText('目前為 深色 外觀', { exact: true })).toBeTruthy();
-    expect((screen.getByRole('radio', { name: '跟隨系統' }) as HTMLInputElement).checked).toBe(true);
-    expect(container.querySelector('.selected')?.textContent).toBe('跟隨系統');
-    expect(document.documentElement.dataset.themePreference).toBe('system');
+    expect((screen.getByRole('radio', { name: '網站預設' }) as HTMLInputElement).checked).toBe(true);
+    expect(container.querySelector('.selected')?.textContent).toBe('網站預設');
+    expect(document.documentElement.dataset.themePreference).toBe('site');
   });
 
   it('notifies selection once for a change and again when reselecting the current option', async () => {

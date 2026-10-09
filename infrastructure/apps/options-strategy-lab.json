@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "appKey": "options-strategy-lab",
+  "version": "0.8.0",
+  "platformCompatibility": {
+    "minimumVersion": "0.1.0",
+    "appContractVersion": 2
+  },
+  "kind": "frontend-app",
+  "displayName": "選擇權策略分析",
+  "source": "apps/console/src/apps/options-strategy-lab",
+  "routes": ["/apps/options-strategy-lab"],
+  "requiredServices": [],
+  "access": {
+    "defaultMode": "admins_only",
+    "allowedModes": ["public", "all_members", "grant_required", "admins_only"],
+    "entitlements": [
+      {
+        "key": "course",
+        "displayName": "課程進階功能",
+        "description": "登入會員獲管理員授權後，解鎖課程模板、Greeks 曲線與多曲線比較。"
+      }
+    ],
+    "adminAllowed": true,
+    "protected": false
+  },
+  "lifecycle": {
+    "category": "application",
+    "removable": true,
+    "defaultStatus": "installed"
+  },
+  "package": { "installable": true, "ownerApp": "options-strategy-lab" },
+  "deploymentDocument": "apps/console/src/apps/options-strategy-lab/DEPLOYMENT.md",
+  "deploymentManifest": "infrastructure/app-deployments/options-strategy-lab.json",
+  "frontend": {
+    "entryModule": "OptionsStrategyLabApp.tsx",
+    "title": "選擇權策略分析",
+    "subtitle": "策略組合、Greeks 與損益曲線",
+    "description": "開發驗證階段預設僅平台管理員可進入；管理員仍可依發布階段調整為公開、所有會員或個別授權。",
+    "icon": "ChartSpline",
+    "status": "enabled",
+    "displayMode": "responsive",
+    "keepAlive": true,
+    "order": 30
+  }
+}

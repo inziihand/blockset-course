@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { createPackageAgentApp } from './app.mjs';
 import { createIdentitySourceClient } from './identity-source-client.mjs';
 import { createPackageJobService } from './package-job-service.mjs';
+import { createFirebaseFrontendPublisher } from './firebase-frontend-publisher.mjs';
 import { resolveAgentConfig } from './runtime-config.mjs';
 
 const config = resolveAgentConfig();
@@ -10,6 +11,7 @@ const jobs = createPackageJobService({
   stateRoot: config.stateRoot,
   allowUnsignedApply: config.allowUnsignedApply,
   sourceActivator: createIdentitySourceClient(),
+  frontendPublisher: createFirebaseFrontendPublisher({ rootPath: config.repositoryRoot }),
 });
 const handle = createPackageAgentApp({ jobs });
 

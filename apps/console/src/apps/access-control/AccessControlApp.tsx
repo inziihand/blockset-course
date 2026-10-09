@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { FileCheck2, GripVertical, PackageCheck, Power, RotateCcw, Settings2, ShieldCheck, Trash2, Upload, UserRoundCog } from 'lucide-react';
 import type { ShellAppProps } from '../../shell/types';
+import { appRegistry } from '../../shell/appRegistry';
 import { useAuth } from '../../shared/auth';
 import type { IdentityMember } from '../../shared/auth/identityClient';
 import { Button, ConfirmDialog, EmptyState, ErrorState, Field, LoadingState } from '../../shared/ui/controls';
@@ -20,13 +21,16 @@ import { createDeploymentSettingsApi, type DeploymentSettingsApi } from './deplo
 import { DeploymentSettingsEditor } from './DeploymentSettingsEditor';
 import { createDeploymentApi, type DeploymentApi } from './deployment-client';
 import { DeploymentLifecycleManager } from './DeploymentLifecycleManager';
+import { SiteManagementPanel } from './SiteManagementPanel';
 import './access-control.css';
 
-type Tab = 'members' | 'apps' | 'management';
+type Tab = 'members' | 'apps' | 'management' | 'site';
 const tabs = [
   { value: 'members', label: '會員' },
   { value: 'apps', label: 'App 權限' },
   { value: 'management', label: 'App 管理' },
+  ...(import.meta.env.DEV && import.meta.env.MODE === 'development'
+    ? [{ value: 'site', label: '網站管理' } as const] : []),
 ] as const;
 const accessModeLabels: Record<AppAccessMode, string> = {
   public: '未登入亦可用',
@@ -49,10 +53,10 @@ export default function AccessControlApp({ signal }: ShellAppProps) {
     return <ErrorState title="需要平台管理員權限"><p>Google 登入只確認身分；此 App 仍由 Identity API 驗證管理員角色。</p></ErrorState>;
   }
   return <AccessControlWorkspace actor={member} api={api} packageApi={packageApi}
-    settingsApi={settingsApi} deploymentApi={deploymentApi} installationKey={installationKey} signal={signal} />;
+    settingsApi={settingsApi} deploymentApi={deploymentApi} installationKey={installationKey} signal={signal} getIdToken={getIdToken} />;
 }
 
-export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, deploymentApi, installationKey = '', signal }: {
+export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, deploymentApi, installationKey = '', signal, getIdToken }: {
   actor: IdentityMember;
   api: AccessControlApi;
   packageApi?: AppPackageApi;
@@ -60,6 +64,7 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
   deploymentApi?: DeploymentApi;
   installationKey?: string;
   signal?: AbortSignal;
+  getIdToken?: () => Promise<string>;
 }) {
   const [tab, setTab] = useState<Tab>('members');
   const [members, setMembers] = useState<IdentityMember[]>([]);
@@ -147,6 +152,8 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
     )).map((installation) => installation.appKey),
   );
   const installedPolicies = policies.filter((policy) => installedAppKeys.has(policy.appKey));
+  const bundledApps = api.activateBundledApp ? appRegistry.filter((app) => app.sourceActivation
+    && !installations.some((installation) => installation.appKey === app.key)) : [];
   const replaceMember = (updated: IdentityMember) => {
     setMembers((current) => current.map((member) => member.uid === updated.uid ? updated : member));
   };
@@ -167,7 +174,8 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
         panelId="access-control-panel" onChange={setTab} />
       <section id="access-control-panel" className="platform-folder-panel" role="tabpanel"
         aria-labelledby={`access-control-tab-${tab}`}>
-        {loading ? <LoadingState message="正在載入會員與 App 權限…" /> : error && members.length === 0
+        {tab === 'site' ? <SiteManagementPanel getIdToken={getIdToken} />
+          : loading ? <LoadingState message="正在載入會員與 App 權限…" /> : error && members.length === 0
           ? <ErrorState><p>{error}</p><Button onClick={() => void load()}>重試 Identity API</Button></ErrorState>
           : tab === 'members'
             ? <MembersPanel members={members} policies={installedPolicies} selected={selected} pending={pending}
@@ -187,9 +195,18 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
                     setPolicies((current) => current.map((item) => item.appKey === updated.appKey ? updated : item));
                     notifyAppPolicyChanged();
                   })} />
-              : <AppManagementPanel installations={installations} pending={pending} packageApi={packageApi}
+              : <AppManagementPanel installations={installations} bundledApps={bundledApps} pending={pending} packageApi={packageApi}
                   settingsApi={settingsApi} deploymentApi={deploymentApi} installationKey={installationKey} signal={signal}
                   onReload={load}
+                  onActivateBundled={(appKey) => run(`bundled:${appKey}`, async () => {
+                    const app = bundledApps.find((candidate) => candidate.key === appKey);
+                    if (!app?.sourceActivation || !api.activateBundledApp) throw new Error('目前網站版本未包含此 App。');
+                    const module = await app.load?.();
+                    if (!module?.default) throw new Error('此 App 的網站程式未能載入，尚未啟用。');
+                    const installed = await api.activateBundledApp(app.key, app.sourceActivation, signal);
+                    setInstallations((current) => [...current, installed]);
+                    notifyAppLifecycleChanged();
+                  })}
                   onReorder={(nextInstallations) => {
                     const previousInstallations = installations;
                     setInstallations(nextInstallations);
@@ -211,7 +228,7 @@ export function AccessControlWorkspace({ actor, api, packageApi, settingsApi, de
                     setInstallations((current) => current.map((item) => item.appKey === updated.appKey ? updated : item));
                     notifyAppLifecycleChanged();
                   })} />}
-        {error && members.length > 0 && <p className="access-control-error" role="alert">{error}</p>}
+        {tab !== 'site' && error && members.length > 0 && <p className="access-control-error" role="alert">{error}</p>}
         <p className="access-control-actor">目前管理者：{actor.email}</p>
       </section>
     </div>
@@ -222,8 +239,9 @@ const installationStatusLabels = {
   installed: '已安裝', disabled: '已停用', uninstalled: '未安裝',
 } as const;
 
-function AppManagementPanel({ installations, pending, packageApi, settingsApi, deploymentApi, installationKey, signal, onReload, onReorder, onAction }: {
+function AppManagementPanel({ installations, bundledApps, pending, packageApi, settingsApi, deploymentApi, installationKey, signal, onReload, onActivateBundled, onReorder, onAction }: {
   installations: AppInstallation[];
+  bundledApps: typeof appRegistry;
   pending: string;
   packageApi?: AppPackageApi;
   settingsApi?: DeploymentSettingsApi;
@@ -231,6 +249,7 @@ function AppManagementPanel({ installations, pending, packageApi, settingsApi, d
   installationKey: string;
   signal?: AbortSignal;
   onReload(): Promise<void>;
+  onActivateBundled(appKey: string): void;
   onReorder(installations: AppInstallation[]): void;
   onAction(installation: AppInstallation, action: AppLifecycleAction): void;
 }) {
@@ -252,7 +271,18 @@ function AppManagementPanel({ installations, pending, packageApi, settingsApi, d
   };
   const clearDragState = () => { setDraggedAppKey(''); setDragOverAppKey(''); };
   return <>
-    {packageApi && <AppPackageInstaller api={packageApi} signal={signal} onJobsChange={setPackageJobs}
+    {bundledApps.length > 0 && <section className="access-bundled-apps" aria-label="網站已包含的 App">
+      <h3>網站已包含的 App</h3>
+      <p>以下 App 的程式已隨目前網站版本發布，可直接登錄並啟用；不必重新上傳 ZIP。</p>
+      {bundledApps.map((app) => <div className="access-bundled-app" key={app.key}>
+        <span><strong>{app.title}</strong><small>{app.key}</small></span>
+        <Button disabled={Boolean(pending)} onClick={() => onActivateBundled(app.key)}>
+          {pending === `bundled:${app.key}` ? '啟用中…' : '啟用現有 App'}
+        </Button>
+      </div>)}
+    </section>}
+    {packageApi && <AppPackageInstaller api={packageApi} installations={installations} installationKey={installationKey}
+      signal={signal} onJobsChange={setPackageJobs}
       onRegistered={onReload} />}
     {deploymentApi && <DeploymentLifecycleManager api={deploymentApi} packageJobs={packageJobs}
       installations={installations} installationKey={installationKey} signal={signal}
@@ -336,8 +366,10 @@ function AppManagementPanel({ installations, pending, packageApi, settingsApi, d
   </>;
 }
 
-function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
+function AppPackageInstaller({ api, installations, installationKey, signal, onJobsChange, onRegistered }: {
   api: AppPackageApi;
+  installations: AppInstallation[];
+  installationKey: string;
   signal?: AbortSignal;
   onJobsChange?(jobs: AppPackageJob[]): void;
   onRegistered(): Promise<void>;
@@ -349,7 +381,7 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
   const [adoptExisting, setAdoptExisting] = useState(false);
   const [allowDowngrade, setAllowDowngrade] = useState(false);
   const [confirmation, setConfirmation] = useState('');
-  const [busy, setBusy] = useState<'loading' | 'inspect' | 'apply' | 'register' | ''>('loading');
+  const [busy, setBusy] = useState<'loading' | 'inspect' | 'apply' | 'publish' | 'register' | ''>('loading');
   const [available, setAvailable] = useState(false);
   const [error, setError] = useState('');
 
@@ -359,8 +391,10 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
     try {
       const next = await api.listJobs(signal);
       setJobs(next);
-      setSelectedJob((current) => current ?? next[0] ?? null);
-      onJobsChange?.(next);
+      const pendingRegistration = next.find((job) => ['succeeded', 'no-op'].includes(job.status)
+        && job.sourceRegistration?.required
+        && !installations.some((installation) => installation.appKey === job.appKey && installation.status === 'installed'));
+      setSelectedJob((current) => current ?? pendingRegistration ?? next[0] ?? null);
       setAvailable(true);
     }
     catch (caught) {
@@ -371,13 +405,13 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
     } finally {
       if (!signal?.aborted) setBusy('');
     }
-  }, [api, onJobsChange, signal]);
+  }, [api, installations, signal]);
 
   useEffect(() => { void loadJobs(); }, [loadJobs]);
+  useEffect(() => { onJobsChange?.(jobs); }, [jobs, onJobsChange]);
   const replaceJob = (next: AppPackageJob) => {
     setJobs((current) => {
       const updated = [next, ...current.filter((job) => job.jobId !== next.jobId)];
-      onJobsChange?.(updated);
       return updated;
     });
     setSelectedJob(next);
@@ -412,6 +446,16 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'App 平台登錄失敗。'); }
     finally { setBusy(''); }
   };
+  const installAndPublish = async () => {
+    if (!selectedJob || !api.installAndPublish || !installationKey) return;
+    setBusy('publish');
+    setError('');
+    try {
+      replaceJob(await api.installAndPublish(selectedJob.jobId, confirmation, installationKey));
+      await onRegistered();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'App 安裝與發布失敗。'); }
+    finally { setBusy(''); }
+  };
   const changeCounts = selectedJob?.changes.reduce<Record<string, number>>((counts, change) => {
     counts[change.action] = (counts[change.action] ?? 0) + 1;
     return counts;
@@ -422,7 +466,14 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
   const actionLabels = { add: '新增', update: '更新', delete: '刪除', unchanged: '未變更' } as const;
   const needsRegistration = Boolean(selectedJob && ['succeeded', 'no-op'].includes(selectedJob.status)
     && selectedJob.sourceRegistration?.required
-    && selectedJob.sourceRegistration.status !== 'succeeded');
+    && (selectedJob.sourceRegistration.status !== 'succeeded'
+      || !installations.some((installation) => installation.appKey === selectedJob.appKey && installation.status === 'installed')));
+  const publishedInThisConsole = Boolean(selectedJob && appRegistry.some((app) => app.key === selectedJob.appKey
+    && app.version === selectedJob.version));
+  const canPublish = Boolean(selectedJob?.sourceRegistration?.required && selectedJob.signatureStatus === 'trusted-signed'
+    && ['ready', 'succeeded', 'no-op'].includes(selectedJob.status)
+    && (!selectedJob.hostingPublication || selectedJob.hostingPublication.status === 'failed')
+    && installationKey && api.installAndPublish);
 
   return <section className="access-package-installer" aria-labelledby="app-package-installer-title">
     <header>
@@ -481,6 +532,12 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
           ? `信任狀態：發布者簽章有效（${selectedJob.publisherId}/${selectedJob.keyId}）。`
           : '信任狀態：未簽章開發套件。預設只能預檢；本機代理需明確啟用 unsigned apply。'}
       </p>
+      {selectedJob.hostingPublication && <p className="access-package-trust">
+        網站發布：{selectedJob.hostingPublication.status === 'published' ? '已發布'
+          : selectedJob.hostingPublication.status === 'publishing' ? '發布中'
+            : selectedJob.hostingPublication.status === 'recovery-required' ? '需要人工核對' : '發布失敗'}
+        {selectedJob.hostingPublication.error && `・${selectedJob.hostingPublication.error}`}
+      </p>}
       {selectedJob.blockers.length > 0 && <ul>{selectedJob.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>}
       {selectedJob.changes.length > 0 && <details><summary>檢視檔案差異</summary><ul>
         {selectedJob.changes.slice(0, 100).map((change) => <li key={change.path}><span>{actionLabels[change.action]}</span>{change.path}</li>)}
@@ -488,11 +545,21 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
       {selectedJob.status === 'succeeded' || selectedJob.status === 'no-op'
         ? <>
           <p className="access-package-success">{selectedJob.status === 'succeeded' ? '來源套件已完成驗證與套用。' : '目前來源內容已與此套件一致。'}</p>
+          <p>{publishedInThisConsole
+            ? '目前網站版本已包含此 App 版本。'
+            : '目前網站版本尚未包含此 App 版本；來源套用不等於網站發布，完成發布後才能提供使用者開啟。'}</p>
           {needsRegistration && <div className="access-package-apply">
             <p>此純前端 App 的平台資料尚未同步；同步後會更新名稱、entitlement 目錄與安裝狀態，但保留管理員選定的整體開放政策。</p>
-            <Button disabled={Boolean(busy)} onClick={() => void activateSource()}>
+            <Button disabled={Boolean(busy) || !publishedInThisConsole} onClick={() => void activateSource()}>
               {busy === 'register' ? '同步中…' : '同步平台資料'}
             </Button>
+          </div>}
+          {canPublish && <div className="access-package-apply">
+            <p>此套件具有可信簽章。本機 Agent 會發布目前 checkout 的整個 Console，包含其他本機修改；請先核對本機版本與目標專案。</p>
+            <Field label={`輸入「${selectedJob.confirmation}」確認發布`} value={confirmation}
+              autoComplete="off" onChange={(event) => setConfirmation(event.currentTarget.value)} />
+            <Button disabled={confirmation !== selectedJob.confirmation || Boolean(busy)}
+              onClick={() => void installAndPublish()}>{busy === 'publish' ? '發布中…' : '發布網站並啟用 App'}</Button>
           </div>}
         </>
         : <div className="access-package-apply">
@@ -500,6 +567,9 @@ function AppPackageInstaller({ api, signal, onJobsChange, onRegistered }: {
             autoComplete="off" onChange={(event) => setConfirmation(event.currentTarget.value)} />
           <Button disabled={!selectedJob.applyAllowed || confirmation !== selectedJob.confirmation || Boolean(busy)}
             onClick={() => void apply()}>{busy === 'apply' ? '套用中…' : '套用來源套件'}</Button>
+          {canPublish && <Button disabled={!selectedJob.applyAllowed || confirmation !== selectedJob.confirmation || Boolean(busy)}
+            title="會發布目前 checkout 的整個 Console，包含其他本機修改"
+            onClick={() => void installAndPublish()}>{busy === 'publish' ? '安裝並發布中…' : '安裝並發布'}</Button>}
         </div>}
     </div>}
     {!selectedJob && jobs.length > 0 && <p className="access-package-history">最近工作：{jobs.slice(0, 3).map((job) => `${job.appKey}@${job.version}（${statusLabels[job.status]}）`).join('、')}</p>}

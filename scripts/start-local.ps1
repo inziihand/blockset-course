@@ -379,7 +379,7 @@ finally {
 
 $frontendUrl = "http://127.0.0.1:$frontendPort/"
 $frontendHealth = Wait-HttpReady -Uri $frontendUrl
-if (-not $frontendHealth -or $frontendHealth.Content -notmatch 'StratExec') {
+if (-not $frontendHealth -or $frontendHealth.Content -notmatch 'id="root"') {
     Stop-Process -Id $frontendProcess.Id -ErrorAction SilentlyContinue
     Stop-Process -Id $deploymentAgentProcess.Id -ErrorAction SilentlyContinue
     Stop-Process -Id $packageAgentProcess.Id -ErrorAction SilentlyContinue

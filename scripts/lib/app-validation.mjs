@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { access, lstat, readFile, readdir } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
+import { shouldOmitAppSourceEntry } from './app-source-filter.mjs';
 
 async function exists(path) {
   try { await access(path); return true; } catch { return false; }
@@ -26,11 +27,12 @@ function withinRoot(rootPath, relativePath) {
 async function collectFiles(directory) {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (shouldOmitAppSourceEntry(entry.name, entry.isDirectory())) continue;
     const path = resolve(directory, entry.name);
     const stats = await lstat(path);
     if (stats.isSymbolicLink()) throw new Error(`Installed service contains a symbolic link: ${path}`);
     if (stats.isDirectory()) {
-      if (!['node_modules', 'dist', 'build', 'coverage'].includes(entry.name)) files.push(...await collectFiles(path));
+      files.push(...await collectFiles(path));
     } else if (stats.isFile()) files.push(path);
   }
   return files;

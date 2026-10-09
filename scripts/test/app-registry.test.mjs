@@ -5,6 +5,7 @@ import { generateAppRegistrySource } from '../lib/app-registry.mjs';
 
 const schema = JSON.parse(await readFile(new URL('../../infrastructure/app-manifest.schema.json', import.meta.url), 'utf8'));
 const manifest = JSON.parse(await readFile(new URL('../../infrastructure/apps/access-control.json', import.meta.url), 'utf8'));
+const optionsManifest = JSON.parse(await readFile(new URL('../../infrastructure/apps/options-strategy-lab.json', import.meta.url), 'utf8'));
 const frontendSchema = schema.properties.frontend;
 
 test('keep-alive is optional and defaults to the original unmount policy', () => {
@@ -29,4 +30,14 @@ test('invalid keep-alive policies cannot enter the generated Registry', () => {
     app.frontend.keepAlive = invalid;
     assert.throws(() => generateAppRegistrySource([app]), /Invalid App keepAlive policy/);
   }
+});
+
+test('only installable frontend Apps without services expose bundled activation metadata', () => {
+  const source = generateAppRegistrySource([manifest, optionsManifest]);
+  assert.equal((source.match(/sourceActivation:/g) ?? []).length, 1);
+  assert.match(source, /sourceActivation: \{"displayName":"選擇權策略分析"/);
+  assert.match(source, /"defaultAccessMode":"admins_only"/);
+  const withBackend = structuredClone(optionsManifest);
+  withBackend.requiredServices = ['quotes-api'];
+  assert.doesNotMatch(generateAppRegistrySource([withBackend]), /sourceActivation:/);
 });
