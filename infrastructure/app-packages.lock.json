@@ -63,6 +63,20 @@
         "infrastructure/app-deployments/options-strategy-lab.json": "c6bbaa808275672f55318dd675c2e936c936613157605ebb880782ff77221382",
         "infrastructure/apps/options-strategy-lab.json": "b21515d3faadb23e05b5aabb5cad79bb7d3ee3c59605729b88f5ab5b1a477fc0"
       }
+    },
+    "diffusion-time-slice-lab": {
+      "version": "0.1.0",
+      "packageSha256": "539449d92a16a1a4778e566995c1dfcdab9acad0cb0521ef9627461af2a039bd",
+      "installedAt": "2026-10-10T17:19:49.787Z",
+      "files": {
+        "apps/console/src/apps/diffusion-time-slice-lab/DEPLOYMENT.md": "46651f713a096a3c1d5a416083d3a87c031253611ef251328909de164d3b2872",
+        "apps/console/src/apps/diffusion-time-slice-lab/DiffusionTimeSliceLabApp.tsx": "8ed2f70b0ca6e7fab66f18bf9b4b310878f33f20fc4abbb4f4f99f53565cbec9",
+        "apps/console/src/apps/diffusion-time-slice-lab/DiffusionViewport.tsx": "a3328fdf836e4b18056969dd2f409be0f08b8234950958c25a3e9f90af816e08",
+        "apps/console/src/apps/diffusion-time-slice-lab/diffusion-time-slice-lab.css": "fb873638e06920623c6e463e503f761a77944a1c5debaedd159d67bc431614c8",
+        "apps/console/src/apps/diffusion-time-slice-lab/diffusionModel.ts": "0097c0c577733f90ca9e6d809dc51bdd5b79e0b9996e921821c4b9cd0dfddd5a",
+        "infrastructure/app-deployments/diffusion-time-slice-lab.json": "3c0cd1fa8885ce342c9e96d64f25bbb70d474e5292a2f985708d7e690dc16706",
+        "infrastructure/apps/diffusion-time-slice-lab.json": "872f73dd79dbc7cee0ed27092d4fdea4efa2375940d192a1e667c0b7d86d89d2"
+      }
     }
   }
 }

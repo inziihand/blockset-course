@@ -48,7 +48,7 @@ export function validateAppRegistry(apps: readonly ShellAppDefinition[]) {
     if (keys.has(app.key) || paths.has(app.path)) throw new Error('Duplicate App key/path');
     if (!['enabled', 'preview', 'planned'].includes(app.status)) throw new Error('Invalid App status');
     if (!['public', 'identity'].includes(app.access)) throw new Error('Invalid App access boundary');
-    if (!['compact', 'responsive'].includes(app.displayMode)) throw new Error('App requires a valid displayMode');
+    if (!['compact', 'standard', 'responsive'].includes(app.displayMode)) throw new Error('App requires a valid displayMode');
     if (app.headerLayout !== undefined && !['standard', 'merged'].includes(app.headerLayout)) throw new Error('Invalid App headerLayout');
     if (app.keepAlive !== undefined && typeof app.keepAlive !== 'boolean') throw new Error('Invalid App keepAlive policy');
     if (app.status !== 'planned' && typeof app.load !== 'function') throw new Error('Enabled App requires a loader');

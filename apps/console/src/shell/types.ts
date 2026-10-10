@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 export type ShellAppKey = string;
 export type ShellAppStatus = 'enabled' | 'preview' | 'planned';
 /** Whole-window presentation policy, independent of device type or trading capabilities. */
-export type ShellAppDisplayMode = 'compact' | 'responsive';
+export type ShellAppDisplayMode = 'compact' | 'standard' | 'responsive';
 
 /** Metadata compiled with a frontend App; only Apps without dedicated services may use it. */
 export type BundledSourceActivation = {

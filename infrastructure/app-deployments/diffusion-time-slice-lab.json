@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "appKey": "diffusion-time-slice-lab",
+  "appVersion": "0.1.0",
+  "services": [],
+  "dataMigrations": [],
+  "sourceRollback": { "strategy": "transaction-backup" }
+}

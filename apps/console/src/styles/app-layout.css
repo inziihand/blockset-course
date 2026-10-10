@@ -1,6 +1,7 @@
 /* App Contract: the whole App window, not only its body, follows this policy. */
 :root {
   --app-compact-max-width: 420px;
+  --app-standard-max-width: 1024px;
   --app-content-spacing: 12px;
   --app-layout-gap: var(--app-content-spacing);
 }
@@ -28,6 +29,11 @@
 .app-shell[data-display-mode="compact"] .topbar { flex-wrap: wrap; padding: 8px 10px; }
 .app-shell[data-display-mode="compact"] .platform-badge { max-inline-size: 100%; white-space: normal; }
 .app-shell[data-display-mode="compact"] .platform-dialog { max-inline-size: var(--app-compact-max-width); }
+
+.app-shell[data-display-mode="standard"] {
+  max-inline-size: var(--app-standard-max-width);
+  min-inline-size: 0;
+}
 
 /* Opt-in header policy, owned by the host and independent of App window width. */
 .app-shell[data-header-layout="merged"] { gap: 8px; }

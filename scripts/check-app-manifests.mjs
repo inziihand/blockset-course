@@ -130,7 +130,7 @@ for (const app of manifests) {
     if (!frontend || !frontend.entryModule || !frontend.title || typeof frontend.subtitle !== 'string' || !frontend.description
       || !/^[A-Z][A-Za-z0-9]*$/.test(frontend.icon)
       || !['enabled', 'preview', 'planned'].includes(frontend.status)
-      || !['compact', 'responsive'].includes(frontend.displayMode)
+      || !['compact', 'standard', 'responsive'].includes(frontend.displayMode)
       || (frontend.keepAlive !== undefined && typeof frontend.keepAlive !== 'boolean')
       || !Number.isInteger(frontend.order) || frontend.order < 0 || frontend.order > 10000) {
       throw new Error(`Frontend App requires packageable Registry metadata: ${app.appKey}`);

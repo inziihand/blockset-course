@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "appKey": "diffusion-time-slice-lab",
+  "version": "0.1.0",
+  "platformCompatibility": {
+    "minimumVersion": "0.1.0",
+    "appContractVersion": 2
+  },
+  "kind": "frontend-app",
+  "displayName": "熱擴散到華爾街",
+  "source": "apps/console/src/apps/diffusion-time-slice-lab",
+  "routes": ["/apps/diffusion-time-slice-lab"],
+  "requiredServices": [],
+  "access": {
+    "defaultMode": "admins_only",
+    "allowedModes": ["public", "all_members", "grant_required", "admins_only"],
+    "adminAllowed": true,
+    "protected": false
+  },
+  "lifecycle": {
+    "category": "application",
+    "removable": true,
+    "defaultStatus": "installed"
+  },
+  "package": { "installable": true, "ownerApp": "diffusion-time-slice-lab" },
+  "deploymentDocument": "apps/console/src/apps/diffusion-time-slice-lab/DEPLOYMENT.md",
+  "deploymentManifest": "infrastructure/app-deployments/diffusion-time-slice-lab.json",
+  "frontend": {
+    "entryModule": "DiffusionTimeSliceLabApp.tsx",
+    "title": "熱擴散到華爾街",
+    "subtitle": "機率分布、時間與波動率",
+    "description": "離線計算高斯機率密度，從正面、傾斜與俯視角觀察時間和波動率如何改變分布。",
+    "icon": "BookOpen",
+    "status": "preview",
+    "displayMode": "standard",
+    "order": 32
+  }
+}
