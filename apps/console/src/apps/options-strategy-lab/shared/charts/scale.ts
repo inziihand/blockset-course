@@ -1,17 +1,20 @@
 import type { ChartPoint, ChartSeries, ChartSeriesDefinition, ScaledChartSeries } from './types';
 
-export function normalizePoints(points: ChartPoint[]): ChartPoint[] {
-  const scale = Math.max(...points.map((point) => Math.abs(point.y)), 0) || 1;
+export function normalizePoints(points: ChartPoint[], reference = points): ChartPoint[] {
+  const scale = Math.max(...reference.map((point) => Math.abs(point.y)), 0) || 1;
   return points.map((point) => ({ ...point, y: point.y / scale }));
 }
 
 export function withDisplayScale<Key extends string, Definition extends ChartSeriesDefinition<Key>>(
   series: Array<Omit<ChartSeries<Key, Definition>, 'display'>>,
   normalized: boolean,
+  normalizationReference?: Array<ChartSeries<Key, Definition>>,
 ): Array<ChartSeries<Key, Definition>> {
   return series.map((item) => ({
     ...item,
-    display: normalized ? normalizePoints(item.raw) : item.raw,
+    display: normalized
+      ? normalizePoints(item.raw, normalizationReference?.find(({ definition }) => definition.key === item.definition.key)?.raw)
+      : item.raw,
   }));
 }
 

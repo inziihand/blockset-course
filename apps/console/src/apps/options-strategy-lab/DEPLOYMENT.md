@@ -2,7 +2,7 @@
 
 前端生命週期：已 opt-in 平台受控 Keep-alive。切換 App 保留目前部位、模型參數、曲線與草稿名稱；隱藏時清理 UI timers／observer／全域監聽並移除 portal。舊啟用期的讀取／匯入回應不套用；已送出儲存／刪除仍須等結果，跨啟用期完成要求重新載入確認，不自動重送或續行新建／匯入流程。關閉、登出、換 UID 或確認失去權限會釋放。只保存在本頁記憶體，不增加離線同步、歷史或後端服務。
 
-狀態：可獨立安裝的純前端 App。0.8.0 為開發驗證版本，整體 App 預設僅允許平台管理員進入；功能涵蓋部位矩陣、模型參數、策略模板、Black–Scholes Greeks、到期／目前損益與 Greeks 多曲線、現貨價拖曳、刻度模式、IV 反推、建倉成本、會員雲端策略檔及單一 JSON 匯入／匯出。
+狀態：可獨立安裝的純前端 App。0.8.1 為開發驗證版本，整體 App 預設僅允許平台管理員進入；功能涵蓋部位矩陣、模型參數、策略模板、Black–Scholes Greeks、到期／目前損益與 Greeks 多曲線、圖表縮放與平移、標的價格拖曳、刻度模式、IV 反推、建倉成本、會員雲端策略檔及單一 JSON 匯入／匯出。
 
 權限邊界：manifest 的 `defaultMode` 為 `admins_only`，`allowedModes` 保留 `public`、`all_members`、`grant_required` 並新增 `admins_only`；管理員可依 App 發布階段調整，新增管理員模式不會刪除原有選項。App 內仍保留原本三層功能邊界：基本版可手動建立組合、檢視損益曲線、到期價值並切換自動／原始值／標準化刻度；active 登入會員可使用以 UID 隔離的私人策略檔；App-local `course` entitlement 解鎖課程模板、Greeks 曲線與多曲線比較。Google 登入只建立會員身分，不等於取得管理員角色或 `course`；App 只採用 Identity API 回傳的有效權限。不複製來源專案的 Firebase Auth 外殼、規則或管理員名單。
 

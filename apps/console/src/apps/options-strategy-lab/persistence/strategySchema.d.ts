@@ -5,6 +5,7 @@ import type {
 } from '../types';
 
 export const STRATEGY_SCHEMA_VERSION: 3;
+export const STRATEGY_PRICE_RANGE: Readonly<{ min: number; max: number }>;
 
 export function isStrategyDraft(value: unknown): value is StrategyDraft;
 export function assertStrategyDraft(value: unknown): StrategyDraft;

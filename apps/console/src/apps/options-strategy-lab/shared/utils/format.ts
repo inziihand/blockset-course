@@ -1,5 +1,5 @@
-export function formatPrice(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '');
+export function formatPrice(value: number, fractionDigits = 2): string {
+  return String(Number(value.toFixed(fractionDigits)));
 }
 
 export function fmt(n: number, digits = 2): string {

@@ -6,6 +6,7 @@ const STRATEGY_KINDS = new Set(['user', 'template']);
 const STRATEGY_ACCESS_LEVELS = new Set(['private', 'course']);
 
 export const STRATEGY_SCHEMA_VERSION = 3;
+export const STRATEGY_PRICE_RANGE = Object.freeze({ min: 0.0001, max: 1_000_000_000 });
 const LEGACY_STRATEGY_SCHEMA_VERSIONS = new Set([1, 2]);
 const LEGACY_DRAFT_KEYS = ['schemaVersion', 'strikeSettings', 'rows', 'params', 'entryCost', 'chart'];
 const DRAFT_KEYS = [...LEGACY_DRAFT_KEYS, 'underlyingQty'];
@@ -34,7 +35,7 @@ const isTimestamp = (value) => Boolean(value)
 
 const isValidPositionRow = (row) =>
   hasExactKeys(row, ['strike', 'callQty', 'putQty'])
-  && isFiniteNumberInRange(row.strike, 0.0001, 1_000_000_000)
+  && isFiniteNumberInRange(row.strike, STRATEGY_PRICE_RANGE.min, STRATEGY_PRICE_RANGE.max)
   && Number.isInteger(row.callQty)
   && row.callQty >= -10_000
   && row.callQty <= 10_000
@@ -97,14 +98,14 @@ export function isStrategyDraft(value) {
 
   if (value.schemaVersion !== STRATEGY_SCHEMA_VERSION) return false;
   if (!hasExactKeys(value.strikeSettings, ['initialSpot', 'strikeStep'])) return false;
-  if (!isFiniteNumberInRange(value.strikeSettings.initialSpot, 0.0001, 1_000_000_000)) return false;
+  if (!isFiniteNumberInRange(value.strikeSettings.initialSpot, STRATEGY_PRICE_RANGE.min, STRATEGY_PRICE_RANGE.max)) return false;
   if (!isFiniteNumberInRange(value.strikeSettings.strikeStep, 0.01, 100_000_000)) return false;
   if (!Array.isArray(value.rows) || value.rows.length !== STRATEGY_ROW_COUNT) return false;
   if (!value.rows.every(isValidPositionRow)) return false;
   if (!Number.isInteger(value.underlyingQty) || value.underlyingQty < -10_000 || value.underlyingQty > 10_000) return false;
 
   if (!hasExactKeys(value.params, ['spot', 'iv', 'days', 'carryRate'])) return false;
-  if (!isFiniteNumberInRange(value.params.spot, 0.0001, 1_000_000_000)) return false;
+  if (!isFiniteNumberInRange(value.params.spot, STRATEGY_PRICE_RANGE.min, STRATEGY_PRICE_RANGE.max)) return false;
   if (!isFiniteNumberInRange(value.params.iv, 0.0001, 5)) return false;
   if (!Number.isInteger(value.params.days) || value.params.days < 0 || value.params.days > 365) return false;
   if (!isFiniteNumberInRange(value.params.carryRate, -1, 1)) return false;

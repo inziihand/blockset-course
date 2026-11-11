@@ -1,7 +1,8 @@
-import type { ChartSeriesDefinition } from '../shared/charts';
+import type { ChartSeries, ChartSeriesDefinition } from '../shared/charts';
 import { withDisplayScale } from '../shared/charts';
-import { DEFAULT_STRIKE_STEP } from '../constants';
+import { DEFAULT_INITIAL_SPOT, DEFAULT_STRIKE_STEP } from '../constants';
 import { chartValue } from '../logic/chartData';
+import { STRATEGY_PRICE_RANGE } from '../persistence/strategySchema.js';
 import type { ChartMode, ModelParams, PositionRow } from '../types';
 
 export type StrategySeriesDefinition = ChartSeriesDefinition<ChartMode> & {
@@ -24,8 +25,8 @@ export function getStrategyXDomain(rows: PositionRow[]) {
   const diffs = sorted.slice(1).map((row, index) => row.strike - sorted[index].strike).filter((diff) => diff > 0);
   const strikeStep = diffs.length ? Math.min(...diffs) : DEFAULT_STRIKE_STEP;
   return {
-    min: Math.min(...rows.map((row) => row.strike)) - strikeStep * 3,
-    max: Math.max(...rows.map((row) => row.strike)) + strikeStep * 3,
+    min: Math.max(STRATEGY_PRICE_RANGE.min, (sorted[0]?.strike ?? DEFAULT_INITIAL_SPOT) - strikeStep * 3),
+    max: Math.min(STRATEGY_PRICE_RANGE.max, (sorted.at(-1)?.strike ?? DEFAULT_INITIAL_SPOT) + strikeStep * 3),
   };
 }
 
@@ -38,6 +39,7 @@ export function buildStrategySeries({
   entryCost,
   underlyingQty,
   normalized,
+  normalizationReference,
 }: {
   modes: ChartMode[];
   rows: PositionRow[];
@@ -47,6 +49,7 @@ export function buildStrategySeries({
   entryCost: number;
   underlyingQty: number;
   normalized: boolean;
+  normalizationReference?: Array<ChartSeries<ChartMode, StrategySeriesDefinition>>;
 }) {
   const selectedDefinitions = strategyChartModes.filter((candidate) => modes.includes(candidate.key));
   const sampleCount = 120;
@@ -55,5 +58,5 @@ export function buildStrategySeries({
     definition,
     raw: xs.map((x) => ({ x, y: chartValue(definition.key, rows, params, x, entryCost, underlyingQty) })),
   }));
-  return withDisplayScale(rawSeries, normalized);
+  return withDisplayScale(rawSeries, normalized, normalizationReference);
 }

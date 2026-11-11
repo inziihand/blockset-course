@@ -12,9 +12,11 @@ type DialogFrameProps = {
   actions: ReactNode;
   closeDisabled?: boolean;
   onClose: () => void;
+  host?: Element;
+  className?: string;
 };
 
-function DialogFrame({ title, description, children, actions, closeDisabled = false, onClose }: DialogFrameProps) {
+export function DialogFrame({ title, description, children, actions, closeDisabled = false, onClose, host, className = '' }: DialogFrameProps) {
   const active = useAppActive();
   const titleId = useId();
 
@@ -28,7 +30,7 @@ function DialogFrame({ title, description, children, actions, closeDisabled = fa
 
   if (!active) return null;
   return createPortal(
-    <div className="modal-backdrop" onPointerDown={closeDisabled ? undefined : onClose}>
+    <div className={`modal-backdrop ${className}`} onPointerDown={closeDisabled ? undefined : onClose}>
       <section
         className="modal-card strategy-file-dialog"
         role="dialog"
@@ -49,7 +51,7 @@ function DialogFrame({ title, description, children, actions, closeDisabled = fa
         <div className="modal-actions strategy-file-actions">{actions}</div>
       </section>
     </div>,
-    portalHost(),
+    host ?? portalHost(),
   );
 }
 

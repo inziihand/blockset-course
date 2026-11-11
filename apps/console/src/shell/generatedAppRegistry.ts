@@ -9,7 +9,7 @@ const loadAccessControl = () => import('../apps/access-control/AccessControlApp'
 export const generatedAppRegistry: readonly ShellAppDefinition[] = [
   {
     key: "options-strategy-lab",
-    version: "0.8.0",
+    version: "0.8.1",
     path: "/apps/options-strategy-lab",
     title: "選擇權策略分析",
     subtitle: "策略組合、Greeks 與損益曲線",

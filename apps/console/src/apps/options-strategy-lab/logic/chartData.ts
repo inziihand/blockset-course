@@ -70,15 +70,15 @@ export function findBreakEvenPoints(rows: PositionRow[], params: ModelParams, en
   return points;
 }
 
-export function formatAxisTick(value: number, mode: ChartMode): string {
-  if (mode === 'pnl' || mode === 'payoff') {
-    const rounded = Math.round(value);
-    const body = Math.abs(rounded).toLocaleString('en-US');
+export function formatAxisTick(value: number, mode: ChartMode, tickPrecision = 0): string {
+  const isPrice = mode === 'pnl' || mode === 'payoff';
+  const digits = Math.max(tickPrecision, isPrice ? 0 : mode === 'gamma' ? 3 : 2);
+  const rounded = Number(value.toFixed(digits));
+  if (isPrice) {
+    const body = Math.abs(rounded).toLocaleString('en-US', { maximumFractionDigits: digits });
     if (rounded > 0) return `+${body}`;
     if (rounded < 0) return `-${body}`;
     return '0';
   }
-  const digits = mode === 'gamma' ? 3 : mode === 'theta' ? 2 : 2;
-  const rounded = Number(value.toFixed(digits));
   return `${rounded}`;
 }

@@ -1,16 +1,16 @@
-import type { Greeks, ModelParams } from '../types';
-import { fmt, formatPrice } from '../shared/utils/format';
+import type { Greeks } from '../types';
+import { fmt } from '../shared/utils/format';
 
 type StrategyTooltipProps = {
-  params: ModelParams;
+  spotText: string;
   greeks: Greeks;
   currentPnl: number;
 };
 
-export default function StrategyTooltip({ params, greeks, currentPnl }: StrategyTooltipProps) {
+export default function StrategyTooltip({ spotText, greeks, currentPnl }: StrategyTooltipProps) {
   return (
     <div className="tooltip-card">
-      <b>目前 S = {formatPrice(params.spot)}</b>
+      <b>目前 S = {spotText}</b>
       <span>策略價格 <em className={greeks.price >= 0 ? 'positive' : 'negative'}>{fmt(greeks.price)}</em></span>
       <span>目前損益 <em className={currentPnl >= 0 ? 'positive' : 'negative'}>{fmt(currentPnl)}</em></span>
       <span>Delta <em className={greeks.delta >= 0 ? 'positive' : 'negative'}>{fmt(greeks.delta, 3)}</em></span>

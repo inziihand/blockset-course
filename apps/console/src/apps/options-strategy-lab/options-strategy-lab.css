@@ -2169,7 +2169,15 @@ h2 { font-size: 17px; font-weight: 800; }
 }
 .custom-date-footer button:hover { background: var(--color-surface-info); }
 
-.chart-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.chart-card {
+  --chart-viewport-button-size: 32px;
+  --chart-viewport-inset: 17px;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .chart-header {
   padding: 8px 18px;
   border-bottom: 1px solid var(--color-border-subtle);
@@ -2275,15 +2283,59 @@ h2 { font-size: 17px; font-weight: 800; }
 .legend-line-break-even { color: var(--color-text-reference); border-top-style: dashed; }
 .legend-line-spot { color: var(--chart-spot); border-top-style: dashed; }
 
-.chart-svg { width: 100%; flex: 1 1 auto; min-height: 0; display: block; }
+.chart-svg {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: block;
+}
+.chart-viewport-controls {
+  position: absolute;
+  inset-inline-end: calc(var(--chart-plot-right-inset, 0px) + var(--chart-viewport-inset));
+  inset-block-end: calc(var(--chart-plot-bottom-inset, 0px) + 16px);
+  z-index: 1;
+  display: grid;
+  gap: 5px;
+  pointer-events: none;
+}
+.chart-viewport-controls > button {
+  inline-size: var(--chart-viewport-button-size);
+  block-size: var(--chart-viewport-button-size);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-surface-card-strong) 92%, transparent);
+  color: var(--color-text-body);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+  opacity: .78;
+  pointer-events: auto;
+  touch-action: manipulation;
+  transition: opacity 120ms ease, border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+.chart-viewport-controls > button:hover {
+  border-color: var(--color-border-active);
+  background: var(--color-surface-active);
+  color: var(--color-accent-hover);
+  opacity: 1;
+}
+.chart-viewport-controls > button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  opacity: 1;
+}
 .grid-line { stroke: var(--chart-grid); stroke-width: 1; stroke-dasharray: 3 3; }
 .axis-zero { stroke: var(--chart-axis); stroke-width: .95; }
 .axis-edge { stroke: var(--chart-axis-edge); stroke-width: 1; }
 .spot-line { stroke: var(--chart-spot); stroke-width: 1.45; stroke-dasharray: 5 5; pointer-events: none; }
 .break-even-line { stroke: var(--chart-reference); stroke-width: 1.1; stroke-dasharray: 5 5; opacity: .9; }
 .spot-line.dragging { stroke-width: 2; filter: drop-shadow(0 0 5px var(--chart-shadow-spot)); }
-.chart-drag-layer { fill: transparent; cursor: ew-resize; touch-action: none; }
-.spot-line-hitbox { stroke: transparent; stroke-width: 22; cursor: ew-resize; touch-action: none; }
+.chart-drag-layer { fill: transparent; cursor: grab; touch-action: none; }
+.chart-drag-layer.is-panning { cursor: grabbing; }
+.spot-line-hitbox { stroke: transparent; stroke-width: 22; }
+.spot-line-hitbox,
+.spot-price-label { cursor: ew-resize; touch-action: none; user-select: none; }
 .strategy-line { stroke: var(--chart-series-pnl); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 3px 6px var(--chart-shadow-pnl)); }
 .strategy-line-pnl { stroke: var(--chart-series-pnl); }
 .strategy-line-payoff { stroke: var(--chart-series-payoff); stroke-dasharray: 7 5; filter: drop-shadow(0 3px 6px var(--chart-shadow-payoff)); }
@@ -2328,7 +2380,7 @@ h2 { font-size: 17px; font-weight: 800; }
 }
 
 @media (max-width: 680px) {
-  .chart-card { height: 360px; min-height: 360px; }
+  .chart-card { height: 360px; min-height: 360px; --chart-viewport-inset: 8px; }
   .chart-header { position: relative; flex-direction: column; align-items: stretch; }
   .chart-header-controls { justify-content: space-between; }
   .chart-curve-menu { position: static; }

@@ -27,6 +27,8 @@ export default defineConfig(({ mode, command }) => {
   // are exposed to browser code; server-only admin settings remain private.
   envDir: '../..',
   server: {
+    // Poll on Windows so package installation can rename App source directories.
+    watch: process.platform === 'win32' ? { usePolling: true } : undefined,
     proxy: {
       '/api/identity': { target: identityOrigin, changeOrigin: false },
       '/api/app-packages': { target: packageAgentOrigin, changeOrigin: false },
