@@ -20,6 +20,8 @@ export const initialParams: ModelParams = {
   carryRate: 0,
 };
 
+export const EXPIRY_DAYS_RANGE = { min: 1, max: 365 } as const;
+
 export const CARRY_RATE_RANGE = {
   min: 0,
   max: 0.1,

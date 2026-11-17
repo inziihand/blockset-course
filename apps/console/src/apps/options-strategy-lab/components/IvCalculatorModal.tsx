@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { portalHost } from '../portalHost';
 import { X } from 'lucide-react';
 import type { ModelParams, PositionRow } from '../types';
+import { EXPIRY_DAYS_RANGE } from '../constants';
 import { blackScholes, impliedVolatility } from '../logic/blackScholes';
 import DatePickerButton from './DatePickerButton';
 import NumberInputStepper from './NumberInputStepper';
@@ -28,8 +29,9 @@ function IvCalculatorModal({
   const [spot, setSpot] = useState(params.spot);
   const [strike, setStrike] = useState(nearestStrike);
   const [riskFreeRatePercent, setRiskFreeRatePercent] = useState(() => Number((params.carryRate * 100).toFixed(2)));
-  const [marketPrice, setMarketPrice] = useState(() => Number(blackScholes('call', params.spot, nearestStrike, Math.max(1, params.days) / 365, params.carryRate, params.iv, 0).price.toFixed(2)));
-  const [ivDays, setIvDays] = useState(() => Math.max(1, params.days));
+  const initialDays = Math.max(EXPIRY_DAYS_RANGE.min, params.days);
+  const [marketPrice, setMarketPrice] = useState(() => Number(blackScholes('call', params.spot, nearestStrike, initialDays / 365, params.carryRate, params.iv, 0).price.toFixed(2)));
+  const [ivDays, setIvDays] = useState(initialDays);
   const riskFreeRate = riskFreeRatePercent / 100;
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -99,14 +101,17 @@ function IvCalculatorModal({
             <div className="iv-days-input-row">
               <input
                 type="number"
-                min="1"
-                max="365"
+                min={EXPIRY_DAYS_RANGE.min}
+                max={EXPIRY_DAYS_RANGE.max}
                 step="1"
                 value={ivDays}
-                onChange={(event) => setIvDays(Math.min(365, Math.max(1, Math.round(Number(event.target.value) || 1))))}
+                onChange={(event) => {
+                  const days = Math.round(Number(event.target.value));
+                  setIvDays(Math.min(EXPIRY_DAYS_RANGE.max, Math.max(EXPIRY_DAYS_RANGE.min, days)));
+                }}
                 aria-label="IV 反推剩餘天數"
               />
-              <DatePickerButton days={ivDays} minDays={1} onChangeDays={setIvDays} ariaLabel="選擇 IV 反推到期日" size={14} />
+              <DatePickerButton days={ivDays} onChangeDays={setIvDays} ariaLabel="選擇 IV 反推到期日" size={14} />
             </div>
           </label>
         </div>

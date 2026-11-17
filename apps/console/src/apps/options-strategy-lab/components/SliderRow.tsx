@@ -26,7 +26,7 @@ function SliderRow({ label, value, min, max, step, suffix, onChange, helpText, o
         </span>
       </div>
       <div className="slider-line">
-        <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+        <input type="range" aria-label={label} min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
         <div className="slider-value">{suffix === '%' ? (value * 100).toFixed(2) : value.toFixed(0)} {suffix}</div>
       </div>
       {showScale ? (

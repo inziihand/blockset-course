@@ -3,18 +3,17 @@ import { useAppEffect as useEffect, useAppActive } from '../../../shared/lifecyc
 import { createPortal } from 'react-dom';
 import { portalHost } from '../portalHost';
 import { CalendarDays } from 'lucide-react';
+import { EXPIRY_DAYS_RANGE } from '../constants';
 import { dateFromDays, daysUntilDate, formatDateInput, sameLocalDate, startOfLocalDay } from '../logic/dateUtils';
 import { cx } from '../shared/utils/format';
 
 function DatePickerButton({
   days,
-  minDays,
   onChangeDays,
   ariaLabel,
   size = 15,
 }: {
   days: number;
-  minDays: number;
   onChangeDays: (days: number) => void;
   ariaLabel: string;
   size?: number;
@@ -27,7 +26,9 @@ function DatePickerButton({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const today = startOfLocalDay(new Date());
   const selectedDate = dateFromDays(days);
-  const minDate = dateFromDays(minDays);
+  const minDate = dateFromDays(EXPIRY_DAYS_RANGE.min);
+  const maxDate = dateFromDays(EXPIRY_DAYS_RANGE.max);
+  const isOutsideRange = (date: Date) => date < minDate || date > maxDate;
 
   const updatePanelPosition = useCallback(() => {
     const button = buttonRef.current;
@@ -81,8 +82,8 @@ function DatePickerButton({
   });
 
   const selectDate = (date: Date) => {
-    if (startOfLocalDay(date).getTime() < minDate.getTime()) return;
-    onChangeDays(Math.max(minDays, daysUntilDate(formatDateInput(date))));
+    if (isOutsideRange(date)) return;
+    onChangeDays(daysUntilDate(formatDateInput(date)));
     setOpen(false);
   };
 
@@ -104,7 +105,6 @@ function DatePickerButton({
       </div>
       <div className="custom-date-grid">
         {daysInGrid.map((date) => {
-          const disabled = startOfLocalDay(date).getTime() < minDate.getTime();
           const outside = date.getMonth() !== monthDate.getMonth();
           const selected = sameLocalDate(date, selectedDate);
           const isToday = sameLocalDate(date, today);
@@ -113,7 +113,7 @@ function DatePickerButton({
               type="button"
               key={formatDateInput(date)}
               className={cx(outside && 'outside', selected && 'selected', isToday && 'today')}
-              disabled={disabled}
+              disabled={isOutsideRange(date)}
               onClick={() => selectDate(date)}
             >
               {date.getDate()}
@@ -122,8 +122,8 @@ function DatePickerButton({
         })}
       </div>
       <div className="custom-date-footer">
-        <button type="button" onClick={() => selectDate(dateFromDays(minDays))}>{minDays === 0 ? '今天' : `+${minDays}天`}</button>
-        <span>剩餘 {Math.max(minDays, days)} 天</span>
+        <button type="button" onClick={() => selectDate(minDate)}>+{EXPIRY_DAYS_RANGE.min}天</button>
+        <span>剩餘 {days} 天</span>
       </div>
     </div>,
     portalHost(),

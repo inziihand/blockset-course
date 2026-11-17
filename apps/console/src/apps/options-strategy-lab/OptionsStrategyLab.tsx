@@ -12,7 +12,7 @@ import type {
   StrikeSettings,
   UserStrategyRecord,
 } from './types';
-import { initialParams, initialRows, initialStrikeSettings } from './constants';
+import { EXPIRY_DAYS_RANGE, initialParams, initialRows, initialStrikeSettings } from './constants';
 import { aggregate } from './logic/greeks';
 import { generateEmptyRows } from './logic/strikeRows';
 import { templateRows } from './logic/strategyTemplates';
@@ -311,7 +311,10 @@ export function OptionsStrategyLab({
   }, [hasCourseAccess]);
 
   const applyDraft = useCallback((draft: StrategyDraft) => {
-    const nextDraft = normalizeDraftForAccess(draft);
+    const nextDraft = normalizeDraftForAccess({
+      ...draft,
+      params: { ...draft.params, days: Math.max(EXPIRY_DAYS_RANGE.min, draft.params.days) },
+    });
     setStrikeSettings({ ...nextDraft.strikeSettings });
     setRows(copyRows(nextDraft.rows));
     setUnderlyingQty(nextDraft.underlyingQty);

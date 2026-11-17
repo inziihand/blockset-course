@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "appKey": "options-strategy-lab",
-  "appVersion": "0.8.1",
+  "appVersion": "0.8.2",
   "services": [],
   "dataMigrations": [],
   "sourceRollback": { "strategy": "transaction-backup" }
